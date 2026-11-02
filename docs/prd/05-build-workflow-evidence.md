@@ -2,7 +2,7 @@
 
 Version 1.2 · 2 November 2026 · Owner: Arya
 
-Arya and Rashid build the critical path, Khushi builds the security tests alongside them, and Chami runs documentation, evaluation and the diary. Every change goes through a short task branch and PR with manual local checks; team review is encouraged but not enforced in the current GitHub ruleset, and every task starts from a short task file that points to the relevant parts of these five sections.
+Arya and Rashid build the critical path, Khushi builds the security tests alongside them, and Chami runs documentation, evaluation and the diary. Every change goes through a short task branch and PR with manual local checks; team review is encouraged but not enforced in the current GitHub ruleset, and every task starts from a GitHub plan issue that points to the relevant parts of these five sections.
 
 The five PRD sections in `docs/prd/` are the source of truth for the project. Change them only through a PR.
 
@@ -93,7 +93,7 @@ Use GitHub Flow: for each task create a new short-lived branch off current `main
 4. Once T-01b merges, Arya integrates login UI on `feat/T-04c-auth-integration`. After T-05 Study Spaces is verified, Rashid builds the actual upload backend T-06b. Arya connects materials UI when its API contracts and then implementation are ready.
 5. Each independent task gets its **own branch + PR**; an integrated frontend feature may require a **separate follow-up branch** after backend and UI PRs merge. No one should create new task branches from another teammate's unmerged work by default.
 
-**Tracking:** record `Task ID | Owner | Branch | Depends on | Can start? | Blocker | PR URL | Status`. Suggested statuses: Not started, In progress, Blocked, In review, Done. **Done** requires merged PR plus the relevant verified outcome, not merely a convincing mockup.
+**Tracking:** record `Task ID | Owner | Plan issue | Branch | Depends on | Can start? | Blocker | PR URL | Status`. Suggested statuses: Not started, In progress, Blocked, In review, Done. **Done** requires merged PR plus the relevant verified outcome, not merely a convincing mockup.
 
 ### Step-by-step task workflow for every collaborator
 
@@ -129,7 +129,7 @@ git push -u origin spike/T-02-ai-smoke
 ```
 
 `git add .` is safe **only after** checking `git status` and the actual diff for secrets/unrelated files; prefer `git add <specific-paths>` when in doubt.
-6. **Open the Pull Request** in GitHub: **base = `main`**, **compare = `spike/T-02-ai-smoke`**. Include Task ID, PRD rule/section, what changed, actual tests run, known limitations and dependency/contract changes. Request Arya or the designated teammate to review where available. Current ruleset does not require approvals.
+6. **Open the Pull Request** in GitHub: **base = `main`**, **compare = `spike/T-02-ai-smoke`**. Include Task ID, the plan issue (`Closes #<issue>`), PRD rule/section, what changed, actual tests run, known limitations and dependency/contract changes. Request Arya or the designated teammate to review where available. Current ruleset does not require approvals.
 7. **Fix on the same branch.** Push corrections to update the open PR. If `main` changed, update your feature branch against the latest `main` and resolve any conflicts there. Do not force-push shared history without coordination.
 8. **Squash-merge the ready PR** into `main`; inspect the Vercel deployment and smoke-test applicable runtime changes. A docs/test-only PR need not show a new UI feature; record its checks and results. Update the task status and remove the remote branch when appropriate.
 9. **Start the next task from updated `main`** using a **different task's branch name**. Never reuse a previous task's branch or push directly to `main`.
@@ -177,7 +177,7 @@ git push -u origin spike/T-02-ai-smoke
 
 ## Working on a task
 
-Every piece of work follows the same steps and is guided by two kinds of document in the repo: one contributor guide for the whole project, and one task file per task. Both are written as complete, self-contained instructions, so anyone can pick up a task without extra explanation.
+Every piece of work follows the same steps and is guided by two kinds of document: one contributor guide for the whole project in the repo, and one GitHub plan issue per task. Both are written as complete, self-contained instructions, so anyone (or their AI coding agent) can pick up a task without extra explanation.
 
 **Contributor guide (`docs/CONTRIBUTING.md`).** One short guide (about 100 lines) for working in this repository. It covers:
 
@@ -193,30 +193,29 @@ Every piece of work follows the same steps and is guided by two kinds of documen
 
 Personal editor and tool settings stay on each person's machine and are not committed.
 
-**Task files** (`docs/tasks/T-14-scoring-mastery-revision.md`, one page each):
+**Plan issues** (one GitHub issue per task, titled `T-14: Quiz submission, scoring, mastery and revision rules`, created from the **Task plan** issue template in `.github/ISSUE_TEMPLATE/task-plan.md`). The issue is the high-level implementation plan: goal, PRD references, scope, approach, areas to change, contracts, acceptance criteria and risks. It describes the shape of the work, not line-by-line code, so the implementer (or their AI agent) works out the details against the PRD. Creating the issue is enough to start; there is no separate plan-approval step, and the plan is reviewed together with the PR. Example of the level of detail:
 
-```jsx
-# T-14 Quiz submission, scoring, mastery and revision rules
-Owner: Rashid   Reviewer: Arya   Branch: feat/T-14-scoring-mastery-revision
-Implements: Section 2 · Quizzes, Mastery, Revision;
-  Section 4 · attempts, attempt_items, revision_items; security rules 4–5
-May change: src/features/quizzes/**, src/features/progress/**,
-  src/features/revision/**, src/app/api/attempts/**, tests/**
+```markdown
+## T-14: Quiz submission, scoring, mastery and revision rules
+Owner: Rashid · Branch: feat/T-14-scoring-mastery-revision · Depends on: T-11b
+PRD: §2 Quizzes, Mastery, Revision; §4 attempts, attempt_items,
+  revision_items; security rules 4–5
+Approach: autosave and submit endpoints; server-side scoring in one
+  transaction; mastery as a query; revision scheduling with request keys
 Must not change: auth, other features, migrations (ask the reviewer first)
 Contract: POST /api/attempts/:id/submit (Zod schema in schemas.ts)
-Tests to write first: 7 of 10 correct = 70%; forged score ignored;
+Acceptance: 7 of 10 correct = 70%; forged score ignored;
   double submit = one result; another student's attempt = 404;
   4 questions = insufficient evidence; wrong answer creates a review due tomorrow
-Done when: the Definition of Done is met and the PR is merged
 ```
 
 **Steps for every task**
 
-1. Read the task file and the sections it links to. Write a short plan (files, API contracts and tests). Agree contract changes with teammates when possible; Arya may proceed alone on initial foundation tasks.
+1. Create the plan issue from the template (or open the existing one) and read the PRD sections it links to. Agree contract changes with teammates when possible; Arya may proceed alone on initial foundation tasks.
 2. For rules with numbers (scoring, mastery, revision dates, limits), write the tests first, then the code.
 3. Keep one task per branch, and start the next task on a new branch from `main`.
 4. Before opening the PR, run `pnpm exec eslint .`, `pnpm exec tsc --noEmit` and `pnpm build`; also run tests once their scripts are implemented. Read every changed line: each author must be able to explain all the code they submit, in review and in the presentation.
-5. In the PR, list anything that was not verified.
+5. In the PR, link the plan issue with `Closes #<issue>`, note any deviation from the plan, and list anything that was not verified. Arya reviews the PR.
 
 ## Testing and Definition of Done
 
@@ -258,7 +257,7 @@ Text that changes with the code lives in the repo; personal data, other people's
 | --- | --- |
 | The 5 PRD sections (`docs/prd/`) | Signed consent forms |
 | README and setup guide; user guide | Reviewer names alongside their ratings; the raw rating sheets |
-| Task files (`docs/tasks/`) | Usability session recordings and tester details |
+| Plan issues (GitHub Issues, not files) | Usability session recordings and tester details |
 | `DATASETS.md` and the evaluation rubric | Lecture files that may not be redistributed |
 | Anonymised evaluation and test summaries ("Tester 3 completed 6 of 6 tasks") | Demo videos and presentation slides |
 | Responsible AI report draft | Final report as Word or PDF while it is being co-edited (the submitted PDF can be committed at the end) |

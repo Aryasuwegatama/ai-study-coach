@@ -14,7 +14,14 @@ The five PRD v1.2 sections in [`docs/prd/`](prd/) are the source of truth. Do no
 | [4 · Architecture & Database](prd/04-architecture-database.md) | Folders, request flow, tables, background jobs, security rules, API routes, env vars |
 | [5 · Build Workflow & Evidence](prd/05-build-workflow-evidence.md) | Task map, ownership, Git workflow, testing, Definition of Done |
 
-Task files go in `docs/tasks/` (one per task, format in Section 5). If your task has one, read it and the sections it links to first.
+## Plan issues
+
+Every task starts from a **GitHub issue** that holds its high-level implementation plan. Create it with the **Task plan** template ([`.github/ISSUE_TEMPLATE/task-plan.md`](../.github/ISSUE_TEMPLATE/task-plan.md)), titled `T-XX: <task name>`.
+
+- The plan stays high level: goal, PRD references, scope, approach, areas to change, contracts, acceptance criteria, risks. No line-by-line code.
+- Whoever implements the task, you or your AI agent, reads the issue and the PRD sections it links to first, then works out the details.
+- Creating the issue is enough to start. Arya reviews the plan and the code together at PR time.
+- If the implementation has to differ from the plan, say so in the PR.
 
 ## Commands
 
@@ -43,7 +50,7 @@ Coordinate before changing anything you don't own, especially shared files: `pac
 
 One task = one branch = one Pull Request.
 
-1. Check the task's prerequisites in the Section 5 task map are merged.
+1. Create (or open) the task's plan issue and check its prerequisites in the Section 5 task map are merged.
 2. Branch from the latest `main`:
    ```bash
    git switch main
@@ -52,7 +59,7 @@ One task = one branch = one Pull Request.
    ```
 3. Implement only that task's scope. Don't start a second task with uncommitted work on the first.
 4. Run lint, typecheck and build (and tests once configured). Check `git status` and the full diff.
-5. Push and open a PR to `main` with: task ID, PRD sections implemented, what changed, checks actually run, and anything not verified.
+5. Push and open a PR to `main` with: task ID, `Closes #<plan issue>`, PRD sections implemented, what changed, any deviation from the plan, checks actually run, and anything not verified.
 6. Squash-merge, delete the branch, smoke-test the Vercel deployment.
 
 `main` is protected: PRs and squash merges only, no direct pushes. No approvals or GitHub Actions CI are required, but ask a teammate to review shared DB, auth or security changes.
