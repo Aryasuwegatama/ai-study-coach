@@ -40,7 +40,8 @@ ai-study-coach/
 │  └─ lib/env.ts, errors.ts
 ├─ drizzle/                         # SQL migrations
 ├─ tests/unit, integration, e2e, fixtures
-├─ docs/prd/ (the 5 sections), tasks/, evaluation/, diary/, CONTRIBUTING.md
+├─ docs/prd/ (the 5 sections), evaluation/, diary/, CONTRIBUTING.md
+├─ .github/ISSUE_TEMPLATE/task-plan.md   # plan issue template
 └─ .env.example                     # variable names only
 ```
 
