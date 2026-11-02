@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Study Coach
 
-## Getting Started
+AI-Powered Learning Analytics and Study Coach for Students.
+Victoria University · NIT3003 Capstone 2 · Project 15.
 
-First, run the development server:
+Students upload study materials, confirm AI-suggested topics, generate cited quizzes and flashcards, track topic mastery, find weak topics and complete scheduled revision.
+
+**Status:** early development. The Next.js scaffold and a starter deployment exist; authentication, database, AI and product features are not built yet. See the task map in [PRD Section 5](docs/prd/05-build-workflow-evidence.md).
+
+Live (starter deployment): <https://ai-study-coach-zeta.vercel.app/>
+
+## Documentation
+
+- [`docs/prd/`](docs/prd/): the five PRD v1.2 sections, the source of truth for requirements
+- [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md): workflow, commands, folder structure and rules for working in this repo
+
+## Stack
+
+Next.js 16 (App Router), React, TypeScript, Tailwind CSS v4, shadcn/ui, pnpm.
+Planned: Better Auth, Neon Postgres with pgvector, Drizzle ORM, Vercel Private Blob, Upstash QStash, Vercel AI SDK with Google Gemini, Vitest, Playwright, axe, k6.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000>. Environment setup will be documented here once services are configured.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Team
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Member | Role |
+| --- | --- |
+| Arya | Project Lead · Infrastructure, Authentication and Frontend |
+| Rashid | Technical Lead · Backend Features |
+| Khushi | Cybersecurity & Management Lead |
+| Chami | Documentation & Planning |
