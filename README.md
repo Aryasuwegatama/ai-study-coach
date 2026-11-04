@@ -5,7 +5,7 @@ Victoria University · NIT3003 Capstone 2 · Project 15.
 
 Students upload study materials, confirm AI-suggested topics, generate cited quizzes and flashcards, track topic mastery, find weak topics and complete scheduled revision.
 
-**Status:** early development. The Next.js scaffold and a starter deployment exist; authentication, database, AI and product features are not built yet. See the task map in [PRD Section 5](docs/prd/05-build-workflow-evidence.md).
+**Status:** early development. The Next.js scaffold, a starter deployment and the initial infrastructure connections (database, storage, jobs, AI) exist; authentication and product features are not built yet. See the task map in [PRD Section 5](docs/prd/05-build-workflow-evidence.md).
 
 Live (starter deployment): <https://ai-study-coach-zeta.vercel.app/>
 
@@ -26,7 +26,42 @@ pnpm install
 pnpm dev
 ```
 
-Open <http://localhost:3000>. Environment setup will be documented here once services are configured.
+Open <http://localhost:3000>.
+
+### Environment setup (new contributors)
+
+The app needs a Neon Postgres database (with pgvector), a Vercel Private Blob
+store, an Upstash QStash account and a Google AI Studio (Gemini) API key.
+Each developer uses their **own** development credentials, never the
+project's production ones (see Security rule 10 in
+[PRD Section 4](docs/prd/04-architecture-database.md)).
+
+1. Create a `.env.local` file (git-ignored) in the project root with the
+   variable names listed in [PRD Section 4](docs/prd/04-architecture-database.md#environment-variables),
+   "Environment variables".
+   - **Neon:** create your own branch (e.g. `dev-<name>`) with a dev
+     database and a separate `test` database. `DATABASE_URL` is the pooled
+     connection string; `DATABASE_URL_UNPOOLED` is the same branch's direct
+     string (used for migrations); `DATABASE_URL_TEST` is the `test`
+     database on the same branch.
+   - **Blob:** create a token scoped to the project's Blob store.
+   - **QStash:** get your token and signing keys from the Upstash console.
+   - **Gemini:** create an API key in Google AI Studio, and pick model IDs
+     that are currently available to your account — deprecated IDs fail
+     with a clear error naming the replacement.
+2. Enable pgvector and run the one existing migration on your dev **and**
+   test databases:
+   ```bash
+   pnpm run db:migrate                              # dev (uses .env.local)
+   DATABASE_URL_UNPOOLED=<test-db-unpooled-url> pnpm exec drizzle-kit migrate
+   ```
+3. Verify every service is actually reachable:
+   ```bash
+   pnpm run check:connections
+   ```
+   This checks a database query and transaction, pgvector, a private Blob
+   put/delete, QStash credentials and one trivial Gemini request — printing
+   only pass/fail, never a secret value.
 
 ## Team
 

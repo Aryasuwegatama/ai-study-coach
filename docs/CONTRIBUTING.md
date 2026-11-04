@@ -44,7 +44,7 @@ See the task map in Section 5 for task IDs, owners and prerequisites.
 - **Khushi**: threat model, security and ownership tests, prompt-injection and upload/worker security.
 - **Chami**: diary, task tracking, datasets, evaluation, guides and submission evidence.
 
-Coordinate before changing anything you don't own, especially shared files: `package.json`, `pnpm-lock.yaml`, `.env.example`, the Drizzle schema and migrations, auth config and route contracts. Changes to `src/server/` or the database schema need a review from Arya or Rashid.
+Coordinate before changing anything you don't own, especially shared files: `package.json`, `pnpm-lock.yaml`, the Drizzle schema and migrations, auth config and route contracts. Changes to `src/server/` or the database schema need a review from Arya or Rashid.
 
 ## Git workflow
 
@@ -97,7 +97,7 @@ The ten security rules in Section 4 also apply to every change. In particular: i
 
 ## Secrets and data
 
-- Real secrets go only in `.env.local` (git-ignored) and Vercel project settings. `.env.example` holds variable names only.
+- Real secrets go only in `.env.local` (git-ignored) and Vercel project settings. Variable names are documented in PRD Section 4's "Environment variables" table, never committed as values.
 - Use your own development/test database, never the production one.
 - This repository is public. Never commit `.env` files, credentials, private lecture materials, consent forms or any personal information. Commit only permitted, anonymised fixtures and summaries.
 
