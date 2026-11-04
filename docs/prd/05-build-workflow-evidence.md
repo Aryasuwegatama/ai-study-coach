@@ -74,8 +74,8 @@ Use GitHub Flow: for each task create a new short-lived branch off current `main
 - **Arya owns Better Auth:** sign-up/sign-in fields, error handling, session retrieval, protected route behaviour, redirect path and shared `requireUser()` / `requireSpace()` helpers. Rashid imports these contracts; he should not create a second auth system.
 - **Rashid owns domain database migrations:** after Arya establishes Neon/Drizzle/pgvector and auth schema, Rashid owns new material/chunk/set/attempt/revision tables as required by server features. Arya owns the initial Study Space table/API (T-05); align composite FKs before Rashid adds related tables.
 - **Upload and processing contracts:** agree material status enums, source IDs/page markers, owner checks, file limits, retry semantics and API response/error shapes before Arya wires materials screens.
-- **Provider setup vs implementation:** Arya adds safe service clients/configuration, secrets in private development settings and `.env.example` names; Rashid implements the actual processing handlers, retrieval and AI jobs. No production credential sharing.
-- **Shared files:** agree one owner for `package.json`, lockfile, `.env.example`, Drizzle schema/migrations, auth config and route contracts per PR. Coordinate changes that touch the same file and merge foundation changes first.
+- **Provider setup vs implementation:** Arya adds safe service clients/configuration and secrets in private development settings, documenting variable names in Section 4's Environment variables table; Rashid implements the actual processing handlers, retrieval and AI jobs. No production credential sharing.
+- **Shared files:** agree one owner for `package.json`, lockfile, Drizzle schema/migrations, auth config and route contracts per PR. Coordinate changes that touch the same file and merge foundation changes first.
 
 #### Independent vs blocked tasks
 

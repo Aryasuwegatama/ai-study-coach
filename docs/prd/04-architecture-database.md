@@ -41,8 +41,7 @@ ai-study-coach/
 ├─ drizzle/                         # SQL migrations
 ├─ tests/unit, integration, e2e, fixtures
 ├─ docs/prd/ (the 5 sections), evaluation/, diary/, CONTRIBUTING.md
-├─ .github/ISSUE_TEMPLATE/task-plan.md   # plan issue template
-└─ .env.example                     # variable names only
+└─ .github/ISSUE_TEMPLATE/task-plan.md   # plan issue template
 ```
 
 **Module rules:** a feature may import another feature only through its `server/index.ts`. Changes to `src/server/` or the database schema need a review from Arya or Rashid.
@@ -146,7 +145,7 @@ Ten rules, each with a test the security leads (Khushi, with Rashid reviewing) c
 | 7 | The job step route accepts only QStash-signed requests. | Unsigned or replayed call → 401 or no effect |
 | 8 | Uploaded text is data, never instructions (Section 3 guardrails). | Prompt-injection test file |
 | 9 | Passwords are hashed with Argon2id (custom Better Auth hasher); session cookies are httpOnly, secure and sameSite; Better Auth's built-in rate limiting is on for sign-in and sign-up. | Inspect the user table and cookies |
-| 10 | Secrets live only in Vercel environment variables and `.env.local` (git-ignored); `.env.example` holds names only. Errors shown to users never include stack traces. | Manual staged-diff/secret review and local scanning before PR merge |
+| 10 | Secrets live only in Vercel environment variables and `.env.local` (git-ignored); variable names are documented in this section, never values. Errors shown to users never include stack traces. | Manual staged-diff/secret review and local scanning before PR merge |
 
 ## API endpoints
 
@@ -184,7 +183,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 
 ## Environment variables
 
-These names go in `.env.example` (names only, never values); real values live in `.env.local` and in Vercel's project settings.
+Real values live in `.env.local` (git-ignored) and in Vercel's project settings; never commit them. The table below is the checked-in record of variable names.
 
 | Variable | Used for |
 | --- | --- |

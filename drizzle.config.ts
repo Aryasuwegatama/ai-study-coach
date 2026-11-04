@@ -10,7 +10,7 @@ config({ path: ".env.local" });
 const databaseUrl = process.env.DATABASE_URL_UNPOOLED;
 if (!databaseUrl) {
   throw new Error(
-    "DATABASE_URL_UNPOOLED is required to run Drizzle Kit. Check .env.local against .env.example.",
+    "DATABASE_URL_UNPOOLED is required to run Drizzle Kit. Check .env.local against the Environment variables table in docs/prd/04-architecture-database.md.",
   );
 }
 

@@ -5,8 +5,9 @@ import { z } from "zod";
  *
  * This validates only the variables this task (T-01a) wires up: the
  * database, Private Blob, QStash and the AI provider. Variables for later
- * tasks (Better Auth, the cron route) are documented in `.env.example` but
- * are not required here; add them to this schema when their task lands.
+ * tasks (Better Auth, the cron route) are listed in PRD Section 4's
+ * "Environment variables" table but are not required here; add them to
+ * this schema when their task lands.
  *
  * Validation is lazy (`serverEnv()`, not a module-level `parse()`) so an
  * unrelated Next.js build step that merely imports this file does not fail
@@ -57,7 +58,7 @@ export function serverEnv(): ServerEnv {
       .map((issue) => issue.path.join("."))
       .join(", ");
     throw new Error(
-      `Invalid or missing environment variables: ${missing}. Check .env.local against .env.example.`,
+      `Invalid or missing environment variables: ${missing}. Check .env.local against the Environment variables table in docs/prd/04-architecture-database.md.`,
     );
   }
 

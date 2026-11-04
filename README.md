@@ -36,7 +36,9 @@ Each developer uses their **own** development credentials, never the
 project's production ones (see Security rule 10 in
 [PRD Section 4](docs/prd/04-architecture-database.md)).
 
-1. Copy `.env.example` to `.env.local` and fill in your own values.
+1. Create a `.env.local` file (git-ignored) in the project root with the
+   variable names listed in [PRD Section 4](docs/prd/04-architecture-database.md#environment-variables),
+   "Environment variables".
    - **Neon:** create your own branch (e.g. `dev-<name>`) with a dev
      database and a separate `test` database. `DATABASE_URL` is the pooled
      connection string; `DATABASE_URL_UNPOOLED` is the same branch's direct
