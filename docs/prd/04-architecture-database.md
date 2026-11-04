@@ -189,6 +189,7 @@ These names go in `.env.example` (names only, never values); real values live in
 | Variable | Used for |
 | --- | --- |
 | `DATABASE_URL` | Postgres: Neon pooled URL in production; your personal Neon branch's dev database locally |
+| `DATABASE_URL_UNPOOLED` | Neon's direct (unpooled) URL for the same branch; Drizzle Kit migrations use this instead of the pooled URL |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Session signing; the app's base URL |
 | `BLOB_READ_WRITE_TOKEN` | Private Blob store (local development; Vercel uses its own sign-in in production) |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | Publishing job steps; verifying they came from QStash |

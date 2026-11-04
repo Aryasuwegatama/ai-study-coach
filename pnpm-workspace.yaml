@@ -1,3 +1,13 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+onlyBuiltDependencies:
+  - esbuild
+
+# GHSA-g3hv-75wg-m249 (Dependabot #1): force every transitive minimatch
+# (pulled in only by eslint/@typescript-eslint tooling, dev-only) to a
+# patched version, since none of those packages have bumped their own
+# dependency yet.
+overrides:
+  minimatch: ^11.0.1
