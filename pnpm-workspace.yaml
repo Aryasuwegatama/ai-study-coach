@@ -9,5 +9,12 @@ onlyBuiltDependencies:
 # (pulled in only by eslint/@typescript-eslint tooling, dev-only) to a
 # patched version, since none of those packages have bumped their own
 # dependency yet.
+#
+# zod (Dependabot #3, high): @vercel/blob -> @vercel/oidc ->
+# @vercel/cli-config pins an older, vulnerable zod (4.1.11) separately
+# from our own ^4.6.7. Forced to the same patched version everywhere;
+# verified with `pnpm run check:connections` (exercises a real Blob
+# put/delete) after applying this.
 overrides:
   minimatch: ^11.0.1
+  zod: ^4.6.7
