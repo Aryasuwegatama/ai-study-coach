@@ -5,7 +5,7 @@ Victoria University · NIT3003 Capstone 2 · Project 15.
 
 Students upload study materials, confirm AI-suggested topics, generate cited quizzes and flashcards, track topic mastery, find weak topics and complete scheduled revision.
 
-**Status:** early development. The Next.js scaffold, a starter deployment and the initial infrastructure connections (database, storage, jobs, AI) exist; authentication and product features are not built yet. See the task map in [PRD Section 5](docs/prd/05-build-workflow-evidence.md).
+**Status:** early development. The Next.js scaffold, a starter deployment, the initial infrastructure connections (database, storage, jobs, AI) and the Better Auth backend (email/password sign-up, sign-in, sessions) exist; the sign-in/sign-up screens and product features are not built yet. See the task map in [PRD Section 5](docs/prd/05-build-workflow-evidence.md).
 
 Live (starter deployment): <https://ai-study-coach-zeta.vercel.app/>
 
@@ -16,8 +16,8 @@ Live (starter deployment): <https://ai-study-coach-zeta.vercel.app/>
 
 ## Stack
 
-Next.js 16 (App Router), React, TypeScript, Tailwind CSS v4, shadcn/ui, pnpm.
-Planned: Better Auth, Neon Postgres with pgvector, Drizzle ORM, Vercel Private Blob, Upstash QStash, Vercel AI SDK with Google Gemini, Vitest, Playwright, axe, k6.
+Next.js 16 (App Router), React, TypeScript, Tailwind CSS v4, shadcn/ui, pnpm, Better Auth (email/password, Argon2id), Neon Postgres with pgvector, Drizzle ORM, Vercel Private Blob, Upstash QStash, Vercel AI SDK with Google Gemini.
+Planned: Vitest, Playwright, axe, k6.
 
 ## Getting started
 
@@ -49,19 +49,23 @@ project's production ones (see Security rule 10 in
    - **Gemini:** create an API key in Google AI Studio, and pick model IDs
      that are currently available to your account — deprecated IDs fail
      with a clear error naming the replacement.
-2. Enable pgvector and run the one existing migration on your dev **and**
-   test databases:
+   - **Better Auth:** generate your own `BETTER_AUTH_SECRET` (`npx auth
+     secret`, or any random 32+ character string — never reuse Production's
+     or Preview's), and set `BETTER_AUTH_URL=http://localhost:3000`.
+2. Run the existing migrations (pgvector, then the Better Auth tables) on
+   your dev **and** test databases:
    ```bash
    pnpm run db:migrate                              # dev (uses .env.local)
    DATABASE_URL_UNPOOLED=<test-db-unpooled-url> pnpm exec drizzle-kit migrate
    ```
 3. Verify every service is actually reachable:
    ```bash
-   pnpm run check:connections
+   pnpm run check:connections   # database, Blob, QStash, Gemini
+   pnpm run check:auth          # sign-up, sign-in, sign-out, sessions, rate limiting
    ```
-   This checks a database query and transaction, pgvector, a private Blob
-   put/delete, QStash credentials and one trivial Gemini request — printing
-   only pass/fail, never a secret value.
+   Both print only pass/fail and short, safe messages — never a secret,
+   session token or password. `check:auth` creates and deletes its own
+   test users; it never touches real student accounts.
 
 ## Team
 

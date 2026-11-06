@@ -31,9 +31,18 @@ pnpm dev                  # run the app locally
 pnpm exec eslint .        # lint
 pnpm exec tsc --noEmit    # typecheck
 pnpm build                # production build
+pnpm run db:generate      # generate a Drizzle migration from schema changes
+pnpm run db:migrate       # apply pending migrations (uses DATABASE_URL_UNPOOLED)
+pnpm run auth:generate    # regenerate the Better Auth Drizzle schema after
+                           # changing src/server/auth/config.ts
+pnpm run check:connections  # verify database, Blob, QStash and Gemini are reachable
+pnpm run check:auth         # verify sign-up/in/out, sessions and rate limiting
 ```
 
-Test and database commands will be added here once their scripts exist.
+`pnpm run vercel-build` (`drizzle-kit migrate && next build`) is what Vercel
+runs on every deploy, not something you run locally — it migrates whichever
+database that deployment's environment points at before building. Test
+commands will be added here once their scripts exist.
 
 ## Ownership
 

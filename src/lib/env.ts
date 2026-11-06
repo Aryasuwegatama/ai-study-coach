@@ -3,11 +3,11 @@ import { z } from "zod";
 /**
  * Server-only environment configuration.
  *
- * This validates only the variables this task (T-01a) wires up: the
- * database, Private Blob, QStash and the AI provider. Variables for later
- * tasks (Better Auth, the cron route) are listed in PRD Section 4's
- * "Environment variables" table but are not required here; add them to
- * this schema when their task lands.
+ * This validates the variables T-01a and T-01b wire up: the database,
+ * Private Blob, QStash, the AI provider and Better Auth. Variables for
+ * later tasks (the cron route) are listed in PRD Section 4's "Environment
+ * variables" table but are not required here; add them to this schema
+ * when their task lands.
  *
  * Validation is lazy (`serverEnv()`, not a module-level `parse()`) so an
  * unrelated Next.js build step that merely imports this file does not fail
@@ -38,6 +38,20 @@ const serverEnvSchema = z.object({
   AI_MODEL_GENERATE: z.string().min(1),
   AI_MODEL_CHECK: z.string().min(1),
   AI_MODEL_EMBED: z.string().min(1),
+
+  // Better Auth (T-01b). BETTER_AUTH_URL is required on Production, but not
+  // on previews, where the code derives the base URL from Vercel's own
+  // branch-deployment-URL variable instead (see src/server/auth/config.ts).
+  BETTER_AUTH_SECRET: z.string().min(32),
+  BETTER_AUTH_URL: z.string().url().optional(),
+
+  // Vercel's own system variables (always present on Vercel, unset
+  // locally): used to derive the preview base URL, matching the existing
+  // APP_URL/VERCEL_BRANCH_URL precedent in PRD Section 4, and to tell
+  // Production apart from Preview.
+  VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+  VERCEL_BRANCH_URL: z.string().min(1).optional(),
+  VERCEL_URL: z.string().min(1).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -66,6 +80,10 @@ export function serverEnv(): ServerEnv {
     throw new Error(
       "GOOGLE_GENERATIVE_AI_API_KEY is required when AI_PROVIDER=gemini.",
     );
+  }
+
+  if (result.data.VERCEL_ENV === "production" && !result.data.BETTER_AUTH_URL) {
+    throw new Error("BETTER_AUTH_URL is required on Vercel Production.");
   }
 
   cached = result.data;
