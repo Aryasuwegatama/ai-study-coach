@@ -100,7 +100,8 @@ Name files explicitly — never a bare generic name like `client.ts`, `config.ts
 
 - Use kebab-case, prefixed with its domain: `db-client.ts`, `auth-config.ts`, `server-env.ts`, `api-errors.ts` — not `client.ts`, `config.ts`, `env.ts`, `errors.ts`.
 - A barrel/re-export file (just re-exporting a folder's modules) stays `index.ts` — that's a normal, already-clear convention, not the kind of ambiguity this rule fixes.
-- **Next.js App Router reserved filenames are exempt and must keep their exact name**: `page.tsx`, `layout.tsx`, `route.ts`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `template.tsx`, `default.tsx`, `middleware.ts`. Next finds these by filename alone; renaming one breaks the route. Keep the file itself thin and put the real logic in an explicitly-named sibling module it imports (e.g. `sign-in/page.tsx` delegates to `sign-in/sign-in-view.tsx`).
+- **Next.js App Router reserved filenames are exempt and must keep their exact name**: `page.tsx`, `layout.tsx`, `route.ts`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `template.tsx`, `default.tsx`, `proxy.ts` (Next 16's renamed `middleware.ts`). Next finds these by filename alone; renaming one breaks the route. Keep the file itself thin and put the real logic in an explicitly-named sibling module it imports (e.g. `sign-in/page.tsx` delegates to `sign-in/sign-in-view.tsx`).
+- Sample data shown in the UI lives in `src/features/<feature>/fixtures/` as `<feature>-sample-<what>.ts`; test inputs live in `tests/fixtures/`.
 
 ## Rules that are never broken
 

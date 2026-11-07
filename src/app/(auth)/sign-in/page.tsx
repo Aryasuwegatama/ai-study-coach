@@ -1,16 +1,20 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { serverEnv } from "@/lib/server-env";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { SignInCardSkeleton } from "./sign-in-card-skeleton";
-import { SignedInView, SignedOutView } from "./sign-in-view";
+import { SignedOutView } from "./sign-in-view";
 
 /**
  * Styled Google-only sign-in screen (T-04a; replaces the bare T-01c page).
  * The glass header and centred layout live in `(auth)/layout.tsx`; this
  * page renders only the card itself. Signed out: a Google Identity
  * Services button where supported, plus the plain "Continue with Google"
- * redirect button (always present — see sign-in-view.tsx). Signed in:
- * name, email, saved time zone and a Sign out button.
+ * redirect button (always present — see sign-in-view.tsx).
+ *
+ * Signed in: redirects to `/dashboard` (T-04b) rather than rendering a
+ * card here — this retires T-04a's `SignedInView`, which this screen no
+ * longer needs now that there's somewhere to land after sign-in.
  *
  * Reads the session, so (per node_modules/next/dist/docs/01-app/02-guides/
  * authentication-with-cache-components.md) it sits behind a `<Suspense>`
@@ -42,7 +46,7 @@ async function SignInStatus({
   const error = typeof params.error === "string" ? params.error : undefined;
 
   if (user) {
-    return <SignedInView name={user.name} email={user.email} timeZone={user.timeZone} />;
+    redirect("/dashboard");
   }
   return <SignedOutView error={error} supportsIdentityServices={supportsIdentityServices} />;
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -78,7 +77,7 @@ export function SignedOutView({
     didInitGsiRef.current = true;
     void authClient
       .oneTap({
-        callbackURL: "/sign-in",
+        callbackURL: "/dashboard",
         button: {
           container: gsiContainerRef.current,
           config: {
@@ -105,7 +104,7 @@ export function SignedOutView({
     setPending(true);
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/sign-in",
+      callbackURL: "/dashboard",
       errorCallbackURL: "/sign-in",
     });
   }
@@ -161,65 +160,5 @@ export function SignedOutView({
         .
       </p>
     </div>
-  );
-}
-
-/**
- * Signed-in state: who you are, and a way to sign out. Also sends the
- * browser's IANA time zone once, the first time it's missing or different
- * from what's stored (PRD Section 4: saved right after sign-in).
- */
-export function SignedInView({
-  name,
-  email,
-  timeZone,
-}: {
-  name: string;
-  email: string;
-  timeZone: string | null;
-}) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (browserTimeZone && browserTimeZone !== timeZone) {
-      void authClient
-        .updateUser({ timeZone: browserTimeZone })
-        .then(() => router.refresh());
-    }
-  }, [timeZone, router]);
-
-  const [signingOut, setSigningOut] = useState(false);
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    await authClient.signOut();
-    router.push("/sign-in");
-    router.refresh();
-  }
-
-  return (
-    <Card className="w-full max-w-[480px] rounded-[20px] p-6 sm:p-12">
-      <CardContent className="flex flex-col items-center gap-2 px-0 text-center">
-        <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">
-          You&apos;re signed in
-        </h1>
-        <p className="text-base font-semibold leading-6 text-foreground">{name}</p>
-        <p className="text-sm leading-[1.375rem] text-muted-foreground">{email}</p>
-        <p className="text-xs leading-[1.125rem] text-muted-foreground">
-          Time zone: {timeZone ?? "not set yet"}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleSignOut}
-          disabled={signingOut}
-          className="mt-4 h-11 w-full gap-2 rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
-        >
-          {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          {signingOut ? "Signing out…" : "Sign out"}
-        </Button>
-      </CardContent>
-    </Card>
   );
 }

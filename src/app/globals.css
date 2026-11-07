@@ -71,6 +71,13 @@
  * Light theme only — there is no corresponding `.dark` block.
  */
 :root {
+  /* Tells the browser this page is light-only, so Chrome/Edge's OS-driven
+     auto-dark-mode heuristic (which inverts pages that don't declare a
+     color-scheme) leaves it alone on a dark-mode system — otherwise every
+     token below still computes correctly, but the browser paints an
+     inverted approximation on top of it. No `dark` value is listed
+     because there is no dark theme in Core (PRD Section 2). */
+  color-scheme: light;
   --background: #f7f8fa; /* color-canvas */
   --foreground: #202a3b; /* color-ink */
   --card: #ffffff; /* color-surface */
