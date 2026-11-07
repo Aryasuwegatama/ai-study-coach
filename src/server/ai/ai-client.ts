@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { serverEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/server-env";
 
 /**
  * Thin AI provider adapter: exposes configured model instances only.

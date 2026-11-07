@@ -34,9 +34,9 @@ pnpm build                # production build
 pnpm run db:generate      # generate a Drizzle migration from schema changes
 pnpm run db:migrate       # apply pending migrations (uses DATABASE_URL_UNPOOLED)
 pnpm run auth:generate    # regenerate the Better Auth Drizzle schema after
-                           # changing src/server/auth/config.ts
+                           # changing src/server/auth/auth-config.ts
 pnpm run check:connections  # verify database, Blob, QStash and Gemini are reachable
-pnpm run check:auth         # verify sign-up/in/out, sessions and rate limiting
+pnpm run check:auth         # verify sessions, sign-out, the Google sign-in URL and rate limiting
 ```
 
 `pnpm run vercel-build` (`drizzle-kit migrate && next build`) is what Vercel
@@ -93,6 +93,14 @@ From Section 4. Study Spaces is the pattern every feature follows.
 | `tests/` | `unit/`, `integration/`, `e2e/`, `fixtures/` |
 
 A feature may import another feature only through its `server/index.ts`. Create folders only when you need them.
+
+## File naming
+
+Name files explicitly — never a bare generic name like `client.ts`, `config.ts` or `env.ts`. Several folders under `src/server/` hold a same-purpose file (an adapter, a config, a client), so a generic name on its own doesn't say which one it is once you're a few folders deep.
+
+- Use kebab-case, prefixed with its domain: `db-client.ts`, `auth-config.ts`, `server-env.ts`, `api-errors.ts` — not `client.ts`, `config.ts`, `env.ts`, `errors.ts`.
+- A barrel/re-export file (just re-exporting a folder's modules) stays `index.ts` — that's a normal, already-clear convention, not the kind of ambiguity this rule fixes.
+- **Next.js App Router reserved filenames are exempt and must keep their exact name**: `page.tsx`, `layout.tsx`, `route.ts`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `template.tsx`, `default.tsx`, `middleware.ts`. Next finds these by filename alone; renaming one breaks the route. Keep the file itself thin and put the real logic in an explicitly-named sibling module it imports (e.g. `sign-in/page.tsx` delegates to `sign-in/sign-in-view.tsx`).
 
 ## Rules that are never broken
 

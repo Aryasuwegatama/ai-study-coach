@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -62,6 +63,14 @@ export default function Home() {
           >
             Documentation
           </a>
+        </div>
+        <div className="flex gap-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+          <Link href="/sign-in" className="underline hover:text-zinc-950 dark:hover:text-zinc-50">
+            Sign in
+          </Link>
+          <Link href="/privacy" className="underline hover:text-zinc-950 dark:hover:text-zinc-50">
+            Privacy policy
+          </Link>
         </div>
       </main>
     </div>

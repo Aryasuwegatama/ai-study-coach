@@ -12,7 +12,7 @@ The role split below is the **agreed proposed implementation allocation**, based
 
 | Person | Project role | Owns in Capstone 2 | Coordinates/reviews |
 | --- | --- | --- | --- |
-| Arya | Project Lead / System & UI Lead | **Initial project-wide setup:** GitHub/Next.js/Vercel, Neon database connection, Drizzle migration tooling, pgvector extension, Blob/QStash/Gemini development configuration, safe env template; **all authentication** (Better Auth server/session/registration/login plus login UI); Study Spaces UI/API; frontend screens, integration, release | Owns infrastructure/shared contract decisions; reviews Rashid's server/backend PRs |
+| Arya | Project Lead / System & UI Lead | **Initial project-wide setup:** GitHub/Next.js/Vercel, Neon database connection, Drizzle migration tooling, pgvector extension, Blob/QStash/Gemini development configuration, safe env template; **all authentication** (Better Auth server/session, Google-only sign-in, plus the sign-in UI); Study Spaces UI/API; frontend screens, integration, release | Owns infrastructure/shared contract decisions; reviews Rashid's server/backend PRs |
 | Rashid | Technical Lead / Backend Features | **After setup:** domain database schema and feature migrations, secure uploads, file extraction/chunks, AI/RAG and embeddings, queue/job logic, quiz/deck generation, server scoring, mastery and revision services | Coordinates schema changes with Arya; implements service contracts consumed by Arya's UI |
 | Khushi | Cybersecurity & Management Lead | Threat model, ownership/access-control test cases, upload and worker signature tests, prompt-injection safeguards verification, OWASP ZAP, security/privacy evaluation and risk tracking | Reviews authentication, storage and jobs security where available; executable tests wait for interfaces |
 | Chami | Documentation & Planning | Dated diary, requirement/task tracker, datasets/permission records, reviewer recruitment, evaluation rubrics, usability consent, setup/user guides and submission evidence | Reviews docs and tracks dependent milestone evidence |
@@ -64,14 +64,14 @@ Use GitHub Flow: for each task create a new short-lived branch off current `main
 
 | Contributor | Safe starting work | Branch suggestion | Dependency / merge gate |
 | --- | --- | --- | --- |
-| **Arya — setup, authentication and frontend** | Finish initial service connections (Neon/Drizzle/pgvector, Blob/QStash/Gemini development setup), implement Better Auth server/session, then login/registration UI and dashboard shell on separate branches | `chore/T-01a-infrastructure`, `feat/T-01b-auth-backend`, `feat/T-04a-auth-ui`, `feat/T-04b-dashboard-ui` | T-01b needs the working T-01a DB/auth migration configuration; final auth UI integration needs T-01b and T-04a. Dashboard may use fixtures until Study Spaces T-05. |
+| **Arya — setup, authentication and frontend** | Finish initial service connections (Neon/Drizzle/pgvector, Blob/QStash/Gemini development setup), implement Better Auth server/session, switch to Google-only sign-in, then the styled sign-in UI and dashboard shell on separate branches | `chore/T-01a-infrastructure`, `feat/T-01b-auth-backend`, `feat/T-01c-google-auth`, `feat/T-04a-auth-ui`, `feat/T-04b-dashboard-ui` | T-01b needs the working T-01a DB/auth migration configuration; T-01c needs T-01b merged. Dashboard may use fixtures until Study Spaces T-05. |
 | **Rashid — backend features** | While Arya sets up services, draft extraction/chunking acceptance cases, AI prompts/schemas and upload API contract without editing owned foundation files. Once development credentials work, run the AI smoke test and implement backend features in dependency order. | `spike/T-02-ai-smoke`, then `feat/T-06a-upload-contract` | T-02 can prepare fixtures immediately but live provider calls need the safe Gemini dev configuration from T-01a. Upload implementation T-06b requires auth/Study Space services and private Blob setup. |
 | **Khushi — cybersecurity** | Threat model, ownership/auth negative-test plan, upload/injection test fixtures with synthetic text, risk register | `test/T-07a-security-plan` | Planning independent. Executable auth tests need T-01b/T-05; upload/job tests need T-06b/T-08a. |
 | **Chami — documentation/evaluation** | Daily diary, requirement-to-task/dependency tracker, evaluation rubric, permitted datasets, reviewer recruitment and consent plan | `docs/T-17-evidence` (after documentation ownership agreed) | Can start independently; real screenshots, results and user guide require merged working features. Avoid concurrent edits to the same PRD files as Arya's T-03. |
 
 #### Contracts to agree before work branches diverge
 
-- **Arya owns Better Auth:** sign-up/sign-in fields, error handling, session retrieval, protected route behaviour, redirect path and shared `requireUser()` / `requireSpace()` helpers. Rashid imports these contracts; he should not create a second auth system.
+- **Arya owns Better Auth:** Google sign-in configuration, error handling, session retrieval, protected route behaviour, redirect path and shared `requireUser()` / `requireSpace()` helpers. Rashid imports these contracts; he should not create a second auth system.
 - **Rashid owns domain database migrations:** after Arya establishes Neon/Drizzle/pgvector and auth schema, Rashid owns new material/chunk/set/attempt/revision tables as required by server features. Arya owns the initial Study Space table/API (T-05); align composite FKs before Rashid adds related tables.
 - **Upload and processing contracts:** agree material status enums, source IDs/page markers, owner checks, file limits, retry semantics and API response/error shapes before Arya wires materials screens.
 - **Provider setup vs implementation:** Arya adds safe service clients/configuration and secrets in private development settings, documenting variable names in Section 4's Environment variables table; Rashid implements the actual processing handlers, retrieval and AI jobs. No production credential sharing.
@@ -81,16 +81,16 @@ Use GitHub Flow: for each task create a new short-lived branch off current `main
 
 | Category | Can begin immediately | Must wait before integration |
 | --- | --- | --- |
-| Independent | Initial service setup, design system, login UI with fixtures, dashboard shell, extraction/AI spike design, security test plan, evaluation docs | No dependency for starting; each owner must branch separately |
+| Independent | Initial service setup, design system, dashboard shell, extraction/AI spike design, security test plan, evaluation docs | No dependency for starting; each owner must branch separately |
 | Contract-dependent | Rashid's upload/AI schema drafts; Arya's materials/quiz UI with fixtures | Merge agreed API/Zod schemas before connecting UI to server routes |
-| Implementation-dependent | — | Auth integration waits T-01b; Study Space CRUD waits T-01b; real upload waits T-01a, T-01b, T-05 and T-06a; extraction waits T-06b; embeddings/topics wait T-08a + T-02; quizzes wait T-08b; scoring/mastery/revision wait generated items |
+| Implementation-dependent | — | Google-only sign-in (T-01c) waits T-01b; the styled sign-in UI (T-04a) waits T-01c; Study Space CRUD waits T-01b; real upload waits T-01a, T-01b, T-05 and T-06a; extraction waits T-06b; embeddings/topics wait T-08a + T-02; quizzes wait T-08b; scoring/mastery/revision wait generated items |
 
 #### Practical parallel-branch example
 
 1. Arya creates `chore/T-01a-infrastructure` and configures development Neon, Drizzle, pgvector, Blob/QStash/Gemini clients and environment templates. Rashid independently starts `spike/T-02-ai-smoke` with test schemas/fixtures, **without changing Arya's shared config or using production secrets**.
 2. Arya's foundation PR is tested and squash-merged into `main`. Rashid updates his still-open branch against the latest `main` before making provider-backed calls. He completes the smoke test and opens his PR.
-3. Arya branches `feat/T-01b-auth-backend` from latest `main`, adds Better Auth registration/login/sessions and generated auth migrations. On a separate new task branch, Arya builds `feat/T-04a-auth-ui`. Rashid may prepare `feat/T-06a-upload-contract` concurrently if the shared authentication/material DTO expectations are agreed.
-4. Once T-01b merges, Arya integrates login UI on `feat/T-04c-auth-integration`. After T-05 Study Spaces is verified, Rashid builds the actual upload backend T-06b. Arya connects materials UI when its API contracts and then implementation are ready.
+3. Arya branches `feat/T-01b-auth-backend` from latest `main`, adds Better Auth registration/login/sessions and generated auth migrations. Rashid may prepare `feat/T-06a-upload-contract` concurrently if the shared authentication/material DTO expectations are agreed.
+4. Once T-01b merges, Arya switches to Google-only sign-in on `feat/T-01c-google-auth`, then builds the styled sign-in UI on `feat/T-04a-auth-ui` (T-01c merged). After T-05 Study Spaces is verified, Rashid builds the actual upload backend T-06b. Arya connects materials UI when its API contracts and then implementation are ready.
 5. Each independent task gets its **own branch + PR**; an integrated frontend feature may require a **separate follow-up branch** after backend and UI PRs merge. No one should create new task branches from another teammate's unmerged work by default.
 
 **Tracking:** record `Task ID | Owner | Plan issue | Branch | Depends on | Can start? | Blocker | PR URL | Status`. Suggested statuses: Not started, In progress, Blocked, In review, Done. **Done** requires merged PR plus the relevant verified outcome, not merely a convincing mockup.
@@ -146,12 +146,13 @@ git push -u origin spike/T-02-ai-smoke
 | --- | --- | --- | --- | --- | --- |
 | T-00 | Existing Next.js boilerplate, public GitHub repository, protected `main`, Vercel starter | **Arya** | Already on `main` (historical) | — | **Done 2 Nov** |
 | T-01a | Initial **infrastructure setup**: development Neon/Drizzle/pgvector, safe test DB, Blob/QStash/Gemini configuration, Vercel env and reusable service adapters; connections tested, **not** full pipelines | **Arya** | `chore/T-01a-infrastructure` | T-00 | Pending |
-| T-01b | **Complete backend authentication**: Better Auth server config, generated auth tables/migration, registration, login, logout, sessions, shared `requireUser()` helper | **Arya** | `feat/T-01b-auth-backend` | T-01a merged | Pending |
+| T-01b | **Complete backend authentication**: Better Auth server config, generated auth tables/migration, registration, login, logout, sessions, shared `requireUser()` helper | **Arya** | `feat/T-01b-auth-backend` | T-01a merged | **Done 6 Nov** (#6) |
+| T-01c | **Google-only sign-in**: replace email/password with Google OAuth (decision 2026-11-06); oauth-proxy for Preview deployments; encrypted OAuth tokens; bare sign-in page; public privacy policy page | **Arya** | `feat/T-01c-google-auth` | T-01b merged | Pending |
 | T-02 | Gemini structured-generation/embedding smoke test, 768-D vector normalisation and actual rate limits | **Rashid** | `spike/T-02-ai-smoke` | Fixtures can start T-00; live provider test needs T-01a's safe dev configuration | Pending |
 | T-03 | Import the five v1.2 PRD sections into `docs/prd/`; minimal contributor instructions; collaborator onboarding | **Arya** (Chami docs support) | `docs/T-03-project-prds` | T-00; merge early | Pending |
-| T-04a | Accessible sign-in/sign-up screens and client-side form states (may use fixture) | **Arya** | `feat/T-04a-auth-ui` | T-00 and agreed auth fields; can start before T-01b | Pending |
+| T-04a | Styled sign-in screen (Google-only, replacing the bare T-01c page), loading/error states, first-sign-in redirect to Create Study Space, protected-route redirects | **Arya** | `feat/T-04a-auth-ui` | T-01c merged | Pending |
 | T-04b | Shared app shell, sidebar and **dashboard UI** with labelled sample data | **Arya** | `feat/T-04b-dashboard-ui` | T-00; real content waits for T-05 | Pending |
-| T-04c | Integrate frontend forms with Better Auth session, redirects and errors; actual sign-in/out end-to-end | **Arya** | `feat/T-04c-auth-integration` | T-01b + T-04a merged | Blocked by prerequisites |
+| T-04c | **Merged into T-04a** — Google sign-in has no separate form to integrate; T-04a now covers redirects and session UI directly. | — | — | — | Merged into T-04a |
 | T-05 | **Full-stack Study Spaces**: owned CRUD API, initial Study Space schema/migration, UI and auth-checked access | **Arya** | `feat/T-05-study-spaces` | T-01b merged; coordinate schema boundaries with Rashid | Blocked by prerequisites |
 | T-06a | Upload/API contract: Zod request/response/status/error shapes and ownership checks | **Rashid** | `feat/T-06a-upload-contract` | Can draft after shared auth/Study Space contract; merge after T-01b/T-05 contracts agreed | Pending |
 | T-06b | Private Blob upload, material/domain migration, server-side validation and owner-only file reads | **Rashid** | `feat/T-06b-upload-flow` | T-01a, T-01b, T-05 and T-06a merged | Blocked by prerequisites |
@@ -173,7 +174,7 @@ git push -u origin spike/T-02-ai-smoke
 
 **Schema ownership rule:** Arya maintains initial infra, Better Auth/auth migrations and the Study Space API/schema. Rashid owns later domain migrations (materials/chunks/sets/attempts/revision) and must coordinate composite foreign keys with Arya. This does not remove Rashid's server-side responsibilities from the original Capstone 1 proposal; it **separates initial setup from backend product features**.
 
-**Parallelism rule:** T-01a, T-03, T-04a/T-04b (as Arya's capacity permits), T-02 preparation, T-07a and T-17 preparations may progress concurrently. Nobody should wait idly for the full database/AI pipeline when independent frontend, docs or security work is available. Do not start a second task branch with uncommitted work left on the first.
+**Parallelism rule:** T-01a, T-03, T-04b (as Arya's capacity permits), T-02 preparation, T-07a and T-17 preparations may progress concurrently. T-04a now waits for T-01c (Google-only sign-in) to merge. Nobody should wait idly for the full database/AI pipeline when independent frontend, docs or security work is available. Do not start a second task branch with uncommitted work left on the first.
 
 ## Working on a task
 

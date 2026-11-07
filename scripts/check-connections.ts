@@ -13,9 +13,9 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { Client as QStashClient } from "@upstash/qstash";
 import { generateText } from "ai";
-import { serverEnv } from "../src/lib/env";
-import { putPrivateBlob, deleteBlob } from "../src/server/storage/client";
-import { checkModel } from "../src/server/ai/client";
+import { serverEnv } from "../src/lib/server-env";
+import { putPrivateBlob, deleteBlob } from "../src/server/storage/storage-client";
+import { checkModel } from "../src/server/ai/ai-client";
 
 type CheckResult = { name: string; ok: boolean; message: string };
 

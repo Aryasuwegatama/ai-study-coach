@@ -14,7 +14,7 @@ The table below is a **delivery plan**, not a list of completed features. Core r
 
 | Promise (Capstone 1) | Capstone 1 tier | Project 15 brief | Plan | What Capstone 2 builds |
 | --- | --- | --- | --- | --- |
-| FR-01 Register and sign in | Core | Requirement | Build (simplified) | Email and password for students. A `role` field exists, but there is no instructor sign-up. |
+| FR-01 Register and sign in | Core | Requirement | Build (simplified) | Google sign-in only for students (decision 2026-11-06, T-01c) — no passwords are stored. A `role` field exists, but there is no instructor sign-up. |
 | FR-02 Personal Study Spaces | Core | MVP | Build | Create, rename, open and delete your own spaces. |
 | FR-03 Upload PDF, PPTX, TXT (10 MB) | Core | MVP | Build | The browser uploads straight to private storage; the server checks the file before processing. |
 | FR-04 MCQ generation | Core | MVP | Build | Built from chosen materials and topics, each question tagged to one topic; 5, 10, 15 or 20 questions. |
@@ -46,7 +46,6 @@ Nine Capstone 1 promises are harder than they look; each has a simple solution t
 | Answerability and unambiguous-answer checks (FR-07) | Proving an AI question is correct is not possible in code. | Code checks shape and citations; a second, cheaper AI call reads the question with its cited text and answers "supported / one correct answer: yes or no". The 100-question human review measures how well this works. |
 | 100 questions, 2 subject-knowledgeable reviewers | Needs people with subject knowledge, and time. | Generate from lecture notes of a unit the reviewers have passed. Recruit 2 classmates or a tutor in Week 1. Use a shared Google Sheet with the rubric (correct, clear, difficulty 1–5). |
 | Topic mastery tracked per topic | Stable topic identities and evidence from several documents are required. | Extract topics with a token-budget check; analyse in batches when necessary, consolidate source-backed suggestions and let the student confirm, rename or add topics. Mastery then uses each MCQ's topic ID. |
-| Argon2id password hashing | Better Auth uses scrypt by default. | Pass a custom hash and verify pair using `@node-rs/argon2`; about 10 lines. |
 | Private, securely deleted study files | Blob and PostgreSQL deletion are not one transaction. | Store private objects; authorise every read; mark the material inaccessible immediately; persist a durable cleanup job with the object key **before** removing parent rows and retry failed Blob deletes. |
 | Maximum two AI generation jobs at once | QStash parallelism is per endpoint request, not an entire multi-step generation job. | Admit no more than two active quiz/deck jobs in a PostgreSQL atomic transaction; use QStash delivery flow control only as an additional throttle. |
 | 20 simultaneous active users | The free AI tier would hit its limits before the app does. | Load test the app with a fake AI provider (same interface, instant canned answers) and report AI limits separately. |
@@ -63,7 +62,7 @@ The stack follows the Capstone 1 architecture using low-cost or free-tier servic
 | Hosting | Vercel Hobby | Free (personal, non-commercial) | Initial public GitHub repository and boilerplate production deployment exist at [https://ai-study-coach-zeta.vercel.app/](https://ai-study-coach-zeta.vercel.app/). Vercel Hobby is owned by Arya; verify preview and contributor deployment eligibility rather than assuming all team-member PRs deploy. |
 | Database and vectors | Neon Postgres with pgvector, added through the Vercel Marketplace | Free plan | Learning data and embeddings in one database, so ownership filters run in the same SQL query. |
 | Database code | Drizzle ORM | Free | Type-safe queries and versioned migrations. |
-| Login | Better Auth (email and password) | Free library | Sessions and password handling without writing your own. |
+| Login | Better Auth (Google sign-in only) | Free library | Sessions without writing your own; no passwords are stored or hashed. |
 | File storage | Vercel Private Blob | Plan-dependent, verify usage | Private store and owner-checked access, with recoverable deletion. Requires supported SDK/private-store configuration; user files are never public by default. |
 | Background jobs | Upstash QStash | Plan-dependent, verify usage | Signed callbacks, retries and per-step flow control. Database claims, leases, durable cleanup, idempotency and two-whole-job admission are application responsibilities. |
 | AI | Vercel AI SDK with the Google Gemini API free tier | Provider-specific free allowance, subject to current terms | See the next section. |

@@ -1,7 +1,7 @@
 import { headers as nextHeaders } from "next/headers";
 import { cacheLife } from "next/cache";
-import { ApiError } from "@/lib/errors";
-import { getAuth } from "./config";
+import { ApiError } from "@/lib/api-errors";
+import { getAuth } from "./auth-config";
 
 /**
  * The narrow user shape every caller gets. Not the raw Better Auth session

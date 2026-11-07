@@ -1,5 +1,5 @@
 import { Client, Receiver } from "@upstash/qstash";
-import { serverEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/server-env";
 
 /**
  * Thin QStash adapter: configuration only. The actual step handler, claims,
