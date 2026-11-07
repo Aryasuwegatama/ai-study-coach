@@ -150,10 +150,10 @@ git push -u origin spike/T-02-ai-smoke
 | T-01c | **Google-only sign-in**: replace email/password with Google OAuth (decision 2026-11-06); oauth-proxy for Preview deployments; encrypted OAuth tokens; bare sign-in page; public privacy policy page | **Arya** | `feat/T-01c-google-auth` | T-01b merged | **Done 7 Nov** (#9) |
 | T-02 | Gemini structured-generation/embedding smoke test, 768-D vector normalisation and actual rate limits | **Rashid** | `spike/T-02-ai-smoke` | Fixtures can start T-00; live provider test needs T-01a's safe dev configuration | Pending |
 | T-03 | Import the five v1.2 PRD sections into `docs/prd/`; minimal contributor instructions; collaborator onboarding | **Arya** (Chami docs support) | `docs/T-03-project-prds` | T-00; merge early | Pending |
-| T-04a | Styled sign-in screen (Google-only, replacing the bare T-01c page), loading/error states | **Arya** | `feat/T-04a-auth-ui` | T-01c merged | Pending |
-| T-04b | Shared app shell, sidebar and **dashboard UI** with labelled sample data | **Arya** | `feat/T-04b-dashboard-ui` | T-00; real content waits for T-05 | Pending |
-| T-04c | **Merged into T-04a** — Google sign-in has no separate form to integrate; T-04a now covers redirects and session UI directly. | — | — | — | Merged into T-04a |
-| T-05 | **Full-stack Study Spaces**: owned CRUD API, initial Study Space schema/migration, UI and auth-checked access; first-sign-in redirect to Create Study Space and protected-route redirects (moved from T-04a) | **Arya** | `feat/T-05-study-spaces` | T-01b merged; coordinate schema boundaries with Rashid | Blocked by prerequisites |
+| T-04a | Styled sign-in screen (Google-only, replacing the bare T-01c page), loading/error states | **Arya** | `feat/T-04a-auth-ui` | T-01c merged | **Done 7 Nov** (#11) |
+| T-04b | Shared app shell, sidebar and **dashboard UI** with labelled sample data; protected-route redirects (moved from T-05) | **Arya** | `feat/T-04b-dashboard-ui` | T-00; real content waits for T-05 | Pending |
+| T-04c | **Merged into T-04a** — Google sign-in has no separate form to integrate; T-04b now covers protected-route redirects and session UI directly. | — | — | — | Merged into T-04a |
+| T-05 | **Full-stack Study Spaces**: owned CRUD API, initial Study Space schema/migration, UI and auth-checked access; first-sign-in redirect to Create Study Space | **Arya** | `feat/T-05-study-spaces` | T-01b and T-04b merged; coordinate schema boundaries with Rashid | Blocked by prerequisites |
 | T-06a | Upload/API contract: Zod request/response/status/error shapes and ownership checks | **Rashid** | `feat/T-06a-upload-contract` | Can draft after shared auth/Study Space contract; merge after T-01b/T-05 contracts agreed | Pending |
 | T-06b | Private Blob upload, material/domain migration, server-side validation and owner-only file reads | **Rashid** | `feat/T-06b-upload-flow` | T-01a, T-01b, T-05 and T-06a merged | Blocked by prerequisites |
 | T-07a | Threat model, auth/ownership security test plan, negative-test fixtures and risk register | **Khushi** | `test/T-07a-security-plan` | T-00; can start independently | Pending |
@@ -174,7 +174,7 @@ git push -u origin spike/T-02-ai-smoke
 
 **Schema ownership rule:** Arya maintains initial infra, Better Auth/auth migrations and the Study Space API/schema. Rashid owns later domain migrations (materials/chunks/sets/attempts/revision) and must coordinate composite foreign keys with Arya. This does not remove Rashid's server-side responsibilities from the original Capstone 1 proposal; it **separates initial setup from backend product features**.
 
-**Parallelism rule:** T-01a, T-03, T-04b (as Arya's capacity permits), T-02 preparation, T-07a and T-17 preparations may progress concurrently. T-04a now waits for T-01c (Google-only sign-in) to merge. Nobody should wait idly for the full database/AI pipeline when independent frontend, docs or security work is available. Do not start a second task branch with uncommitted work left on the first.
+**Parallelism rule:** T-01a, T-03, T-04b (as Arya's capacity permits), T-02 preparation, T-07a and T-17 preparations may progress concurrently. T-04a now waits for T-01c (Google-only sign-in) to merge. **Order change (Arya, 2026-11-08): T-04b now comes before T-05** — the dashboard shell (with its protected-route redirects) is built first, and T-05 slots real Study Spaces into that shell afterwards, rather than T-05 building its own redirects. Nobody should wait idly for the full database/AI pipeline when independent frontend, docs or security work is available. Do not start a second task branch with uncommitted work left on the first.
 
 ## Working on a task
 
