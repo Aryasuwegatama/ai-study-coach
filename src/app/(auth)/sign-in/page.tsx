@@ -1,14 +1,16 @@
 import { Suspense } from "react";
 import { serverEnv } from "@/lib/server-env";
 import { getCurrentUser } from "@/server/auth/auth-session";
+import { SignInCardSkeleton } from "./sign-in-card-skeleton";
 import { SignedInView, SignedOutView } from "./sign-in-view";
 
 /**
- * Bare sign-in page (T-01c scope — deliberately unstyled; T-04a replaces
- * this). Signed out: a Google Identity Services button where supported,
- * plus the plain "Continue with Google" redirect button (always present —
- * see sign-in-view.tsx). Signed in: name, email, saved time zone and a
- * Sign out button.
+ * Styled Google-only sign-in screen (T-04a; replaces the bare T-01c page).
+ * The glass header and centred layout live in `(auth)/layout.tsx`; this
+ * page renders only the card itself. Signed out: a Google Identity
+ * Services button where supported, plus the plain "Continue with Google"
+ * redirect button (always present — see sign-in-view.tsx). Signed in:
+ * name, email, saved time zone and a Sign out button.
  *
  * Reads the session, so (per node_modules/next/dist/docs/01-app/02-guides/
  * authentication-with-cache-components.md) it sits behind a `<Suspense>`
@@ -20,15 +22,12 @@ export default function SignInPage(props: PageProps<"/sign-in">) {
   const supportsIdentityServices = serverEnv().VERCEL_ENV !== "preview";
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-2xl font-semibold">AI Study Coach</h1>
-      <Suspense fallback={<p>Loading…</p>}>
-        <SignInStatus
-          searchParams={props.searchParams}
-          supportsIdentityServices={supportsIdentityServices}
-        />
-      </Suspense>
-    </main>
+    <Suspense fallback={<SignInCardSkeleton />}>
+      <SignInStatus
+        searchParams={props.searchParams}
+        supportsIdentityServices={supportsIdentityServices}
+      />
+    </Suspense>
   );
 }
 

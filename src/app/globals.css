@@ -1,26 +1,127 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Dark mode activates only when an ancestor has a literal `.dark` class.
+ * Nothing in this app ever adds that class (PRD Section 2: "Light theme
+ * only in Core"), so the `dark:` utility classes shadcn's generated
+ * components ship with (e.g. src/components/ui/button.tsx) stay inert —
+ * this is simpler than hand-stripping `dark:` classes out of every vendor
+ * component, which would fight `shadcn add` on every future update.
+ */
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Status badges (Figma "Light · reusable UI", node 11:2) — not used by
+     this screen, but established here so T-04b/T-05 study-space cards and
+     progress badges can reuse them (e.g. bg-soft-green text-green). */
+  --color-soft-green: var(--soft-green);
+  --color-green: var(--green);
+  --color-soft-amber: var(--soft-amber);
+  --color-amber: var(--amber);
+  --color-soft-purple: var(--soft-purple);
+  --color-purple: var(--purple);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Design tokens from the Capstone 1 Figma file ("Light · reusable UI",
+ * node 11:2, plus the Authentication — Sign in screen, node 98:8440).
+ * See T-04a plan issue for the Figma-variable -> token mapping table.
+ * Light theme only — there is no corresponding `.dark` block.
+ */
+:root {
+  --background: #f7f8fa; /* color-canvas */
+  --foreground: #202a3b; /* color-ink */
+  --card: #ffffff; /* color-surface */
+  --card-foreground: #202a3b;
+  --popover: #ffffff;
+  --popover-foreground: #202a3b;
+  --primary: #215dcb; /* color-blue */
+  --primary-foreground: #ffffff;
+  --secondary: #e9f0ff; /* color-softBlue */
+  --secondary-foreground: #215dcb;
+  /* Not a literal Figma variable (the design only names muted TEXT and
+     border, not a muted background) — interpolated between canvas and
+     border for a neutral fill shadcn's components need. */
+  --muted: #eef1f5;
+  --muted-foreground: #596579; /* color-muted */
+  --accent: #e9f0ff;
+  --accent-foreground: #215dcb;
+  --destructive: #dc2626;
+  --border: #e3e7ed; /* color-border */
+  --input: #e3e7ed;
+  --ring: #1b50b3; /* color-focus */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #202a3b;
+  --sidebar-primary: #215dcb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9f0ff;
+  --sidebar-accent-foreground: #215dcb;
+  --sidebar-border: #e3e7ed;
+  --sidebar-ring: #1b50b3;
+  --soft-green: #e7f5f0;
+  --green: #187765;
+  --soft-amber: #fff3df;
+  --amber: #89500c;
+  --soft-purple: #f0edfb;
+  --purple: #6453b3;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

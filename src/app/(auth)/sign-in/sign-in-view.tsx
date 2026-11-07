@@ -3,16 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { GoogleGlyph } from "@/components/google-glyph";
 
 const ERROR_MESSAGES: Record<string, string> = {
   access_denied: "Google sign-in was cancelled.",
   state_mismatch: "That sign-in attempt timed out. Please try again.",
   email_not_found: "Google didn't share an email address for this account.",
 };
+// Shown for any `?error=` value not in the map above, instead of echoing
+// the raw value: a crafted link (`?error=<anything>`) could otherwise put
+// arbitrary text on the sign-in page.
+const GENERIC_ERROR_MESSAGE = "Something went wrong while signing you in. Please try again.";
+
+// Google's Identity Services button only takes a fixed pixel width (no
+// percentage/auto), capped at 400. 296px is the largest size that still
+// fits the card's content width at a 375px viewport (card max-width 480,
+// minus the auth layout's px-4 page padding and the card's own p-6 at
+// that breakpoint).
+const GSI_BUTTON_WIDTH = 296;
 
 /**
- * Signed-out state (T-01c scope — deliberately bare; T-04a styles this).
+ * Signed-out state: the Figma "Authentication — Sign in" card (node
+ * 98:8440), adapted to Google-only sign-in — see the T-04a plan issue for
+ * what was dropped (email/password, Forgot password, Create account).
  *
  * One of two buttons, chosen by `supportsIdentityServices` (never both —
  * Arya found two redundant once the nicer one was confirmed working,
@@ -24,8 +42,9 @@ const ERROR_MESSAGES: Record<string, string> = {
  *   button and exchanges the resulting ID token for a session itself;
  *   nothing here reads `window.google` directly.
  * - The plain redirect button otherwise — this is Preview's only button
- *   (Identity Services never renders there), and it's the same button
- *   T-01c originally shipped with, with `check:auth` coverage.
+ *   (Identity Services never renders there), styled to match (Figma
+ *   secondary pill + Google's "G" mark, which Google's branding
+ *   guidelines require on a "Continue with Google" button).
  *
  * Trade-off worth knowing: Production no longer has a visible fallback if
  * the Identity Services button ever fails to render there (e.g. before an
@@ -62,7 +81,14 @@ export function SignedOutView({
         callbackURL: "/sign-in",
         button: {
           container: gsiContainerRef.current,
-          config: { type: "standard", theme: "outline", size: "large", text: "continue_with" },
+          config: {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            width: GSI_BUTTON_WIDTH,
+          },
         },
       })
       .catch((error: unknown) => {
@@ -85,27 +111,54 @@ export function SignedOutView({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {supportsIdentityServices ? (
-        <div ref={gsiContainerRef} />
-      ) : (
-        <button
-          type="button"
-          onClick={handleClick}
-          disabled={pending}
-          className="rounded-md border border-zinc-300 px-4 py-2 text-base font-medium hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-        >
-          {pending ? "Redirecting to Google…" : "Continue with Google"}
-        </button>
-      )}
-      {error && (
-        <p role="alert" className="max-w-xs text-center text-sm text-red-600 dark:text-red-400">
-          {ERROR_MESSAGES[error] ?? `Sign-in failed: ${error}`}
-        </p>
-      )}
-      <p className="max-w-xs text-center text-xs text-zinc-500 dark:text-zinc-400">
-        By continuing, study materials you upload are treated as described in
-        the <Link href="/privacy" className="underline">privacy policy</Link>.
+    <div className="flex w-full max-w-[480px] flex-col items-center">
+      <Card className="w-full rounded-[20px] p-6 sm:p-12">
+        <CardContent className="flex flex-col items-center gap-4 px-0 text-center">
+          <div className="flex flex-col items-center gap-1">
+            <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">
+              Welcome
+            </h1>
+            <p className="text-sm leading-[1.375rem] text-muted-foreground">
+              Sign in to continue your learning.
+            </p>
+          </div>
+
+          {error && (
+            <Alert className="text-left">
+              <AlertTitle>Unable to sign in</AlertTitle>
+              <AlertDescription>{ERROR_MESSAGES[error] ?? GENERIC_ERROR_MESSAGE}</AlertDescription>
+            </Alert>
+          )}
+
+          {supportsIdentityServices ? (
+            // Fixed height so the page doesn't jump once Google's script
+            // loads and renders its iframe into this container.
+            <div ref={gsiContainerRef} className="flex h-11 w-full items-center justify-center" />
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClick}
+              disabled={pending}
+              className="h-11 w-full gap-2 rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
+            >
+              {pending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <GoogleGlyph className="size-4" />
+              )}
+              {pending ? "Redirecting to Google…" : "Continue with Google"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="mt-6 max-w-xs text-center text-xs leading-[1.125rem] text-muted-foreground">
+        By continuing, study materials you upload are treated as described in the{" "}
+        <Link href="/privacy" className="font-medium text-primary underline underline-offset-2">
+          privacy policy
+        </Link>
+        .
       </p>
     </div>
   );
@@ -136,26 +189,37 @@ export function SignedInView({
     }
   }, [timeZone, router]);
 
+  const [signingOut, setSigningOut] = useState(false);
+
   async function handleSignOut() {
+    setSigningOut(true);
     await authClient.signOut();
     router.push("/sign-in");
     router.refresh();
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 text-center">
-      <p className="text-lg font-medium">{name}</p>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">{email}</p>
-      <p className="text-sm text-zinc-500 dark:text-zinc-500">
-        Time zone: {timeZone ?? "not set yet"}
-      </p>
-      <button
-        type="button"
-        onClick={handleSignOut}
-        className="mt-4 rounded-md border border-zinc-300 px-4 py-2 text-base font-medium hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:border-zinc-700 dark:hover:bg-zinc-900"
-      >
-        Sign out
-      </button>
-    </div>
+    <Card className="w-full max-w-[480px] rounded-[20px] p-6 sm:p-12">
+      <CardContent className="flex flex-col items-center gap-2 px-0 text-center">
+        <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">
+          You&apos;re signed in
+        </h1>
+        <p className="text-base font-semibold leading-6 text-foreground">{name}</p>
+        <p className="text-sm leading-[1.375rem] text-muted-foreground">{email}</p>
+        <p className="text-xs leading-[1.125rem] text-muted-foreground">
+          Time zone: {timeZone ?? "not set yet"}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="mt-4 h-11 w-full gap-2 rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
+        >
+          {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {signingOut ? "Signing out…" : "Sign out"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
