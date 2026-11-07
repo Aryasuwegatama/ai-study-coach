@@ -1,5 +1,5 @@
 import { toNextJsHandler } from "better-auth/next-js";
-import { getAuth } from "@/server/auth/config";
+import { getAuth } from "@/server/auth/auth-config";
 
 /**
  * Mounts every Better Auth endpoint (sign-up, sign-in, sign-out, session,

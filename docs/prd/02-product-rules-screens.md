@@ -108,10 +108,11 @@ These are the rules the team builds and tests against; each bullet is meant to b
 
 ### Account
 
-- Create account (name, email, password with at least 8 characters), sign in, sign out.
+- Create account and sign in with Google only (decision 2026-11-06, T-01c) — no passwords are stored; sign out.
 - After the first sign-in with no spaces, the student is taken to Create Study Space.
-- Profile: change name. Security: change password (current password required).
-- Security: **Delete account** (planned Week 2) reauthenticates, blocks further access and initiates a recoverable deletion process. A completion confirmation is issued only once scoped database records and private objects are removed according to the approved retention policy.
+- Profile: change name.
+- Security: **Delete account** (planned Week 2) reauthenticates with a fresh Google sign-in, blocks further access and initiates a recoverable deletion process. A completion confirmation is issued only once scoped database records and private objects are removed according to the approved retention policy.
+- A public **Privacy policy** page (no sign-in required) states what is collected, why, which third-party services (including the Gemini API) process it, and how to request deletion. Linked from the sign-in page and from the Google OAuth consent screen.
 - Light theme only in Core.
 
 ### Accessibility and devices
@@ -126,8 +127,8 @@ Most of the Figma design is built as designed. Six screen groups change (plus on
 
 | Figma flow | Screens and states | Plan | Change needed |
 | --- | --- | --- | --- |
-| Authentication | Sign in, Create account, First-time setup, Profile, Security | Build | First-time setup = straight to Create Study Space. |
-| Authentication | Forgot password, Reset password, Appearance, Course connections tab, Instructor profile | Defer | Week 3 polish or future work. |
+| Authentication | Sign in (Google only), First-time setup, Profile, Security, Privacy policy | Build | First-time setup = straight to Create Study Space. Sign in and Create account are one Google-sign-in screen (decision 2026-11-06, T-01c); Privacy policy is new, not in the Capstone 1 Figma design. |
+| Authentication | Create account (separate screen), Forgot password, Reset password, Appearance, Course connections tab, Instructor profile | Defer | Password-based flows no longer apply (Google-only sign-in). Appearance, course connections and instructor profile remain Week 3 polish or future work. |
 | Dashboard & Navigation | Dashboard, collapsed sidebar, Study Spaces flyout, My Study Spaces, Create space dialog and errors | Build | — |
 | Materials & Topics | Overview (empty and populated), Materials Library, Upload (validation, in progress, cancel), Processing, Processing failed | Build | — |
 | Materials & Topics | Review suggested topics, Edited draft, Draft saved, Confirm | Build | — |
@@ -155,7 +156,7 @@ Most of the Figma design is built as designed. Six screen groups change (plus on
 - Revision is a hybrid: wrong quiz answers and rated cards enter revision; MCQs are checked automatically and cards are self-rated; up to 20 items per session; intervals of 1, 3 and 7 days, resetting to 1; revision never changes mastery.
 - Limits: 20 generations per student per day; 10 MB, 200 pages and 240,000 characters per file; 20 materials per space; no duplicate files.
 - AI labels, View source, keyboard access and phone-width layouts apply to every screen.
-- Core extras: resuming an in-progress quiz and the notification bell. Week 2: delete account. Deferred: forgot and reset password, dark mode, the revision calendar.
+- Core extras: resuming an in-progress quiz and the notification bell. Week 2: delete account. Deferred: dark mode, the revision calendar. Forgot/reset password no longer apply — sign-in is Google-only (decision 2026-11-06, T-01c).
 - Screen changes from the Figma design are built directly in code; this document is the source of truth.
 
 ## v1.2 product-choice record and safety clarifications

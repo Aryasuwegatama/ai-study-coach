@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@ai-sdk/google": "3.0.141",
-    "@node-rs/argon2": "2.2.2",
     "@upstash/qstash": "^2.12.1",
     "@vercel/blob": "^2.8.2",
     "ai": "6.0.322",

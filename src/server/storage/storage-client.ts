@@ -1,5 +1,5 @@
 import { put, del, head, type PutBlobResult } from "@vercel/blob";
-import { serverEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/server-env";
 
 /**
  * Thin Private Blob adapter. Features never call `@vercel/blob` directly
