@@ -189,7 +189,10 @@ export function SignedInView({
     }
   }, [timeZone, router]);
 
+  const [signingOut, setSigningOut] = useState(false);
+
   async function handleSignOut() {
+    setSigningOut(true);
     await authClient.signOut();
     router.push("/sign-in");
     router.refresh();
@@ -210,9 +213,11 @@ export function SignedInView({
           type="button"
           variant="outline"
           onClick={handleSignOut}
-          className="mt-4 h-11 w-full rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
+          disabled={signingOut}
+          className="mt-4 h-11 w-full gap-2 rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
         >
-          Sign out
+          {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {signingOut ? "Signing out…" : "Sign out"}
         </Button>
       </CardContent>
     </Card>
