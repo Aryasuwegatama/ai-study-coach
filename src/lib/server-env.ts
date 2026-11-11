@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { withVerifyFullSslMode } from "@/server/db/db-connection-url";
 
 /**
  * Server-only environment configuration.
@@ -17,12 +18,13 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   // Database (Neon Postgres). Pooled URL for the app; the unpooled URL is
   // used by Drizzle Kit for migrations, which should not run through a
-  // connection pooler.
-  DATABASE_URL: z.string().url(),
-  DATABASE_URL_UNPOOLED: z.string().url(),
+  // connection pooler. Each one's `sslmode` is made explicit as
+  // `verify-full` (same behaviour as today; see db-connection-url.ts).
+  DATABASE_URL: z.string().url().transform(withVerifyFullSslMode),
+  DATABASE_URL_UNPOOLED: z.string().url().transform(withVerifyFullSslMode),
   // Present in every environment except Vercel Production, where tests
   // never run; optional here so `serverEnv()` keeps working elsewhere.
-  DATABASE_URL_TEST: z.string().url().optional(),
+  DATABASE_URL_TEST: z.string().url().transform(withVerifyFullSslMode).optional(),
 
   // Private Blob storage.
   BLOB_READ_WRITE_TOKEN: z.string().min(1),
