@@ -28,7 +28,7 @@ export type SpaceRecord = {
 /**
  * Request flow step 3 (PRD Section 4): resolves a space the signed-in user
  * owns, or throws the 404 `ApiError` every space-scoped route and page
- * calls this for (CLAUDE.md "Contracts and interfaces").
+ * calls this for (T-05 plan, issue #14, "Contracts and interfaces").
  *
  * A missing, deleted, malformed or someone-else's ID all give the
  * identical 404 — never a 400 or a different message that would let a

@@ -61,8 +61,10 @@ function BreadcrumbTrail({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNo
         <Link href="/spaces" className="shrink-0 font-medium text-primary">
           My Study Spaces
         </Link>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="min-w-0 truncate font-medium text-foreground">{spaceBreadcrumbName}</span>
+        {/* Renders its own "›" and the name together, or nothing at all
+            (while loading, or for a space that isn't found), so the
+            trail never ends in a stray "›". */}
+        {spaceBreadcrumbName}
       </>
     );
   }

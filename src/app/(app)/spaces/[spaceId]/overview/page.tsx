@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import { SpaceOverviewActions } from "@/features/spaces/components/space-overview-actions";
@@ -43,7 +44,16 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
   }
 
   const { spaceId } = await params;
-  const space = await requireSpace(spaceId, user).catch(() => null);
+  // Only `requireSpace()`'s own 404 means "not found". Anything else (for
+  // example the database being unreachable) is rethrown so `(app)/error.tsx`
+  // shows a "Try again" screen, rather than telling the student their
+  // space doesn't exist.
+  const space = await requireSpace(spaceId, user).catch((error: unknown) => {
+    if (error instanceof ApiError && error.code === "SPACE_NOT_FOUND") {
+      return null;
+    }
+    throw error;
+  });
   if (!space) {
     notFound();
   }
