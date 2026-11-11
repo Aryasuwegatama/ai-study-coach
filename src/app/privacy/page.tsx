@@ -116,6 +116,11 @@ export default function PrivacyPolicyPage() {
               marks for it are released — every account and uploaded material will be
               deleted.
             </p>
+            <p>
+              Deleting a Study Space removes it from your account straight away. Its
+              stored records stay in our database until a later clean-up permanently
+              clears them.
+            </p>
           </section>
 
           <section className="flex flex-col gap-2">
@@ -129,7 +134,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <p className="text-xs leading-[1.125rem] text-muted-foreground">
-            Last updated: 7 November 2026
+            Last updated: 11 November 2026
           </p>
         </article>
       </main>

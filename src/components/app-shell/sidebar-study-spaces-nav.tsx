@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronRight, FolderOpen, Plus } from "lucide-react";
 import {
   DropdownMenu,
@@ -19,38 +21,26 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { dashboardSampleSpaces } from "@/features/dashboard/fixtures/dashboard-sample-spaces";
-import type { DashboardSampleSpaceTone } from "@/features/dashboard/fixtures/dashboard-sample-types";
-
-const TONE_CLASSES: Record<DashboardSampleSpaceTone, string> = {
-  blue: "bg-secondary text-primary",
-  purple: "bg-soft-purple text-purple",
-  green: "bg-soft-green text-green",
-};
-
-function SpaceMonogram({ name, tone }: { name: string; tone: DashboardSampleSpaceTone }) {
-  return (
-    <span
-      className={`flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${TONE_CLASSES[tone]}`}
-      aria-hidden="true"
-    >
-      {name.charAt(0)}
-    </span>
-  );
-}
+import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
+import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 
 /**
  * "My Study Spaces" nav item: the expandable disclosure in the expanded
- * sidebar (Figma node 80:6946, "My Study Spaces · expandable group") and
- * the flyout from the collapsed icon rail (Figma node 27:720). Reads the
- * same `dashboard-sample-spaces.ts` fixture the Dashboard's space cards
- * use, so the list always matches. Every space and the "+" action are
- * disabled — Study Spaces don't exist yet (T-05 enables this item).
+ * sidebar (Figma node 80:6946) and the flyout from the collapsed icon
+ * rail (Figma node 27:720). T-05 replaces the `dashboard-sample-spaces`
+ * fixture this used to read with the student's real spaces, passed down
+ * from `sidebar-study-spaces-nav-section.tsx` (the `studySpacesNav` slot
+ * — same pattern as `userMenu`). Every space and the "+" action now link
+ * somewhere real instead of being disabled.
  */
-export function SidebarStudySpacesNav() {
+const SPACE_ID_PATTERN = /^\/spaces\/([^/]+)\/overview(?:\/.*)?$/;
+
+export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
   const { state, isMobile } = useSidebar();
   const [expanded, setExpanded] = useState(true);
   const collapsedRail = state === "collapsed" && !isMobile;
+  const pathname = usePathname();
+  const activeSpaceId = pathname.match(SPACE_ID_PATTERN)?.[1];
 
   if (collapsedRail) {
     return (
@@ -67,15 +57,29 @@ export function SidebarStudySpacesNav() {
             <DropdownMenuGroup>
               <DropdownMenuLabel>My Study Spaces</DropdownMenuLabel>
             </DropdownMenuGroup>
+            <DropdownMenuItem render={<Link href="/spaces" />}>
+              Open My Study Spaces
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {dashboardSampleSpaces.map((space) => (
-              <DropdownMenuItem key={space.id} disabled className="gap-2">
-                <SpaceMonogram name={space.name} tone={space.tone} />
-                {space.name}
+            {spaces.length === 0 ? (
+              <DropdownMenuItem disabled className="gap-2">
+                No study spaces yet
               </DropdownMenuItem>
-            ))}
+            ) : (
+              spaces.map((space) => (
+                <DropdownMenuItem
+                  key={space.id}
+                  className="gap-2"
+                  aria-current={space.id === activeSpaceId ? "page" : undefined}
+                  render={<Link href={`/spaces/${space.id}/overview`} />}
+                >
+                  <SpaceMonogram id={space.id} name={space.name} className="size-5 text-[10px]" />
+                  <span className="truncate">{space.name}</span>
+                </DropdownMenuItem>
+              ))
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="gap-2">
+            <DropdownMenuItem className="gap-2" render={<Link href="/spaces?create=1" />}>
               <Plus className="size-4" aria-hidden="true" />
               New study space
             </DropdownMenuItem>
@@ -88,39 +92,52 @@ export function SidebarStudySpacesNav() {
   return (
     <SidebarMenuItem>
       <div className="flex w-full items-center gap-1">
-        <SidebarMenuButton
-          type="button"
-          onClick={() => setExpanded((value) => !value)}
-          aria-expanded={expanded}
-          className="flex-1"
-        >
+        <SidebarMenuButton render={<Link href="/spaces" />} className="flex-1">
           <FolderOpen />
           <span>My Study Spaces</span>
-          <ChevronRight
-            className={`ml-auto size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
-            aria-hidden="true"
-          />
         </SidebarMenuButton>
         <button
           type="button"
-          disabled
-          aria-disabled="true"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse My Study Spaces" : "Expand My Study Spaces"}
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <ChevronRight
+            className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+        <Link
+          href="/spaces?create=1"
           aria-label="New study space"
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <Plus className="size-4" aria-hidden="true" />
-        </button>
+        </Link>
       </div>
       {expanded && (
         <SidebarMenuSub>
-          {dashboardSampleSpaces.map((space) => (
-            <SidebarMenuSubItem key={space.id}>
-              <SidebarMenuSubButton aria-disabled="true" tabIndex={-1} className="gap-2">
-                <SpaceMonogram name={space.name} tone={space.tone} />
-                {space.name}
-              </SidebarMenuSubButton>
+          {spaces.length === 0 ? (
+            <SidebarMenuSubItem>
+              <span className="px-2 py-1.5 text-xs text-muted-foreground">
+                No study spaces yet
+              </span>
             </SidebarMenuSubItem>
-          ))}
+          ) : (
+            spaces.map((space) => (
+              <SidebarMenuSubItem key={space.id}>
+                <SidebarMenuSubButton
+                  className="gap-2"
+                  isActive={space.id === activeSpaceId}
+                  render={<Link href={`/spaces/${space.id}/overview`} />}
+                >
+                  <SpaceMonogram id={space.id} name={space.name} className="size-5 text-[10px]" />
+                  <span className="truncate">{space.name}</span>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))
+          )}
         </SidebarMenuSub>
       )}
     </SidebarMenuItem>

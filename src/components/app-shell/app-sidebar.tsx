@@ -1,7 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { History, LayoutDashboard, TrendingUp } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
 import {
@@ -14,7 +16,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { SidebarStudySpacesNav } from "./sidebar-study-spaces-nav";
 
 /**
  * The shared app shell's sidebar (Figma node 80:6946, "Liquid Glass
@@ -22,12 +23,20 @@ import { SidebarStudySpacesNav } from "./sidebar-study-spaces-nav";
  * screens that don't exist yet are shown but disabled rather than
  * linking to a 404 — each later task enables its own item (T-04b plan).
  *
- * `userMenu` is rendered, not read here: it's a Server Component built
- * by the `(app)` layout from inside its own `<Suspense>` boundary (a
- * Client Component can't import an async Server Component directly, but
- * it can render one passed in as a prop).
+ * `userMenu` and `studySpacesNav` are rendered, not read here: both are
+ * Server Components built by the `(app)` layout from inside their own
+ * `<Suspense>` boundary (a Client Component can't import an async
+ * Server Component directly, but it can render one passed in as a
+ * prop) — `studySpacesNav` is T-05's real `SidebarStudySpacesNav`,
+ * replacing the disabled fixture-backed one T-04b shipped.
  */
-export function AppSidebar({ userMenu }: { userMenu: ReactNode }) {
+export function AppSidebar({
+  userMenu,
+  studySpacesNav,
+}: {
+  userMenu: ReactNode;
+  studySpacesNav: ReactNode;
+}) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-2 py-3">
@@ -37,13 +46,16 @@ export function AppSidebar({ userMenu }: { userMenu: ReactNode }) {
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton isActive tooltip="Dashboard" render={<Link href="/dashboard" />}>
-                <LayoutDashboard />
-                <span>Dashboard</span>
-              </SidebarMenuButton>
+              {/* usePathname() needs runtime URL data; isolated into its
+                  own Suspense boundary so a dynamic route (/spaces/[spaceId])
+                  elsewhere in the shell doesn't block this whole sidebar's
+                  static shell — see DashboardNavButtonFallback. */}
+              <Suspense fallback={<DashboardNavButtonFallback />}>
+                <DashboardNavButton />
+              </Suspense>
             </SidebarMenuItem>
 
-            <SidebarStudySpacesNav />
+            {studySpacesNav}
 
             <SidebarMenuItem>
               <SidebarMenuButton disabled aria-disabled="true" tooltip="My Progress">
@@ -63,5 +75,29 @@ export function AppSidebar({ userMenu }: { userMenu: ReactNode }) {
       </SidebarContent>
       <SidebarFooter>{userMenu}</SidebarFooter>
     </Sidebar>
+  );
+}
+
+function DashboardNavButton() {
+  const pathname = usePathname();
+  return (
+    <SidebarMenuButton
+      isActive={pathname === "/dashboard"}
+      tooltip="Dashboard"
+      render={<Link href="/dashboard" />}
+    >
+      <LayoutDashboard />
+      <span>Dashboard</span>
+    </SidebarMenuButton>
+  );
+}
+
+/** Same markup without the active state, which needs the runtime pathname. */
+function DashboardNavButtonFallback() {
+  return (
+    <SidebarMenuButton tooltip="Dashboard" render={<Link href="/dashboard" />}>
+      <LayoutDashboard />
+      <span>Dashboard</span>
+    </SidebarMenuButton>
   );
 }

@@ -151,9 +151,9 @@ git push -u origin spike/T-02-ai-smoke
 | T-02 | Gemini structured-generation/embedding smoke test, 768-D vector normalisation and actual rate limits | **Rashid** | `spike/T-02-ai-smoke` | Fixtures can start T-00; live provider test needs T-01a's safe dev configuration | Pending |
 | T-03 | Import the five v1.2 PRD sections into `docs/prd/`; minimal contributor instructions; collaborator onboarding | **Arya** (Chami docs support) | `docs/T-03-project-prds` | T-00; merge early | Pending |
 | T-04a | Styled sign-in screen (Google-only, replacing the bare T-01c page), loading/error states | **Arya** | `feat/T-04a-auth-ui` | T-01c merged | **Done 7 Nov** (#11) |
-| T-04b | Shared app shell, sidebar and **dashboard UI** with labelled sample data; protected-route redirects (moved from T-05) | **Arya** | `feat/T-04b-dashboard-ui` | T-00; real content waits for T-05 | Pending |
+| T-04b | Shared app shell, sidebar and **dashboard UI** with labelled sample data; protected-route redirects (moved from T-05) | **Arya** | `feat/T-04b-dashboard-ui` | T-00; real content waits for T-05 | **Done 7 Nov** (#13) |
 | T-04c | **Merged into T-04a** — Google sign-in has no separate form to integrate; T-04b now covers protected-route redirects and session UI directly. | — | — | — | Merged into T-04a |
-| T-05 | **Full-stack Study Spaces**: owned CRUD API, initial Study Space schema/migration, UI and auth-checked access; first-sign-in redirect to Create Study Space | **Arya** | `feat/T-05-study-spaces` | T-01b and T-04b merged; coordinate schema boundaries with Rashid | Blocked by prerequisites |
+| T-05 | **Full-stack Study Spaces**: owned CRUD API, initial Study Space schema/migration, UI and auth-checked access; first-sign-in redirect to Create Study Space | **Arya** | `feat/T-05-study-spaces` | T-01b and T-04b merged; coordinate schema boundaries with Rashid | In progress |
 | T-06a | Upload/API contract: Zod request/response/status/error shapes and ownership checks | **Rashid** | `feat/T-06a-upload-contract` | Can draft after shared auth/Study Space contract; merge after T-01b/T-05 contracts agreed | Pending |
 | T-06b | Private Blob upload, material/domain migration, server-side validation and owner-only file reads | **Rashid** | `feat/T-06b-upload-flow` | T-01a, T-01b, T-05 and T-06a merged | Blocked by prerequisites |
 | T-07a | Threat model, auth/ownership security test plan, negative-test fixtures and risk register | **Khushi** | `test/T-07a-security-plan` | T-00; can start independently | Pending |
@@ -204,7 +204,7 @@ PRD: §2 Quizzes, Mastery, Revision; §4 attempts, attempt_items,
 Approach: autosave and submit endpoints; server-side scoring in one
   transaction; mastery as a query; revision scheduling with request keys
 Must not change: auth, other features, migrations (ask the reviewer first)
-Contract: POST /api/attempts/:id/submit (Zod schema in schemas.ts)
+Contract: POST /api/attempts/:id/submit (Zod schema in attempts-schemas.ts)
 Acceptance: 7 of 10 correct = 70%; forged score ignored;
   double submit = one result; another student's attempt = 404;
   4 questions = insufficient evidence; wrong answer creates a review due tomorrow

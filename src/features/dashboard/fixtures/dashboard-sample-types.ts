@@ -5,19 +5,6 @@
  * changing the components that render these shapes.
  */
 
-export type DashboardSampleSpaceTone = "blue" | "purple" | "green";
-
-/** Mirrors the eventual `study_spaces` row plus the stats its card shows. */
-export type DashboardSampleSpace = {
-  id: string;
-  name: string;
-  materialsCount: number;
-  topicsCount: number;
-  /** `null` means no quiz attempts yet for this space. */
-  finalQuizAccuracyPercent: number | null;
-  tone: DashboardSampleSpaceTone;
-};
-
 export type DashboardSampleSnapshot = {
   activeSpaces: number;
   activeSpacesHint: string;
