@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { withVerifyFullSslMode } from "./src/server/db/db-connection-url";
 
 // Next.js loads .env.local itself at runtime, but Drizzle Kit is a plain
 // CLI and only reads process.env, so load it explicitly here.
@@ -19,6 +20,7 @@ export default defineConfig({
   schema: "./src/server/db/schema/index.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: databaseUrl,
+    // Explicit `sslmode=verify-full`, same as the app (issue #8).
+    url: withVerifyFullSslMode(databaseUrl),
   },
 });
