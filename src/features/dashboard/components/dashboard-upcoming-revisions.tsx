@@ -23,9 +23,14 @@ export function DashboardUpcomingRevisions() {
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">Upcoming Revisions</h2>
-        <Button type="button" variant="ghost" disabled aria-disabled="true">
-          View revision plan
-        </Button>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
+            EXAMPLE DATA
+          </span>
+          <Button type="button" variant="ghost" disabled aria-disabled="true">
+            View revision plan
+          </Button>
+        </div>
       </div>
       <Card className="gap-0 divide-y divide-border rounded-[20px] p-0">
         {dashboardSampleRevisions.map((item) => (

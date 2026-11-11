@@ -35,6 +35,7 @@ These are the rules the team builds and tests against; each bullet is meant to b
 - A student can create, rename, open and delete their own spaces. A name is required (1–150 characters).
 - Everything inside a space is visible only to its owner. Another student opening its URL gets "not found".
 - Deleting a space asks for confirmation, immediately blocks access to its study data and starts a durable removal workflow for dependent records and Blob files. The UI must not claim complete erasure until external file deletion succeeds; historical-retention policy is explicitly recorded before implementing account/space deletion.
+- **Retention policy (Arya, 2026-11-08):** a deleted Study Space keeps no history for the student — from the moment of deletion it behaves exactly like a space that never existed, with no "deleted spaces" list and no way to recover it. T-05 implements this as a soft delete: the row stays, marked with `deleted_at`, so a later cleanup job (materials' T-06b and the daily cleanup job) can still find and purge its dependent records and Blob files. The database row's continued existence until that cleanup runs is an internal implementation detail; the student never sees or regains access to it.
 
 ### Materials
 

@@ -34,7 +34,12 @@ export function DashboardLearningSnapshot() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold text-foreground">Learning Snapshot</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground">Learning Snapshot</h2>
+        <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
+          EXAMPLE DATA
+        </span>
+      </div>
       <Card className="flex-row divide-x divide-border rounded-[20px] p-0">
         {metrics.map((metric) => (
           <CardContent key={metric.label} className="flex flex-1 flex-col gap-1 p-6">

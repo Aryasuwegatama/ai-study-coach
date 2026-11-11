@@ -77,7 +77,7 @@ export function SignedOutView({
     didInitGsiRef.current = true;
     void authClient
       .oneTap({
-        callbackURL: "/dashboard",
+        callbackURL: "/dashboard?from=sign-in",
         button: {
           container: gsiContainerRef.current,
           config: {
@@ -104,7 +104,7 @@ export function SignedOutView({
     setPending(true);
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/dashboard",
+      callbackURL: "/dashboard?from=sign-in",
       errorCallbackURL: "/sign-in",
     });
   }

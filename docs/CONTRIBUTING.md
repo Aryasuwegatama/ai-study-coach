@@ -37,6 +37,7 @@ pnpm run auth:generate    # regenerate the Better Auth Drizzle schema after
                            # changing src/server/auth/auth-config.ts
 pnpm run check:connections  # verify database, Blob, QStash and Gemini are reachable
 pnpm run check:auth         # verify sessions, sign-out, the Google sign-in URL and rate limiting
+pnpm run check:spaces       # verify Study Space CRUD, ownership and validation
 ```
 
 `pnpm run vercel-build` (`drizzle-kit migrate && next build`) is what Vercel
@@ -86,7 +87,7 @@ From Section 4. Study Spaces is the pattern every feature follows.
 | Path | Contents |
 | --- | --- |
 | `src/app/` | Pages, layouts, API route handlers |
-| `src/features/<feature>/` | `components/`, `server/`, `schemas.ts`, `__tests__/` |
+| `src/features/<feature>/` | `components/`, `server/`, `<feature>-schemas.ts`, `__tests__/` |
 | `src/server/` | `db/`, `auth/`, `ai/`, `jobs/`, `storage/` adapters |
 | `src/components/ui/` | shadcn/ui components |
 | `drizzle/` | Versioned SQL migrations |

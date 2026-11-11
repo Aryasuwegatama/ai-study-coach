@@ -2,8 +2,11 @@ import { Suspense } from "react";
 import type { ReactNode } from "react";
 import { AppSidebar } from "@/components/app-shell/app-sidebar";
 import { AppTopBar } from "@/components/app-shell/app-top-bar";
+import { SidebarStudySpacesNavSection } from "@/components/app-shell/sidebar-study-spaces-nav-section";
+import { SidebarStudySpacesNavSkeleton } from "@/components/app-shell/sidebar-study-spaces-nav-skeleton";
 import { SidebarUserMenu } from "@/components/app-shell/sidebar-user-menu";
 import { SidebarUserMenuSkeleton } from "@/components/app-shell/sidebar-user-menu-skeleton";
+import { SpaceBreadcrumbName } from "@/components/app-shell/space-breadcrumb-name";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -21,9 +24,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
  *   a route renders, so the check belongs close to the data, not here.
  *
  * No top-level session/cookie read here: that would block the whole
- * shell under Cache Components. The one piece that needs the session
- * (`SidebarUserMenu`, for the account menu and time-zone sync) is a
- * small Server Component rendered inside its own `<Suspense>` boundary.
+ * shell under Cache Components. Every piece that needs the session
+ * (`SidebarUserMenu`; T-05's `SidebarStudySpacesNavSection` and
+ * `SpaceBreadcrumbName`) is a small Server Component rendered inside
+ * its own `<Suspense>` boundary.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -35,9 +39,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <SidebarUserMenu />
             </Suspense>
           }
+          studySpacesNav={
+            <Suspense fallback={<SidebarStudySpacesNavSkeleton />}>
+              <SidebarStudySpacesNavSection />
+            </Suspense>
+          }
         />
         <SidebarInset>
-          <AppTopBar />
+          <AppTopBar
+            spaceBreadcrumbName={
+              <Suspense fallback={null}>
+                <SpaceBreadcrumbName />
+              </Suspense>
+            }
+          />
           <main className="flex flex-1 flex-col">{children}</main>
         </SidebarInset>
       </SidebarProvider>

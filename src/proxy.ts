@@ -28,9 +28,9 @@ export function proxy(request: NextRequest) {
 
 /**
  * Only the `(app)` paths that exist today. Later tasks extend this list
- * as they add their own protected pages (e.g. T-05 adds
- * `/spaces/:path*`) — never add `/api/auth`, `/sign-in` or `/privacy`.
+ * as they add their own protected pages — never add `/api/auth`,
+ * `/sign-in` or `/privacy`.
  */
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/spaces/:path*"],
 };

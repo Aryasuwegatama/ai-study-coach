@@ -1,9 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Grows as later tasks add `(app)` pages — each adds its own breadcrumb
@@ -11,7 +14,10 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
  */
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/spaces": "My Study Spaces",
 };
+
+const SPACE_OVERVIEW_PATTERN = /^\/spaces\/[^/]+\/overview(?:\/.*)?$/;
 
 /**
  * The shared app shell's top bar (Figma node 80:6946, "Single
@@ -19,21 +25,63 @@ const ROUTE_LABELS: Record<string, string> = {
  * design's notification bell is left out here — its data comes from the
  * `jobs` table, a later backend task (T-04b plan: "leave out the
  * notification bell").
+ *
+ * T-05 adds the Study Space Overview breadcrumb ("My workspace › My
+ * Study Spaces › {name}"): `spaceBreadcrumbName` is a Suspense-wrapped
+ * server slot (same pattern as `userMenu`) that resolves the current
+ * space's name — see `space-breadcrumb-name.tsx`.
  */
-export function AppTopBar() {
-  const pathname = usePathname();
-  const label = ROUTE_LABELS[pathname] ?? "Dashboard";
-
+export function AppTopBar({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNode }) {
   return (
     <header className="flex h-[72px] shrink-0 items-center gap-4 border-b border-[#ffffffe6] bg-[#f4f7fcd1] px-6 shadow-[0_2px_24px_#263b5c09] backdrop-blur-[32px] sm:px-10">
       <SidebarTrigger />
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm">
-        <Link href="/dashboard" className="font-medium text-primary">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+        <Link href="/dashboard" className="shrink-0 font-medium text-primary">
           My workspace
         </Link>
-        <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
-        <span className="font-medium text-foreground">{label}</span>
+        {/* usePathname() needs runtime URL data; isolated here so a
+            dynamic route (/spaces/[spaceId]) doesn't block the rest of
+            this shared top bar's static shell. */}
+        <Suspense fallback={<BreadcrumbTrailFallback />}>
+          <BreadcrumbTrail spaceBreadcrumbName={spaceBreadcrumbName} />
+        </Suspense>
       </nav>
     </header>
+  );
+}
+
+function BreadcrumbTrail({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNode }) {
+  const pathname = usePathname();
+  const isSpaceOverview = SPACE_OVERVIEW_PATTERN.test(pathname);
+
+  if (isSpaceOverview) {
+    return (
+      <>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <Link href="/spaces" className="shrink-0 font-medium text-primary">
+          My Study Spaces
+        </Link>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 truncate font-medium text-foreground">{spaceBreadcrumbName}</span>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 truncate font-medium text-foreground">
+        {ROUTE_LABELS[pathname] ?? "Dashboard"}
+      </span>
+    </>
+  );
+}
+
+function BreadcrumbTrailFallback() {
+  return (
+    <>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <Skeleton className="h-4 w-24" />
+    </>
   );
 }

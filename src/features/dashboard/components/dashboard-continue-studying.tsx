@@ -13,7 +13,12 @@ export function DashboardContinueStudying() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold text-foreground">Continue Studying</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground">Continue Studying</h2>
+        <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
+          EXAMPLE DATA
+        </span>
+      </div>
       <Card className="flex-row items-center gap-6 rounded-[20px] p-6">
         <CardContent className="flex flex-1 flex-col gap-2 p-0">
           <p className="text-base font-semibold text-foreground">{data.spaceName}</p>
