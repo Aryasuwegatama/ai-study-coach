@@ -24,7 +24,7 @@ function toSpaceResponse(space: SpaceRow): SpaceResponse {
   };
 }
 
-/** Newest first (CLAUDE.md plan step 4). Owner always comes from the session. */
+/** Newest first (T-05 plan, issue #14, Approach step 4). Owner always comes from the session. */
 export async function listSpaces(user: SessionUser): Promise<SpaceResponse[]> {
   const rows = await db
     .select(SPACE_COLUMNS)
