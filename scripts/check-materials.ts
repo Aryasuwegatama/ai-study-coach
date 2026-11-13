@@ -16,12 +16,13 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { put } from "@vercel/blob/client";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
-import { materials, studySpaces } from "../src/server/db/schema";
+import { jobs, materials, studySpaces } from "../src/server/db/schema";
 import { serverEnv } from "../src/lib/server-env";
+import { setPublisherForChecks } from "../src/server/jobs/jobs-client";
 import { blobExists, createUploadToken, deleteBlob } from "../src/server/storage/storage-client";
 import { ACCEPTED_FILE_TYPES, MAX_MATERIAL_BYTES } from "../src/features/materials/materials-schemas";
 import type { CreateMaterialResponse, MaterialResponse } from "../src/features/materials/materials-schemas";
@@ -81,6 +82,9 @@ async function browserUpload(pathname: string, clientToken: string, body: Buffer
 }
 
 async function main() {
+  // "complete" and "retry" queue a processing job; this script checks the
+  // API, so steps go nowhere (`check:processing` runs them).
+  setPublisherForChecks(async () => undefined);
   const testAuth = buildTestAuth();
   const test = (await testAuth.$context).test;
   const stamp = Date.now();
@@ -102,6 +106,8 @@ async function main() {
     // Blobs first: the user cascade removes rows, not files.
     if (uploadedPaths.size) await deleteBlob([...uploadedPaths]).catch(() => undefined);
     const leftover = (await Promise.all([...uploadedPaths].map(blobExists))).some(Boolean);
+    // Jobs outlive their user by design (user_id is set to null), so go first.
+    await db.delete(jobs).where(inArray(jobs.userId, [userA.userId, userB.userId]));
     await test.deleteUser(userA.userId);
     await test.deleteUser(userB.userId);
     check("Cleanup: blobs and test users removed", !leftover, `${uploadedPaths.size} blob path(s)`);

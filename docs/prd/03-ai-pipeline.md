@@ -17,7 +17,7 @@ This section defines how the AI parts work. Scope and stack are in Section 1, an
 
 Runs automatically in the background after every upload; each step saves output idempotently, so **Retry** continues from the last committed step without duplicating embeddings, topics or items.
 
-1. **Verify the file.** Check the real file type from its first bytes (`%PDF-` for PDF, a ZIP with `ppt/presentation.xml` for PPTX, readable UTF-8 for TXT), the size (10 MB or less) and the page or slide count (200 or fewer). Fingerprint the file (SHA-256). If the same file is already in this space, stop with "This file is already in this space".
+1. **Verify the file.** Runs at "complete", before the job starts (T-06b): the real file type from its first bytes (`%PDF-` for PDF, a ZIP with `ppt/presentation.xml` for PPTX, readable UTF-8 for TXT), the size (10 MB or less) and the SHA-256 fingerprint. If the same file is already in this space, "complete" refuses it with "This file is already in this space". The worker's first step (T-08a) adds the page or slide count (200 or fewer) and does not repeat the duplicate check.
 2. **Extract text with its location.**
     - PDF: text per page (`unpdf`).
     - PPTX: per slide, including the title and speaker notes.

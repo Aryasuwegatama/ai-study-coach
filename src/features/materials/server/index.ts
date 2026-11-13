@@ -12,3 +12,5 @@ export {
 } from "./materials-service";
 export type { MaterialRecord } from "./materials-service";
 export type { MaterialResponse } from "../materials-schemas";
+// The `process_material` job's step handler, run by `src/server/jobs/jobs-runner.ts`.
+export { processMaterialJob } from "./process-material";

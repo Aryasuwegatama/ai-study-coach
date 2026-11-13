@@ -209,7 +209,7 @@ Real values live in `.env.local` (git-ignored) and in Vercel's project settings;
 | `AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED` | Model names, so models can change without code changes |
 | `AI_PROVIDER` | `gemini` or `fake` (tests and load test) |
 | `CRON_SECRET` | Protects the daily clean-up route |
-| `APP_URL` | Where QStash sends job steps; on previews it comes from VERCEL_BRANCH_URL |
+| `APP_URL` | Where QStash sends job steps. Optional (T-08a): when unset, previews use VERCEL_BRANCH_URL and Production uses BETTER_AUTH_URL. QStash can't reach `localhost`, so local runs need a tunnel URL here or the check scripts' fake publisher |
 | DATABASE_URL_TEST | The separate test database on your personal branch; integration tests reset it before each run |
 | VERCEL_AUTOMATION_BYPASS_SECRET | Lets QStash reach protected preview deployments (sent as the x-vercel-protection-bypass header) |
 
