@@ -21,6 +21,12 @@ export const MAX_MATERIALS_PER_SPACE = 20;
 export const MAX_MATERIAL_PAGES = 200;
 export const MAX_MATERIAL_CHARS = 240_000;
 export const MATERIAL_POLL_INTERVAL_MS = 3000;
+/**
+ * How long a browser upload token works (T-06b). 10 MB takes about 80 s at
+ * 1 Mbit/s, so 5 minutes covers a slow connection, and a cancelled upload
+ * can't land much later.
+ */
+export const MATERIAL_UPLOAD_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 export const ACCEPTED_FILE_TYPES = [
   { extension: ".pdf", mimeType: "application/pdf", label: "PDF" },
@@ -62,6 +68,10 @@ export const MATERIAL_API_ERRORS = {
   UPLOAD_INCOMPLETE: { status: 409, message: "The upload hasn't finished yet." },
   INVALID_MATERIAL_STATE: { status: 409, message: "This material can't do that right now." },
   MATERIAL_NOT_FOUND: { status: 404, message: "Material not found." },
+  /** T-06b: the Blob delete failed and nothing changed, so a retry finishes the job. */
+  MATERIAL_DELETE_FAILED: { status: 503, message: "Couldn't delete this file. Try again." },
+  /** T-06b: the row exists but its file is gone (an interrupted delete). Deleting again fixes it. */
+  FILE_UNAVAILABLE: { status: 404, message: "This file is no longer available." },
   /** Unchanged from `requireSpace()`. */
   SPACE_NOT_FOUND: { status: 404, message: "Study space not found." },
 } as const satisfies Record<string, { status: number; message: string }>;
@@ -231,7 +241,8 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  *      server-generated pathname (never built from `name`; it ends in the
  *      accepted extension), the three `ACCEPTED_FILE_TYPES` MIME types and
  *      `MAX_MATERIAL_BYTES`, with `allowOverwrite: false`. The pathname is
- *      the blob path, shown only to its uploader for this one `put()`.
+ *      the blob path, shown only to its uploader for this one `put()`. The
+ *      token stops working after `MATERIAL_UPLOAD_TOKEN_TTL_MS`.
  *   2. The browser calls `put(pathname, file, { access: "private", token,
  *      contentType, onUploadProgress, abortSignal })` from
  *      `@vercel/blob/client`, where `contentType` is the extension's
@@ -241,8 +252,8 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  * Complete:
  *   - Synchronously checks the real type from the first bytes, the size
  *     (≤ `MAX_MATERIAL_BYTES`), the SHA-256 fingerprint and the duplicate
- *     check. On failure the row is soft-deleted (`deleted_at`), Blob cleanup
- *     is queued and the route returns `DUPLICATE_FILE` 409,
+ *     check. On failure the file is deleted from Blob, then the row, and the
+ *     route returns `DUPLICATE_FILE` 409,
  *     `UNSUPPORTED_FILE_TYPE` 400 or `FILE_TOO_LARGE` 400. The row drops out
  *     of the list; the UI shows the message on that upload row.
  *   - No blob at the pathname yet: 409 `UPLOAD_INCOMPLETE`; the row stays
@@ -255,18 +266,23 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  *
  * Cancel: the browser aborts its `put()` (`abortSignal`), then calls
  *   `DELETE /api/materials/:id` — the same route and 204 as a normal
- *   delete, allowed in any status. Abandoned `uploading` rows are removed by
- *   the daily cron after 1 hour (PRD Section 4).
+ *   delete, allowed in any status. The token's short expiry means a
+ *   cancelled upload can't land later. Abandoned `uploading` rows are
+ *   removed by the daily cron after 1 hour (PRD Section 4).
  *
  * Retry: only from `failed`; 202 with the material back in `processing`.
  *   Any other status: 409 `INVALID_MATERIAL_STATE`.
  *
  * Download: owner-checked through `requireMaterial`. While `uploading`:
- *   409 `INVALID_MATERIAL_STATE`.
+ *   409 `INVALID_MATERIAL_STATE`. Row present but file gone: 404
+ *   `FILE_UNAVAILABLE`.
  *
- * Delete: 204; the material leaves the list immediately. Blob and chunk
- *   cleanup belong to T-06b and the cleanup job (PRD Section 4 deletion
- *   rules); the UI must not claim the file is erased.
+ * Delete (Arya, 2026-11-13; a hard delete, materials have no
+ *   `deleted_at`): in one request, delete the Blob file first, then the
+ *   row. A file that's already gone counts as deleted, so retrying is safe.
+ *   If the Blob delete fails, nothing changes and the route returns 503
+ *   `MATERIAL_DELETE_FAILED`; otherwise 204. A file can never be left in
+ *   Blob with no row pointing to it.
  *
  * Polling: the screen polls `GET` every `MATERIAL_POLL_INTERVAL_MS` while
  *   any material is `uploading` or `processing`.
@@ -276,8 +292,8 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  * `src/features/materials/server/`, not in `src/server/auth/**`):
  *   - Checks `isValidMaterialId` first.
  *   - Then ONE query joins `materials` to `study_spaces` on `space_id`,
- *     where `materials.id = $id`, `study_spaces.owner_id = user.id`,
- *     `study_spaces.deleted_at IS NULL` and `materials.deleted_at IS NULL`.
+ *     where `materials.id = $id`, `study_spaces.owner_id = user.id` and
+ *     `study_spaces.deleted_at IS NULL`.
  *   - Missing, malformed, deleted, someone else's and deleted-space
  *     materials ALL throw the identical
  *     `ApiError("MATERIAL_NOT_FOUND", "Material not found.", 404)`,

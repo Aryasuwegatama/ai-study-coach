@@ -13,6 +13,7 @@ import {
   MATERIAL_FAILURE_REASONS,
   MATERIAL_POLL_INTERVAL_MS,
   MATERIAL_STATUSES,
+  MATERIAL_UPLOAD_TOKEN_TTL_MS,
   MAX_MATERIAL_BYTES,
   MAX_MATERIAL_CHARS,
   MAX_MATERIAL_PAGES,
@@ -69,6 +70,17 @@ check(
   MATERIAL_API_ERRORS.MATERIAL_NOT_FOUND.status === 404 &&
     MATERIAL_API_ERRORS.SPACE_NOT_FOUND.message === "Study space not found.",
   "",
+);
+check(
+  "T-06b: delete failure is a retryable 503",
+  MATERIAL_API_ERRORS.MATERIAL_DELETE_FAILED.status === 503 &&
+    MATERIAL_API_ERRORS.MATERIAL_DELETE_FAILED.message === "Couldn't delete this file. Try again.",
+  "",
+);
+check(
+  "T-06b: upload token expires within a few minutes",
+  MATERIAL_UPLOAD_TOKEN_TTL_MS > 60_000 && MATERIAL_UPLOAD_TOKEN_TTL_MS <= 10 * 60_000,
+  `${MATERIAL_UPLOAD_TOKEN_TTL_MS} ms`,
 );
 
 // Request parsing (Task 3).
