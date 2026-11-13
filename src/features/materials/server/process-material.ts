@@ -5,6 +5,7 @@ import { AIUnusableError, callAI } from "@/server/ai/call-ai";
 import { embedTexts, embeddingModelName } from "@/server/ai/ai-embeddings";
 import * as topicsPrompt from "@/server/ai/prompts/topics";
 import { publishStep } from "@/server/jobs/jobs-client";
+import { closeJob, holdsClaim, type Job, type Tx } from "@/server/jobs/job-claims";
 import { getPrivateBlob } from "@/server/storage/storage-client";
 import type { MaterialFailureCode } from "../materials-schemas";
 import { packChunks } from "./chunk-text";
@@ -23,8 +24,6 @@ import { ExtractionError, extractMaterialText } from "./extract-text";
  * Every step commits its output and the next step only while it still
  * holds the claim, then publishes the next step after commit.
  */
-type Job = typeof jobs.$inferSelect;
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Material = typeof materials.$inferSelect;
 
 /**
@@ -65,23 +64,6 @@ export async function startProcessing(materialId: string, job: { id: string; ste
       await closeJob(tx, job.id, "failed", "PUBLISH_FAILED");
     });
   }
-}
-
-/** The job is still ours: same claim token. Locks the row until commit. */
-async function holdsClaim(tx: Tx, job: Job): Promise<boolean> {
-  const [row] = await tx
-    .select({ id: jobs.id })
-    .from(jobs)
-    .where(and(eq(jobs.id, job.id), eq(jobs.claimToken, job.claimToken!)))
-    .for("update");
-  return Boolean(row);
-}
-
-async function closeJob(tx: Tx, jobId: string, status: "succeeded" | "failed", errorCode: string | null) {
-  await tx
-    .update(jobs)
-    .set({ status, errorCode, finishedAt: new Date(), claimToken: null, leaseUntil: null })
-    .where(eq(jobs.id, jobId));
 }
 
 async function failMaterial(tx: Tx, materialId: string, code: MaterialFailureCode) {

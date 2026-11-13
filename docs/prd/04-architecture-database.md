@@ -200,6 +200,13 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - `GET /api/sets/:id` never returns the correct option, explanation or sources.
 - The database rejects an MCQ without exactly four options and a 0–3 correct index, and any item or source that crosses Study Spaces. Deleting a material removes its source links, so past results show "Source removed".
 
+**Quiz generation notes (T-11b).**
+- `generate_quiz` job steps: `retrieve` → `write:k` (one per group of at most 40 sources) → `top_up:k` → `publish`. `jobs.payload` holds the plan as ids and counts only.
+- At most two quiz/deck jobs hold a generation slot (`generation_slot_acquired`, taken at `retrieve` under an advisory lock). A job without one goes back to `queued` without using an attempt and is re-published 30 seconds later. Closing a job releases its slot.
+- Questions are saved on the `generating` set as they pass; `publish` marks the set `ready` with at least 5, or deletes them and marks it `failed` (`TOO_FEW_QUESTIONS`). A set deleted mid-generation stops its job (`SET_GONE`).
+- The daily limit counts `generate_quiz`/`generate_deck` jobs since local midnight in the student's `time_zone` (UTC when unset or unknown).
+- Try again on a failed quiz creates a new set (ponytail: no in-place retry). Rejected questions are logged to the server console only.
+
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 
 ## Environment variables

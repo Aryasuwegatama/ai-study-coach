@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/db-client";
 import { jobs } from "@/server/db/schema";
 import { processMaterialJob } from "@/features/materials/server";
+import { generateQuizJob } from "@/features/quizzes/server";
 import { MAX_STEP_ATTEMPTS, type StepMessage } from "./jobs-client";
 
 /**
@@ -20,6 +21,7 @@ type JobHandler = {
 
 const HANDLERS: Record<string, JobHandler> = {
   process_material: processMaterialJob,
+  generate_quiz: generateQuizJob,
 };
 
 /** Longer than the 300-second function limit, so a live step never loses its claim. */
