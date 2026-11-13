@@ -1,6 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/db-client";
-import { chunks, jobs, materials } from "@/server/db/schema";
+import { chunks, jobs, materialTopics, materials, topics } from "@/server/db/schema";
+import { AIUnusableError, callAI } from "@/server/ai/call-ai";
+import { embedTexts, embeddingModelName } from "@/server/ai/ai-embeddings";
+import * as topicsPrompt from "@/server/ai/prompts/topics";
 import { publishStep } from "@/server/jobs/jobs-client";
 import { getPrivateBlob } from "@/server/storage/storage-client";
 import type { MaterialFailureCode } from "../materials-schemas";
@@ -8,13 +11,17 @@ import { packChunks } from "./chunk-text";
 import { ExtractionError, extractMaterialText } from "./extract-text";
 
 /**
- * The `process_material` job (T-08a; PRD Section 3, Pipeline A, and
- * Section 4, "Background jobs"). Step names match the material's stages.
+ * The `process_material` job (PRD Section 3, Pipeline A, and Section 4,
+ * "Background jobs"). Step names match the material's stages:
  *
- * T-08a runs `extract` (page count, text, cleaning, chunks) and then parks
- * the job at `embed`: material still `processing`, stage `embed`, progress
- * 0 of N. T-08b adds the `embed` and `suggest_topics` steps and publishes
- * `embed` where marked below.
+ * - `extract` (T-08a): page count, text, cleaning, chunks.
+ * - `embed` (T-08b): up to 50 chunks per step, repeated until every chunk
+ *   has a vector; progress shows "N of M".
+ * - `suggest_topics` (T-08b): one AI call, saved as a draft; the material
+ *   moves to `review_topics` and the job succeeds.
+ *
+ * Every step commits its output and the next step only while it still
+ * holds the claim, then publishes the next step after commit.
  */
 type Job = typeof jobs.$inferSelect;
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -104,7 +111,8 @@ async function fail(job: Job, code: MaterialFailureCode): Promise<void> {
 }
 
 async function run(job: Job): Promise<void> {
-  // ponytail: T-08b adds `embed` and `suggest_topics` here.
+  if (job.step === "embed") return embedStep(job);
+  if (job.step === "suggest_topics") return suggestTopicsStep(job);
   if (job.step !== "extract") throw new Error(`No handler for step "${job.step}".`);
   const materialId = job.targetId!;
 
@@ -165,7 +173,139 @@ async function run(job: Job): Promise<void> {
       .set({ step: "embed", status: "queued", claimToken: null, leaseUntil: null, attemptCount: 0 })
       .where(eq(jobs.id, job.id));
   });
-  // ponytail: T-08b publishes the `embed` step here.
+  await publishIfAdvanced(job, "embed");
+}
+
+/** After a commit: publish the next step if this worker's commit is what advanced the job. */
+async function publishIfAdvanced(job: Job, step: string) {
+  const [row] = await db.select({ step: jobs.step, status: jobs.status }).from(jobs).where(eq(jobs.id, job.id));
+  if (row?.status === "queued" && row.step === step) await startProcessing(job.targetId!, { id: job.id, step });
+}
+
+/** Loads the material if it's still processing, or closes the job and returns null. */
+async function processingMaterial(job: Job): Promise<Material | null> {
+  const [material] = await db.select().from(materials).where(eq(materials.id, job.targetId!));
+  if (material?.status === "processing") return material;
+  await db.transaction(async (tx) => {
+    if (await holdsClaim(tx, job)) await closeJob(tx, job.id, "failed", "MATERIAL_GONE");
+  });
+  return null;
+}
+
+export const EMBED_BATCH = 50;
+
+async function embedStep(job: Job): Promise<void> {
+  const material = await processingMaterial(job);
+  if (!material) return;
+  const batch = await db
+    .select({ id: chunks.id, content: chunks.content })
+    .from(chunks)
+    .where(and(eq(chunks.materialId, material.id), isNull(chunks.embedding)))
+    .orderBy(asc(chunks.chunkIndex))
+    .limit(EMBED_BATCH);
+
+  const { vectors } = batch.length
+    ? await embedTexts(batch.map((c) => c.content), "RETRIEVAL_DOCUMENT", { jobId: job.id, purpose: "embed" })
+    : { vectors: [] };
+  const model = embeddingModelName();
+
+  let next = "embed";
+  await db.transaction(async (tx) => {
+    if (!(await holdsClaim(tx, job))) return;
+    if (!(await lockProcessingMaterial(tx, material.id))) {
+      await closeJob(tx, job.id, "failed", "MATERIAL_GONE");
+      return;
+    }
+    for (let i = 0; i < batch.length; i++) {
+      await tx.update(chunks).set({ embedding: vectors[i], embeddingModel: model }).where(eq(chunks.id, batch[i].id));
+    }
+    const [{ done, total }] = await tx
+      .select({ done: count(chunks.embedding), total: count() })
+      .from(chunks)
+      .where(eq(chunks.materialId, material.id));
+    next = done < total ? "embed" : "suggest_topics";
+    await tx
+      .update(materials)
+      .set({ stage: next === "embed" ? "embed" : "suggest_topics", progressDone: done, progressTotal: total })
+      .where(eq(materials.id, material.id));
+    await tx
+      .update(jobs)
+      .set({ step: next, status: "queued", claimToken: null, leaseUntil: null, attemptCount: 0 })
+      .where(eq(jobs.id, job.id));
+  });
+  await publishIfAdvanced(job, next);
+}
+
+async function suggestTopicsStep(job: Job): Promise<void> {
+  const material = await processingMaterial(job);
+  if (!material) return;
+  const pieces = await db
+    .select({ pageStart: chunks.pageStart, pageEnd: chunks.pageEnd, content: chunks.content })
+    .from(chunks)
+    .where(eq(chunks.materialId, material.id))
+    .orderBy(asc(chunks.chunkIndex));
+  const prompt = topicsPrompt.buildPrompt(pieces);
+  if (topicsPrompt.estimateTokens(prompt) > topicsPrompt.TOPIC_INPUT_TOKEN_BUDGET) {
+    throw new Error("Topic prompt is over the token budget.");
+  }
+
+  let suggestions: topicsPrompt.TopicSuggestions;
+  try {
+    suggestions = await callAI({
+      jobId: job.id,
+      purpose: "suggest_topics",
+      promptVersion: topicsPrompt.PROMPT_VERSION,
+      model: "generate",
+      schema: topicsPrompt.topicSuggestionsSchema,
+      system: topicsPrompt.SYSTEM,
+      prompt,
+      validate: (value) => topicsPrompt.checkSuggestions(value, material.pageCount ?? 0),
+      fake: () => topicsPrompt.fakeSuggestions(pieces),
+    });
+  } catch (error) {
+    if (error instanceof AIUnusableError) return fail(job, "AI_UNUSABLE_ANSWER");
+    throw error;
+  }
+
+  await db.transaction(async (tx) => {
+    if (!(await holdsClaim(tx, job))) return;
+    if (!(await lockProcessingMaterial(tx, material.id))) {
+      await closeJob(tx, job.id, "failed", "MATERIAL_GONE");
+      return;
+    }
+    // Replace any earlier draft, so a replayed step never duplicates topics.
+    const old = await tx
+      .select({ id: topics.id })
+      .from(materialTopics)
+      .innerJoin(topics, eq(topics.id, materialTopics.topicId))
+      .where(and(eq(materialTopics.materialId, material.id), eq(topics.status, "draft")));
+    if (old.length) await tx.delete(topics).where(inArray(topics.id, old.map((t) => t.id)));
+
+    for (const t of suggestions.topics) {
+      const [row] = await tx
+        .insert(topics)
+        .values({
+          spaceId: material.spaceId,
+          name: t.name.trim(),
+          normalizedName: topicsPrompt.normalizeTopicName(t.name),
+          description: t.description.trim(),
+          status: "draft",
+          origin: "ai",
+        })
+        .returning({ id: topics.id });
+      await tx.insert(materialTopics).values({
+        spaceId: material.spaceId,
+        materialId: material.id,
+        topicId: row.id,
+        pages: [...new Set(t.pages)].sort((a, b) => a - b),
+      });
+    }
+    await tx
+      .update(materials)
+      .set({ status: "review_topics", stage: null, progressDone: null, progressTotal: null })
+      .where(eq(materials.id, material.id));
+    await closeJob(tx, job.id, "succeeded", null);
+  });
 }
 
 export const processMaterialJob = { run, fail };

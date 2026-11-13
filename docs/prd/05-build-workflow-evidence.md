@@ -159,7 +159,7 @@ git push -u origin spike/T-02-ai-smoke
 | T-07a | Threat model, auth/ownership security test plan, negative-test fixtures and risk register | **Khushi** | `test/T-07a-security-plan` | T-00; can start independently | Pending |
 | T-07b | Executable auth/session and cross-space ownership tests | **Khushi** | `test/T-07b-auth-ownership` | T-01b and T-05 merged plus isolated test DB | Blocked by prerequisites |
 | T-08a | Material processing: QStash worker claims, PDF/PPTX/TXT extraction, chunk records, resumable steps | **Rashid** | `feat/T-08a-extract-chunk` | T-06b + T-01a merged | In review |
-| T-08b | pgvector embeddings, RAG groundwork, AI topic suggestions and confirmation-backed data persistence | **Rashid** | `feat/T-08b-embed-topics` | T-08a and T-02 completed | Blocked by prerequisites |
+| T-08b | pgvector embeddings, RAG groundwork, AI topic suggestions and confirmation-backed data persistence | **Rashid** | `feat/T-08b-embed-topics` | T-08a and T-02 completed | In review |
 | T-09 | Materials screens, statuses and topic-confirmation UI | **Arya** | `feat/T-09-materials-ui` | UI draft after T-06a contract; real integration after T-06b/T-08b | Blocked for integration |
 | T-10 | Upload, signed-worker, retry/idempotency and cross-space source tests | **Khushi** | `test/T-10-materials-jobs` | T-06b/T-08a implementation | Blocked by prerequisites |
 | T-11a | Quiz generation API contract, schema and source/topic membership rules | **Rashid** | `feat/T-11a-quiz-contract` | T-02 and accepted extraction/topic contract; can draft before T-08b completes | Pending |

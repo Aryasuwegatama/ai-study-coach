@@ -41,3 +41,25 @@ export function toErrorResponse(error: unknown): NextResponse {
   }
   return errorResponse("INTERNAL_ERROR", "Something went wrong.", 500);
 }
+
+/**
+ * Reads a JSON body and checks it with a Zod schema; any problem is a 400
+ * `VALIDATION_ERROR` with the first issue's message. Unknown keys are
+ * stripped, never trusted (Security rule 1).
+ */
+export async function parseJsonBody<T>(
+  request: Request,
+  schema: { safeParse(data: unknown): { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } },
+): Promise<T> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw new ApiError("VALIDATION_ERROR", "The request body must be valid JSON.", 400);
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    throw new ApiError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Invalid request.", 400);
+  }
+  return parsed.data;
+}
