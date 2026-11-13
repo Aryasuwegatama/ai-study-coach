@@ -207,6 +207,13 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - The daily limit counts `generate_quiz`/`generate_deck` jobs since local midnight in the student's `time_zone` (UTC when unset or unknown).
 - Try again on a failed quiz creates a new set (ponytail: no in-place retry). Rejected questions are logged to the server console only.
 
+**Attempts, mastery and revision notes (T-14).** The sources of truth are `src/features/attempts/attempts-schemas.ts`, `src/features/progress/progress-schemas.ts` and `src/features/revision/revision-schemas.ts`.
+- `attempt_items.option_order[d]` is the stored option shown at position `d`; `selected_index` stores the original index. The browser always sends and receives displayed indexes.
+- One in-progress attempt per student per quiz is a partial unique index; a start race resumes the winner. Autosave is one UPDATE gated on the attempt still being in progress. Submit locks the attempt and returns the stored result when it is already submitted.
+- Mastery is `countedAnswers()` in `features/progress`, reused for revision's "weak first". "Weak" compares the exact ratio (60% is on track).
+- Revision dates are computed in SQL from the student's `time_zone` (UTC when unset). `revision_events` is unique on `(revision_item_id, request_key)`, so a key only ever returns that student's own event. A review is only accepted once the item is due (409 `REVISION_NOT_DUE`), but a repeated key returns its first result before that check.
+- Questions that are removed, or whose material was deleted (no `item_sources` left), leave My Revision and are not added to it; submitted attempts stay and show "Source removed". Decks/cards (`again`/`got_it`) are not implemented yet.
+
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 
 ## Environment variables

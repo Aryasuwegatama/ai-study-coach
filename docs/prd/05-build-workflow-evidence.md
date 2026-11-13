@@ -166,7 +166,7 @@ git push -u origin spike/T-02-ai-smoke
 | T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | In review |
 | T-12 | Quiz Library, quiz setup, autosaved attempt and results **frontend** | **Arya** | `feat/T-12-quiz-ui` | UI draft after T-11a; real integration requires T-11b + T-14 | Blocked for integration |
 | T-13 | Answer-key leak, prompt-injection, source membership and forged IDs tests | **Khushi** | `test/T-13-answers-injection` | T-11b implemented | Blocked by prerequisites |
-| T-14 | Quiz attempts and server scoring; topic mastery query; revision business logic and migrations | **Rashid** | `feat/T-14-scoring-mastery-revision` | T-11b merged; agree APIs before T-12/T-15 integrations | Blocked by prerequisites |
+| T-14 | Quiz attempts and server scoring; topic mastery query; revision business logic and migrations | **Rashid** | `feat/T-14-scoring-mastery-revision` | T-11b merged; agree APIs before T-12/T-15 integrations | In review |
 | T-15 | Progress, weak topics and revision session **frontend** | **Arya** | `feat/T-15-progress-revision-ui` | UI draft after T-14 contract; real integration after T-14 merge | Blocked for integration |
 | T-16 | Forged-score, quiz-item membership, duplicate-submit and revision-schedule tests | **Khushi** | `test/T-16-scoring` | T-14 implementation | Blocked by prerequisites |
 | T-17 | Diary and progress evidence; permitted datasets; human review rubric and tester recruitment | **Chami** | `docs/T-17-evidence` | Preparation can start T-00; repo evidence merge coordinates with T-03 docs layout | Pending |

@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
+import { safeTimeZone } from "@/lib/time-zone";
 import { db } from "@/server/db/db-client";
 import { jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
@@ -53,17 +54,6 @@ export async function requireSet(setId: string, user: SessionUser): Promise<SetR
     .limit(1);
   if (!row) throw quizError("SET_NOT_FOUND");
   return row.set;
-}
-
-/** The student's IANA time zone, or UTC when unset or unknown (local midnight for the daily limit). */
-export function safeTimeZone(timeZone: string | null): string {
-  if (!timeZone) return "UTC";
-  try {
-    new Intl.DateTimeFormat("en", { timeZone });
-    return timeZone;
-  } catch {
-    return "UTC";
-  }
 }
 
 export async function createQuiz(user: SessionUser, spaceId: string, input: CreateQuizRequest): Promise<SetResponse> {
