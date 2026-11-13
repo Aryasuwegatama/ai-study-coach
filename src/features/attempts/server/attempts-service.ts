@@ -114,26 +114,20 @@ export async function getAttempt(user: SessionUser, attemptId: string): Promise<
 
 export async function saveAnswer(user: SessionUser, attemptId: string, input: SaveAnswerRequest): Promise<AttemptResponse> {
   const attempt = await requireAttempt(attemptId, user);
-  if (attempt.status !== "in_progress") throw attemptError("ATTEMPT_SUBMITTED");
-  // One UPDATE, gated on the attempt still being in progress, so a late autosave can't touch a scored attempt.
-  const updated = await db
-    .update(attemptItems)
-    .set({
-      selectedIndex: input.selectedIndex === null ? null : sql`${attemptItems.optionOrder}[${input.selectedIndex + 1}::int]`,
-      answeredAt: input.selectedIndex === null ? null : new Date(),
-    })
-    .where(
-      and(
-        eq(attemptItems.attemptId, attempt.id),
-        eq(attemptItems.itemId, input.itemId),
-        sql`exists (select 1 from ${attempts} where ${attempts.id} = ${attempt.id} and ${attempts.status} = 'in_progress')`,
-      ),
-    )
-    .returning({ itemId: attemptItems.itemId });
-  if (!updated.length) {
-    const fresh = await requireAttempt(attemptId, user);
-    throw attemptError(fresh.status === "in_progress" ? "ITEM_NOT_IN_ATTEMPT" : "ATTEMPT_SUBMITTED");
-  }
+  await db.transaction(async (tx) => {
+    // Lock the attempt first, so an autosave queues behind an in-flight submit and can't change a scored answer.
+    const [locked] = await tx.select({ status: attempts.status }).from(attempts).where(eq(attempts.id, attempt.id)).for("update");
+    if (locked.status !== "in_progress") throw attemptError("ATTEMPT_SUBMITTED");
+    const updated = await tx
+      .update(attemptItems)
+      .set({
+        selectedIndex: input.selectedIndex === null ? null : sql`${attemptItems.optionOrder}[${input.selectedIndex + 1}::int]`,
+        answeredAt: input.selectedIndex === null ? null : new Date(),
+      })
+      .where(and(eq(attemptItems.attemptId, attempt.id), eq(attemptItems.itemId, input.itemId)))
+      .returning({ itemId: attemptItems.itemId });
+    if (!updated.length) throw attemptError("ITEM_NOT_IN_ATTEMPT");
+  });
   return toAttemptResponse(attempt);
 }
 
