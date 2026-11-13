@@ -17,6 +17,9 @@ import {
   MAX_MATERIAL_CHARS,
   MAX_MATERIAL_PAGES,
   MAX_MATERIALS_PER_SPACE,
+  isValidMaterialId,
+  parseCreateMaterialRequest,
+  type MaterialApiErrorCode,
 } from "../src/features/materials/materials-schemas";
 
 type CheckResult = { name: string; ok: boolean; message: string };
@@ -66,6 +69,72 @@ check(
     MATERIAL_API_ERRORS.SPACE_NOT_FOUND.message === "Study space not found.",
   "",
 );
+
+// Request parsing (Task 3).
+function expectError(name: string, body: unknown, code: MaterialApiErrorCode) {
+  const result = parseCreateMaterialRequest(body);
+  check(
+    name,
+    !result.success && result.error.code === code,
+    result.success ? "passed (expected failure)" : `${result.error.code}: ${result.error.message}`,
+  );
+}
+
+const valid = { name: "Database Foundations.pdf", size: 2_400_000, contentType: "application/pdf" };
+check("Valid upload request passes", parseCreateMaterialRequest(valid).success, "");
+expectError("Wrong type (.docx)", { ...valid, name: "notes.docx", contentType: "" }, "UNSUPPORTED_FILE_TYPE");
+expectError("11 MB fails", { ...valid, size: 11_000_000 }, "FILE_TOO_LARGE");
+expectError("Empty name fails", { ...valid, name: "   " }, "VALIDATION_ERROR");
+const stray = parseCreateMaterialRequest({ ...valid, ownerId: "x", spaceId: "y", role: "instructor" });
+check(
+  "Stray ownerId/spaceId/role stripped",
+  stray.success && !("ownerId" in stray.data) && !("spaceId" in stray.data) && !("role" in stray.data),
+  "",
+);
+check(
+  "Name is trimmed",
+  (() => {
+    const r = parseCreateMaterialRequest({ ...valid, name: "  a.pdf  " });
+    return r.success && r.data.name === "a.pdf";
+  })(),
+  "",
+);
+expectError("Missing fields fail cleanly", {}, "VALIDATION_ERROR");
+expectError("Non-object body fails cleanly", "nope", "VALIDATION_ERROR");
+expectError("Fractional size fails", { ...valid, size: 1.5 }, "VALIDATION_ERROR");
+// Review Focus
+check(
+  "pptx with empty contentType passes",
+  parseCreateMaterialRequest({ name: "w3.pptx", size: 1000, contentType: "" }).success,
+  "",
+);
+check(
+  "uppercase extension passes",
+  parseCreateMaterialRequest({ name: "NOTES.PDF", size: 1000, contentType: "application/pdf" }).success,
+  "",
+);
+check("Exactly 10,000,000 bytes passes", parseCreateMaterialRequest({ ...valid, size: 10_000_000 }).success, "");
+expectError("10,000,001 bytes fails", { ...valid, size: 10_000_001 }, "FILE_TOO_LARGE");
+expectError("Fake extension fails", { ...valid, name: "slides.pdf.exe", contentType: "" }, "UNSUPPORTED_FILE_TYPE");
+expectError("No extension fails", { ...valid, name: "notes", contentType: "" }, "UNSUPPORTED_FILE_TYPE");
+expectError("MIME mismatch fails", { ...valid, contentType: "text/plain" }, "UNSUPPORTED_FILE_TYPE");
+expectError("Zero bytes fails", { ...valid, size: 0 }, "VALIDATION_ERROR");
+check(
+  "Zero bytes says the file is empty",
+  (() => {
+    const r = parseCreateMaterialRequest({ ...valid, size: 0 });
+    return !r.success && r.error.message === "This file is empty.";
+  })(),
+  "",
+);
+expectError("256-character name fails", { ...valid, name: "a".repeat(252) + ".pdf" }, "VALIDATION_ERROR");
+check(
+  "255-character name passes",
+  parseCreateMaterialRequest({ ...valid, name: "a".repeat(251) + ".pdf" }).success,
+  "",
+);
+check("UUID material ID valid", isValidMaterialId("00000000-0000-4000-8000-000000000000"), "");
+check("Malformed material ID invalid", !isValidMaterialId("not-a-uuid"), "");
 
 for (const result of results) {
   console.log(`${result.ok ? "✓" : "✗"} ${result.name}${result.message ? `: ${result.message}` : ""}`);
