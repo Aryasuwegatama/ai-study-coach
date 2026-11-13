@@ -13,7 +13,8 @@
     "auth:generate": "auth generate --config auth-cli.config.ts --output src/server/db/schema/auth.ts -y",
     "check:connections": "tsx scripts/check-connections.ts",
     "check:auth": "tsx scripts/check-auth.ts",
-    "check:spaces": "tsx scripts/check-spaces.ts"
+    "check:spaces": "tsx scripts/check-spaces.ts",
+    "check:materials-contract": "tsx scripts/check-materials-contract.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "3.0.141",
