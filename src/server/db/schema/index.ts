@@ -7,3 +7,5 @@ export * from "./auth";
 // whichever task adds them per the PRD ownership boundary (Section 5).
 export * from "./study-spaces";
 export * from "./materials";
+export * from "./chunks";
+export * from "./jobs";

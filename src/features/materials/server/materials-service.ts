@@ -28,6 +28,7 @@ import {
   type MaterialStatus,
 } from "../materials-schemas";
 import { checkUploadedFile } from "./verify-file";
+import { queueProcessing, startProcessing } from "./process-material";
 
 /** Server-only row: carries `blobPath` and `fileHash`, so it is never serialised. */
 export type MaterialRecord = typeof materials.$inferSelect;
@@ -204,14 +205,17 @@ export async function completeMaterial(user: SessionUser, materialId: string): P
     .limit(1);
   if (duplicate) return rejectUpload(material, "DUPLICATE_FILE");
 
-  let updated: MaterialRecord | undefined;
+  let job: { id: string; step: string } | undefined;
   try {
-    // T-08a starts the processing job here.
-    [updated] = await db
-      .update(materials)
-      .set({ status: "processing", fileHash: result.hash, sizeBytes: bytes.length })
-      .where(and(eq(materials.id, material.id), eq(materials.status, "uploading")))
-      .returning();
+    // The status change and the processing job commit together.
+    job = await db.transaction(async (tx) => {
+      const [moved] = await tx
+        .update(materials)
+        .set({ status: "processing", stage: "extract", fileHash: result.hash, sizeBytes: bytes.length })
+        .where(and(eq(materials.id, material.id), eq(materials.status, "uploading")))
+        .returning();
+      return moved ? queueProcessing(tx, moved, user.id) : undefined;
+    });
   } catch (error) {
     // Another upload of the same file won the race between our check and
     // this update; the unique (space_id, file_hash) caught it.
@@ -219,21 +223,30 @@ export async function completeMaterial(user: SessionUser, materialId: string): P
     throw error;
   }
 
-  // Zero rows: a concurrent "complete" already moved it on (or it was
-  // deleted, and requireMaterial now gives the 404).
-  return toMaterialResponse(updated ?? (await requireMaterial(materialId, user)));
+  if (job) await startProcessing(material.id, job);
+  // Re-read: processing may already have moved on, or failed to start. With
+  // no job, a concurrent "complete" already moved it on (or it was deleted,
+  // and requireMaterial now gives the 404).
+  return toMaterialResponse(await requireMaterial(materialId, user));
 }
 
 export async function retryMaterial(user: SessionUser, materialId: string): Promise<MaterialResponse> {
   const material = await requireMaterial(materialId, user);
-  const [updated] = await db
-    .update(materials)
-    .set({ status: "processing", stage: null, errorCode: null, progressDone: null, progressTotal: null })
-    .where(and(eq(materials.id, material.id), eq(materials.status, "failed")))
-    .returning();
-  if (!updated) throw materialError("INVALID_MATERIAL_STATE");
-  // T-08a restarts the failed step here.
-  return toMaterialResponse(updated);
+  // Same job row, restarted at the step that failed, with a fresh budget.
+  const job = await db.transaction(async (tx) => {
+    const [moved] = await tx
+      .update(materials)
+      .set({ status: "processing", errorCode: null })
+      .where(and(eq(materials.id, material.id), eq(materials.status, "failed")))
+      .returning();
+    if (!moved) return undefined;
+    const queued = await queueProcessing(tx, moved, user.id);
+    await tx.update(materials).set({ stage: queued.step }).where(eq(materials.id, moved.id));
+    return queued;
+  });
+  if (!job) throw materialError("INVALID_MATERIAL_STATE");
+  await startProcessing(material.id, job);
+  return toMaterialResponse(await requireMaterial(materialId, user));
 }
 
 export async function getMaterialFile(user: SessionUser, materialId: string) {

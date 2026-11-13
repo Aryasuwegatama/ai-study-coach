@@ -34,6 +34,11 @@ const serverEnvSchema = z.object({
   QSTASH_CURRENT_SIGNING_KEY: z.string().min(1),
   QSTASH_NEXT_SIGNING_KEY: z.string().min(1),
   QSTASH_URL: z.string().url().optional(),
+  // Where QStash sends job steps (T-08a). Optional: Production falls back
+  // to BETTER_AUTH_URL and previews to VERCEL_BRANCH_URL (jobs-client.ts).
+  APP_URL: z.string().url().optional(),
+  // Sent as `x-vercel-protection-bypass` so QStash reaches protected previews.
+  VERCEL_AUTOMATION_BYPASS_SECRET: z.string().min(1).optional(),
 
   // AI provider.
   AI_PROVIDER: z.enum(["gemini", "fake"]).default("gemini"),
