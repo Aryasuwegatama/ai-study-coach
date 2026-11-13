@@ -190,6 +190,11 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - Delete is a hard delete in one request (Arya, 2026-11-13): the Blob file first, then the row. A file that's already gone counts as deleted. If the Blob delete fails nothing changes and the route returns 503 `MATERIAL_DELETE_FAILED`, so a retry finishes the job.
 - Download of a row whose file is gone returns 404 `FILE_UNAVAILABLE`; deleting it again fixes it.
 
+**Topics contract notes (T-08b).** The source of truth is `src/features/topics/topics-schemas.ts`.
+- A material's AI suggestions are `draft` topics linked to it through `material_topics`; topic lists show confirmed topics only (`?include=archived` adds archived ones).
+- `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
+- Deleting a material in Review topics deletes its draft topics; confirmed topics stay. Topics are archived, never deleted.
+
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 
 ## Environment variables

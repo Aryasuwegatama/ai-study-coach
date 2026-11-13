@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, getTableColumns, isNull, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, inArray, isNull, ne } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
-import { materials, studySpaces } from "@/server/db/schema";
+import { materialTopics, materials, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import {
@@ -278,5 +278,15 @@ export async function deleteMaterial(user: SessionUser, materialId: string): Pro
   } catch {
     throw materialError("MATERIAL_DELETE_FAILED");
   }
-  await db.delete(materials).where(eq(materials.id, material.id));
+  await db.transaction(async (tx) => {
+    // Its unconfirmed draft topics belong to it alone (T-08b); chunks and
+    // topic links cascade with the row.
+    const drafts = await tx
+      .select({ id: topics.id })
+      .from(materialTopics)
+      .innerJoin(topics, eq(topics.id, materialTopics.topicId))
+      .where(and(eq(materialTopics.materialId, material.id), eq(topics.status, "draft")));
+    if (drafts.length) await tx.delete(topics).where(inArray(topics.id, drafts.map((d) => d.id)));
+    await tx.delete(materials).where(eq(materials.id, material.id));
+  });
 }

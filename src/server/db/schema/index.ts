@@ -9,3 +9,5 @@ export * from "./study-spaces";
 export * from "./materials";
 export * from "./chunks";
 export * from "./jobs";
+export * from "./topics";
+export * from "./ai-calls";
