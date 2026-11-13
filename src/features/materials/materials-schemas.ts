@@ -73,6 +73,7 @@ export const MATERIAL_FAILURE_REASONS = {
   NO_READABLE_TEXT: "No readable text found (scanned pages are not supported)", // †
   TOO_MANY_PAGES: "File too long (maximum 200 pages)", // †
   TOO_MUCH_TEXT: "Too much text. Split the file into smaller parts.", // †
+  AI_UNUSABLE_ANSWER: "The AI returned an unusable answer; please try again", // † PRD 03
   PROCESSING_FAILED: "Processing failed. Try again.",
 } as const;
 
@@ -119,7 +120,10 @@ export const createMaterialSchema = z
       .string({ error: "Enter a file name." })
       .trim()
       .min(1, "Enter a file name.")
-      .max(255, "Use a file name of 255 characters or fewer."),
+      .max(255, "Use a file name of 255 characters or fewer.")
+      // No control characters: a NUL breaks the Postgres insert, CR/LF would
+      // reach the download's Content-Disposition header.
+      .regex(/^[^\u0000-\u001f\u007f]*$/, "Remove special characters from the file name."),
     size: z
       .number({ error: "Enter the file size." })
       .int("Enter the file size in whole bytes.")
@@ -224,10 +228,14 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  *      `MAX_MATERIALS_PER_SPACE` (`MATERIAL_LIMIT_REACHED`; counts every
  *      non-deleted material in the space, whatever its status), creates the
  *      row as `uploading` and returns a client token limited to that ONE
- *      pathname, the three `ACCEPTED_FILE_TYPES` MIME types and
- *      `MAX_MATERIAL_BYTES`, with `allowOverwrite: false`.
+ *      server-generated pathname (never built from `name`; it ends in the
+ *      accepted extension), the three `ACCEPTED_FILE_TYPES` MIME types and
+ *      `MAX_MATERIAL_BYTES`, with `allowOverwrite: false`. The pathname is
+ *      the blob path, shown only to its uploader for this one `put()`.
  *   2. The browser calls `put(pathname, file, { access: "private", token,
- *      onUploadProgress, abortSignal })` from `@vercel/blob/client`.
+ *      contentType, onUploadProgress, abortSignal })` from
+ *      `@vercel/blob/client`, where `contentType` is the extension's
+ *      `ACCEPTED_FILE_TYPES` MIME type (never `file.type`, which can be `""`).
  *   3. The browser calls `POST /api/materials/:id/complete`.
  *
  * Complete:

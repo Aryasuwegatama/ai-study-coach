@@ -134,6 +134,14 @@ check(
   parseCreateMaterialRequest({ ...valid, name: "a".repeat(251) + ".pdf" }).success,
   "",
 );
+expectError("Control characters in name fail", { ...valid, name: "a\r\nb.pdf" }, "VALIDATION_ERROR");
+expectError("NUL in name fails", { ...valid, name: "a\u0000.pdf" }, "VALIDATION_ERROR");
+check(
+  "AI unusable-answer message is exact (PRD 03)",
+  (MATERIAL_FAILURE_REASONS as Record<string, string>).AI_UNUSABLE_ANSWER ===
+    "The AI returned an unusable answer; please try again",
+  "",
+);
 check("UUID material ID valid", isValidMaterialId("00000000-0000-4000-8000-000000000000"), "");
 check("Malformed material ID invalid", !isValidMaterialId("not-a-uuid"), "");
 
