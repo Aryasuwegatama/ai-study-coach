@@ -20,6 +20,7 @@ import {
   isValidMaterialId,
   parseCreateMaterialRequest,
   type MaterialApiErrorCode,
+  type MaterialResponse,
 } from "../src/features/materials/materials-schemas";
 
 type CheckResult = { name: string; ok: boolean; message: string };
@@ -135,6 +136,24 @@ check(
 );
 check("UUID material ID valid", isValidMaterialId("00000000-0000-4000-8000-000000000000"), "");
 check("Malformed material ID invalid", !isValidMaterialId("not-a-uuid"), "");
+
+// Response shape (Task 4). The first check is compile-time: adding any
+// forbidden key to MaterialResponse makes `tsc --noEmit` fail here.
+type Forbidden = "blobPath" | "blob_path" | "fileHash" | "file_hash" | "ownerId" | "deletedAt";
+const noSecretFields: Extract<keyof MaterialResponse, Forbidden> extends never ? true : false = true;
+check("MaterialResponse has no blobPath/fileHash/ownerId/deletedAt", noSecretFields, "");
+const sample: MaterialResponse = {
+  id: "00000000-0000-4000-8000-000000000000",
+  originalName: "a.pdf",
+  status: "processing",
+  stage: "embed",
+  progress: { done: 120, total: 300 },
+  error: null,
+  pageCount: 12,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+check("Sample processing material type-checks with progress", sample.progress?.done === 120, "");
 
 for (const result of results) {
   console.log(`${result.ok ? "✓" : "✗"} ${result.name}${result.message ? `: ${result.message}` : ""}`);

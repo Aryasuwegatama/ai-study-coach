@@ -171,3 +171,109 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export function isValidMaterialId(id: string): boolean {
   return UUID_PATTERN.test(id);
 }
+
+// ---------------------------------------------------------------------------
+// Response types. Never `blobPath`/`blob_path`, `fileHash`/`file_hash`,
+// `ownerId` or `deletedAt` (Security rule 6); `check-materials-contract.ts`
+// enforces this at compile time.
+// ---------------------------------------------------------------------------
+
+export type MaterialResponse = {
+  id: string;
+  originalName: string;
+  status: MaterialStatus;
+  stage: MaterialStage | null;
+  /** "120 of 300 sections"; null until known. */
+  progress: { done: number; total: number } | null;
+  /** Only when `status === "failed"`. */
+  error: { code: MaterialFailureCode; message: string } | null;
+  /** Null until the job's verify step. */
+  pageCount: number | null;
+  /** ISO 8601. */
+  createdAt: string;
+  /** ISO 8601. */
+  updatedAt: string;
+};
+
+/** `GET /api/spaces/:spaceId/materials` — 200, newest first. */
+export type ListMaterialsResponse = { materials: MaterialResponse[] };
+
+/** `POST /api/spaces/:spaceId/materials` — 201, material in `uploading`. */
+export type CreateMaterialResponse = {
+  material: MaterialResponse;
+  /** Used once by the browser's `put()`. */
+  upload: { pathname: string; clientToken: string };
+};
+
+/** `POST /api/materials/:id/complete` — 200. */
+export type CompleteMaterialResponse = { material: MaterialResponse };
+
+/** `POST /api/materials/:id/retry` — 202, material back in `processing`. */
+export type RetryMaterialResponse = { material: MaterialResponse };
+
+// `GET /api/materials/:id/file`: the file stream with
+//   `Content-Disposition: attachment` and `originalName`; no JSON body.
+// `DELETE /api/materials/:id`: 204, no body.
+
+/*
+ * Contract rules T-06b and T-09 build against.
+ *
+ * Upload flow (Security rule 6 — the file never passes through our server):
+ *   1. `POST /api/spaces/:spaceId/materials` checks the body
+ *      (`parseCreateMaterialRequest`), calls `requireSpace`, enforces
+ *      `MAX_MATERIALS_PER_SPACE` (`MATERIAL_LIMIT_REACHED`; counts every
+ *      non-deleted material in the space, whatever its status), creates the
+ *      row as `uploading` and returns a client token limited to that ONE
+ *      pathname, the three `ACCEPTED_FILE_TYPES` MIME types and
+ *      `MAX_MATERIAL_BYTES`, with `allowOverwrite: false`.
+ *   2. The browser calls `put(pathname, file, { access: "private", token,
+ *      onUploadProgress, abortSignal })` from `@vercel/blob/client`.
+ *   3. The browser calls `POST /api/materials/:id/complete`.
+ *
+ * Complete:
+ *   - Synchronously checks the real type from the first bytes, the size
+ *     (≤ `MAX_MATERIAL_BYTES`), the SHA-256 fingerprint and the duplicate
+ *     check. On failure the row is soft-deleted (`deleted_at`), Blob cleanup
+ *     is queued and the route returns `DUPLICATE_FILE` 409,
+ *     `UNSUPPORTED_FILE_TYPE` 400 or `FILE_TOO_LARGE` 400. The row drops out
+ *     of the list; the UI shows the message on that upload row.
+ *   - No blob at the pathname yet: 409 `UPLOAD_INCOMPLETE`; the row stays
+ *     `uploading`.
+ *   - Idempotent: once the material has left `uploading`, calling it again
+ *     returns 200 with the current material (a network retry never errors).
+ *   - Page count (`MAX_MATERIAL_PAGES`), readable text and
+ *     `MAX_MATERIAL_CHARS` are checked later by the `process_material` job
+ *     and end as `failed` with a `MATERIAL_FAILURE_REASONS` reason.
+ *
+ * Cancel: the browser aborts its `put()` (`abortSignal`), then calls
+ *   `DELETE /api/materials/:id` — the same route and 204 as a normal
+ *   delete, allowed in any status. Abandoned `uploading` rows are removed by
+ *   the daily cron after 1 hour (PRD Section 4).
+ *
+ * Retry: only from `failed`; 202 with the material back in `processing`.
+ *   Any other status: 409 `INVALID_MATERIAL_STATE`.
+ *
+ * Download: owner-checked through `requireMaterial`. While `uploading`:
+ *   409 `INVALID_MATERIAL_STATE`.
+ *
+ * Delete: 204; the material leaves the list immediately. Blob and chunk
+ *   cleanup belong to T-06b and the cleanup job (PRD Section 4 deletion
+ *   rules); the UI must not claim the file is erased.
+ *
+ * Polling: the screen polls `GET` every `MATERIAL_POLL_INTERVAL_MS` while
+ *   any material is `uploading` or `processing`.
+ *
+ * Ownership — `requireMaterial(materialId: string, user: SessionUser):
+ * Promise<MaterialRecord>` (T-06b implements it in
+ * `src/features/materials/server/`, not in `src/server/auth/**`):
+ *   - Checks `isValidMaterialId` first.
+ *   - Then ONE query joins `materials` to `study_spaces` on `space_id`,
+ *     where `materials.id = $id`, `study_spaces.owner_id = user.id`,
+ *     `study_spaces.deleted_at IS NULL` and `materials.deleted_at IS NULL`.
+ *   - Missing, malformed, deleted, someone else's and deleted-space
+ *     materials ALL throw the identical
+ *     `ApiError("MATERIAL_NOT_FOUND", "Material not found.", 404)`,
+ *     mirroring `requireSpace()`.
+ *   - `MaterialRecord` carries `spaceId`, `status`, `blobPath` and
+ *     `fileHash` for server use only and is never serialised.
+ */
