@@ -111,6 +111,9 @@ async function admit(job: Job, setId: string): Promise<boolean> {
           eq(jobs.generationSlotAcquired, true),
           inArray(jobs.status, ["queued", "running"]),
           ne(jobs.id, job.id),
+          // ponytail: a holder untouched for 15 minutes is treated as stranded
+          // (no reconciler yet), so it can't block generation forever.
+          sql`${jobs.updatedAt} > now() - interval '15 minutes'`,
         ),
       );
     if (active >= MAX_ACTIVE_GENERATIONS) {
