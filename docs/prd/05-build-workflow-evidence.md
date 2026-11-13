@@ -163,7 +163,7 @@ git push -u origin spike/T-02-ai-smoke
 | T-09 | Materials screens, statuses and topic-confirmation UI | **Arya** | `feat/T-09-materials-ui` | UI draft after T-06a contract; real integration after T-06b/T-08b | Blocked for integration |
 | T-10 | Upload, signed-worker, retry/idempotency and cross-space source tests | **Khushi** | `test/T-10-materials-jobs` | T-06b/T-08a implementation | Blocked by prerequisites |
 | T-11a | Quiz generation API contract, schema and source/topic membership rules | **Rashid** | `feat/T-11a-quiz-contract` | T-02 and accepted extraction/topic contract; can draft before T-08b completes | In review |
-| T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | Blocked by prerequisites |
+| T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | In review |
 | T-12 | Quiz Library, quiz setup, autosaved attempt and results **frontend** | **Arya** | `feat/T-12-quiz-ui` | UI draft after T-11a; real integration requires T-11b + T-14 | Blocked for integration |
 | T-13 | Answer-key leak, prompt-injection, source membership and forged IDs tests | **Khushi** | `test/T-13-answers-injection` | T-11b implemented | Blocked by prerequisites |
 | T-14 | Quiz attempts and server scoring; topic mastery query; revision business logic and migrations | **Rashid** | `feat/T-14-scoring-mastery-revision` | T-11b merged; agree APIs before T-12/T-15 integrations | Blocked by prerequisites |

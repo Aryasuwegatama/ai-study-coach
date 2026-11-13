@@ -45,7 +45,7 @@ function appUrl(): string {
   throw new Error("APP_URL is not set.");
 }
 
-type Publisher = (message: StepMessage) => Promise<void>;
+type Publisher = (message: StepMessage, options: PublishOptions) => Promise<void>;
 let testPublisher: Publisher | undefined;
 
 /**
@@ -56,8 +56,15 @@ export function setPublisherForChecks(publisher: Publisher | undefined): void {
   testPublisher = publisher;
 }
 
-export async function publishStep(message: StepMessage): Promise<void> {
-  if (testPublisher) return testPublisher(message);
+export type PublishOptions = {
+  /** QStash flow-control key: `processing` (materials) or `generation` (quizzes and decks), parallelism 2 each. */
+  flow?: "processing" | "generation";
+  /** Deliver later, e.g. while waiting for a generation slot. */
+  delaySeconds?: number;
+};
+
+export async function publishStep(message: StepMessage, options: PublishOptions = {}): Promise<void> {
+  if (testPublisher) return testPublisher(message, options);
   const env = serverEnv();
   await qstashClient().publishJSON({
     url: new URL("/api/jobs/step", appUrl()).toString(),
@@ -66,9 +73,8 @@ export async function publishStep(message: StepMessage): Promise<void> {
     headers: env.VERCEL_AUTOMATION_BYPASS_SECRET
       ? { "x-vercel-protection-bypass": env.VERCEL_AUTOMATION_BYPASS_SECRET }
       : undefined,
-    // ponytail: every step is `process_material` for now; T-11b passes the
-    // `generation` key for quiz and deck steps.
-    flowControl: { key: "processing", parallelism: 2 },
+    flowControl: { key: options.flow ?? "processing", parallelism: 2 },
+    ...(options.delaySeconds ? { delay: options.delaySeconds } : {}),
     retries: MAX_STEP_ATTEMPTS - 1,
   });
 }
