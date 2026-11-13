@@ -21,7 +21,7 @@ import { setPublisherForChecks, type PublishOptions, type StepMessage } from "..
 import { runJobStep } from "../src/server/jobs/jobs-runner";
 import { embedTexts, embeddingModelName } from "../src/server/ai/ai-embeddings";
 import { normalizeTopicName } from "../src/server/ai/prompts/topics";
-import { safeTimeZone } from "../src/features/quizzes/server";
+import { safeTimeZone } from "../src/lib/time-zone";
 import type { SetDetailResponse, SetResponse } from "../src/features/quizzes/quizzes-schemas";
 import { GET as listRoute, POST as createRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 import { DELETE as deleteRoute, GET as getRoute } from "../src/app/api/sets/[id]/route";

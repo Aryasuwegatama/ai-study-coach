@@ -50,6 +50,13 @@
       "when": 1794562031487,
       "tag": "0006_study_sets",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794572079343,
+      "tag": "0007_attempts_revision",
+      "breakpoints": true
     }
   ]
 }
