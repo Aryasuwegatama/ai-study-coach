@@ -195,6 +195,11 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
 - Deleting a material in Review topics deletes its draft topics; confirmed topics stay. Topics are archived, never deleted.
 
+**Quiz contract notes (T-11a).** The source of truth is `src/features/quizzes/quizzes-schemas.ts`.
+- `POST /api/spaces/:spaceId/sets` accepts `kind: "quiz"` only for now (decks are a later task). It checks, in order: Ready materials in this space, confirmed topics of those materials, topics ≤ questions, then the daily limit (429 `DAILY_LIMIT_REACHED`).
+- `GET /api/sets/:id` never returns the correct option, explanation or sources.
+- The database rejects an MCQ without exactly four options and a 0–3 correct index, and any item or source that crosses Study Spaces. Deleting a material removes its source links, so past results show "Source removed".
+
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 
 ## Environment variables
