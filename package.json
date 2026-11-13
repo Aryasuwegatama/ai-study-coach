@@ -15,7 +15,8 @@
     "check:auth": "tsx scripts/check-auth.ts",
     "check:spaces": "tsx scripts/check-spaces.ts",
     "check:materials-contract": "tsx scripts/check-materials-contract.ts",
-    "check:materials": "tsx scripts/check-materials.ts"
+    "check:materials": "tsx scripts/check-materials.ts",
+    "check:ai": "tsx scripts/check-ai.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "3.0.141",
