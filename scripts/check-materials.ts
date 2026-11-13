@@ -40,7 +40,7 @@ const TXT_MIME = "text/plain";
 const MISSING_ID = "00000000-0000-4000-8000-000000000000";
 const MALFORMED_ID = "not-a-uuid";
 const NOT_FOUND_BODY = JSON.stringify({ error: { code: "MATERIAL_NOT_FOUND", message: "Material not found." } });
-const PUBLIC_KEYS = ["createdAt", "error", "id", "originalName", "pageCount", "progress", "stage", "status", "updatedAt"];
+const PUBLIC_KEYS = ["createdAt", "error", "id", "originalName", "pageCount", "progress", "sizeBytes", "stage", "status", "updatedAt"];
 
 const results: CheckResult[] = [];
 const uploadedPaths = new Set<string>();
@@ -220,8 +220,13 @@ async function run(userA: Session, userB: Session, stamp: number) {
   const pdfUpload = await browserUpload(pdf.body.upload.pathname, token, pdfBytes, PDF_MIME);
   check("Browser upload of a small PDF succeeds", pdfUpload === null, pdfUpload ?? "");
   const pdfDone = await complete(userA.cookie, pdfId);
-  const pdfDoneBody = await json<{ material: MaterialResponse }>(pdfDone);
-  check("Complete PDF: 200, processing", pdfDone.status === 200 && pdfDoneBody.material.status === "processing", `${pdfDone.status} ${pdfDoneBody.material?.status}`);
+  const pdfDoneBody = await json<{ material: MaterialResponse } & ErrorBody>(pdfDone);
+  check(
+    "Complete PDF: 200, processing, sizeBytes is the real size",
+    pdfDone.status === 200 && pdfDoneBody.material?.status === "processing" && pdfDoneBody.material.sizeBytes === pdfBytes.length,
+    `${pdfDone.status} ${pdfDoneBody.material?.status ?? pdfDoneBody.error?.code}, sizeBytes ${pdfDoneBody.material?.sizeBytes}`,
+  );
+  check("Uploading material has sizeBytes null", pdf.body.material.sizeBytes === null);
   const pdfAgain = await complete(userA.cookie, pdfId);
   const pdfAgainBody = await json<{ material: MaterialResponse }>(pdfAgain);
   check("Complete twice returns the same material", pdfAgain.status === 200 && pdfAgainBody.material.id === pdfId && pdfAgainBody.material.status === "processing", `${pdfAgain.status}`);
@@ -229,7 +234,12 @@ async function run(userA: Session, userB: Session, stamp: number) {
   const txt = await create(userA.cookie, spaceA.id, { name: "notes.txt", size: txtBytes.length, contentType: "" });
   await browserUpload(txt.body.upload.pathname, txt.body.upload.clientToken, txtBytes, TXT_MIME);
   const txtDone = await complete(userA.cookie, txt.body.material.id);
-  check("Complete TXT: 200, processing", txtDone.status === 200 && (await json<{ material: MaterialResponse }>(txtDone)).material.status === "processing", `${txtDone.status}`);
+  const txtDoneBody = await json<{ material: MaterialResponse }>(txtDone);
+  check(
+    "Complete TXT: 200, processing, sizeBytes is the real size",
+    txtDone.status === 200 && txtDoneBody.material?.status === "processing" && txtDoneBody.material.sizeBytes === txtBytes.length,
+    `${txtDone.status}, sizeBytes ${txtDoneBody.material?.sizeBytes}`,
+  );
 
   async function expectRejected(label: string, name: string, bytes: Buffer, mime: string, code: string, status: number) {
     const created = await create(userA.cookie, spaceA.id, { name, size: bytes.length, contentType: mime });

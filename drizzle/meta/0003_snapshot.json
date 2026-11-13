@@ -1,5 +1,5 @@
 {
-  "id": "6aee6c43-c0d5-4143-8460-4e9419ba4f7a",
+  "id": "c3395e5c-61ea-4548-80fe-bab4f5a38182",
   "prevId": "17040036-04a0-4182-82fc-0b79b0984e2d",
   "version": "7",
   "dialect": "postgresql",
@@ -546,6 +546,12 @@
         "file_hash": {
           "name": "file_hash",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },

@@ -6,6 +6,7 @@ import { materials, studySpaces } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import {
+  blobExists,
   createUploadToken,
   deleteBlob,
   getPrivateBlob,
@@ -53,6 +54,7 @@ export function toMaterialResponse(row: MaterialRecord): MaterialResponse {
         ? { code: errorCode, message: MATERIAL_FAILURE_REASONS[errorCode] }
         : null,
     pageCount: row.pageCount,
+    sizeBytes: row.sizeBytes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -172,7 +174,16 @@ export async function completeMaterial(user: SessionUser, materialId: string): P
   // Idempotent: a network retry after success gets the current material.
   if (material.status !== "uploading") return toMaterialResponse(material);
 
-  const blob = await getPrivateBlob(material.blobPath);
+  // `head` decides whether the upload landed: measured 0/15 misses straight
+  // after an upload. `get` missed 4/15 times for 1-2 s when the same path
+  // had been read before the upload (an earlier "complete"), so it gets a
+  // few seconds to catch up once `head` has seen the file.
+  if (!(await blobExists(material.blobPath))) throw materialError("UPLOAD_INCOMPLETE");
+  let blob = await getPrivateBlob(material.blobPath);
+  for (let attempt = 0; !blob && attempt < 10; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    blob = await getPrivateBlob(material.blobPath);
+  }
   if (!blob) throw materialError("UPLOAD_INCOMPLETE");
   if (blob.blob.size > MAX_MATERIAL_BYTES) return rejectUpload(material, "FILE_TOO_LARGE");
 
@@ -198,7 +209,7 @@ export async function completeMaterial(user: SessionUser, materialId: string): P
     // T-08a starts the processing job here.
     [updated] = await db
       .update(materials)
-      .set({ status: "processing", fileHash: result.hash })
+      .set({ status: "processing", fileHash: result.hash, sizeBytes: bytes.length })
       .where(and(eq(materials.id, material.id), eq(materials.status, "uploading")))
       .returning();
   } catch (error) {

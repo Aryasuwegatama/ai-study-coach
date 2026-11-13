@@ -4,6 +4,7 @@ CREATE TABLE "materials" (
 	"original_name" text NOT NULL,
 	"blob_path" text NOT NULL,
 	"file_hash" text,
+	"size_bytes" integer,
 	"page_count" integer,
 	"char_count" integer,
 	"status" text DEFAULT 'uploading' NOT NULL,

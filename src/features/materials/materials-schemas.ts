@@ -203,6 +203,8 @@ export type MaterialResponse = {
   error: { code: MaterialFailureCode; message: string } | null;
   /** Null until the job's verify step. */
   pageCount: number | null;
+  /** The real size measured at "complete" (T-06b); null while uploading. */
+  sizeBytes: number | null;
   /** ISO 8601. */
   createdAt: string;
   /** ISO 8601. */

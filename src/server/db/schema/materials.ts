@@ -26,6 +26,8 @@ export const materials = pgTable(
     blobPath: text("blob_path").notNull().unique(),
     /** SHA-256 hex; null until "complete" has checked the file. */
     fileHash: text("file_hash"),
+    /** The real size measured at "complete", not the browser's claim; null until then. */
+    sizeBytes: integer("size_bytes"),
     pageCount: integer("page_count"),
     charCount: integer("char_count"),
     status: text("status").notNull().default("uploading"),

@@ -170,6 +170,7 @@ const sample: MaterialResponse = {
   progress: { done: 120, total: 300 },
   error: null,
   pageCount: 12,
+  sizeBytes: 2_400_000,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
