@@ -262,6 +262,10 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  *     `uploading`.
  *   - Idempotent: once the material has left `uploading`, calling it again
  *     returns 200 with the current material (a network retry never errors).
+ *   - On success the material is `processing` at stage `extract` and its
+ *     `process_material` job is queued (T-08a). If the job can't be
+ *     queued with QStash, the response already shows `failed` with
+ *     `PROCESSING_FAILED`, so the UI offers Retry.
  *   - Page count (`MAX_MATERIAL_PAGES`), readable text and
  *     `MAX_MATERIAL_CHARS` are checked later by the `process_material` job
  *     and end as `failed` with a `MATERIAL_FAILURE_REASONS` reason.
@@ -272,8 +276,10 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  *   cancelled upload can't land later. Abandoned `uploading` rows are
  *   removed by the daily cron after 1 hour (PRD Section 4).
  *
- * Retry: only from `failed`; 202 with the material back in `processing`.
- *   Any other status: 409 `INVALID_MATERIAL_STATE`.
+ * Retry: only from `failed`; 202 with the material back in `processing`,
+ *   at the stage that failed (earlier progress is kept). If the job can't
+ *   be queued, the response shows `failed` again. Any other status: 409
+ *   `INVALID_MATERIAL_STATE`.
  *
  * Download: owner-checked through `requireMaterial`. While `uploading`:
  *   409 `INVALID_MATERIAL_STATE`. Row present but file gone: 404
