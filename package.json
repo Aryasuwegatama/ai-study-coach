@@ -16,6 +16,7 @@
     "check:spaces": "tsx scripts/check-spaces.ts",
     "check:processing": "tsx scripts/check-processing.ts",
     "check:topics": "tsx scripts/check-topics.ts",
+    "check:quiz-contract": "tsx scripts/check-quiz-contract.ts",
     "check:materials-contract": "tsx scripts/check-materials-contract.ts",
     "check:materials": "tsx scripts/check-materials.ts",
     "check:ai": "tsx scripts/check-ai.ts"
