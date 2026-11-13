@@ -181,6 +181,13 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 | Jobs | `POST` `/api/jobs/step` | QStash-signed background step only |
 | Clean-up | GET /api/cron/cleanup | Vercel Cron only, checked with CRON_SECRET |
 
+**Materials contract notes (T-06a).** The source of truth is `src/features/materials/materials-schemas.ts`.
+- Cancel is `DELETE /api/materials/:id`, allowed in any status (the browser aborts its upload first).
+- "Complete" checks the real type, size, fingerprint and duplicate synchronously. On rejection it removes the row (soft delete, Blob cleanup queued) and returns the error.
+- The page and character limits are checked later by the job and end as `failed` with a reason.
+- Retry is allowed only from `failed`; any other status gets 409 `INVALID_MATERIAL_STATE`.
+- `requireMaterial` gives the same 404 `MATERIAL_NOT_FOUND` for missing, malformed, deleted, someone else's or deleted-space materials.
+
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 
 ## Environment variables
