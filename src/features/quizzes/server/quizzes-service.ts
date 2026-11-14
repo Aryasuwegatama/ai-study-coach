@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-or
 import { ApiError } from "@/lib/api-errors";
 import { safeTimeZone } from "@/lib/time-zone";
 import { db } from "@/server/db/db-client";
-import { jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "@/server/db/schema";
+import { attempts, jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { publishStep } from "@/server/jobs/jobs-client";
@@ -169,8 +169,24 @@ export async function getSet(user: SessionUser, setId: string): Promise<SetDetai
   };
 }
 
+/**
+ * A quiz with a submitted attempt is the student's record (scores, mastery
+ * evidence, revision items), so it can't be deleted (Arya, 2026-11-14,
+ * #35). Failed, generating, never-attempted and in-progress-only quizzes
+ * can. A still-running job sees the set gone at its next step and stops.
+ */
 export async function deleteSet(user: SessionUser, setId: string): Promise<void> {
   const set = await requireSet(setId, user);
-  // A still-running job sees the set gone at its next step and stops.
-  await db.delete(studySets).where(eq(studySets.id, set.id));
+  await db.transaction(async (tx) => {
+    // Lock the quiz's attempts: a submit in flight finishes first and is
+    // seen here, and a submit that arrives after waits, then finds its
+    // attempt gone (404). Submit locks its attempt row the same way.
+    const rows = await tx
+      .select({ status: attempts.status })
+      .from(attempts)
+      .where(eq(attempts.setId, set.id))
+      .for("update");
+    if (rows.some((r) => r.status === "submitted")) throw quizError("SET_HAS_RESULTS");
+    await tx.delete(studySets).where(eq(studySets.id, set.id));
+  });
 }

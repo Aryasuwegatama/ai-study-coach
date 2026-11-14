@@ -117,6 +117,8 @@ export async function saveAnswer(user: SessionUser, attemptId: string, input: Sa
   await db.transaction(async (tx) => {
     // Lock the attempt first, so an autosave queues behind an in-flight submit and can't change a scored answer.
     const [locked] = await tx.select({ status: attempts.status }).from(attempts).where(eq(attempts.id, attempt.id)).for("update");
+    // Gone: its quiz was deleted while this request waited (#35).
+    if (!locked) throw attemptError("ATTEMPT_NOT_FOUND");
     if (locked.status !== "in_progress") throw attemptError("ATTEMPT_SUBMITTED");
     const updated = await tx
       .update(attemptItems)
@@ -136,6 +138,8 @@ export async function submitAttempt(user: SessionUser, attemptId: string): Promi
   const owned = await requireAttempt(attemptId, user);
   const attempt = await db.transaction(async (tx) => {
     const [locked] = await tx.select().from(attempts).where(eq(attempts.id, owned.id)).for("update");
+    // Gone: its quiz was deleted while this request waited (#35).
+    if (!locked) throw attemptError("ATTEMPT_NOT_FOUND");
     if (locked.status === "submitted") return locked;
 
     const rows = await tx

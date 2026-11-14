@@ -66,7 +66,7 @@ export const MATERIAL_API_ERRORS = {
   },
   DUPLICATE_FILE: { status: 409, message: "This file is already in this space" }, // †
   UPLOAD_INCOMPLETE: { status: 409, message: "The upload hasn't finished yet." },
-  INVALID_MATERIAL_STATE: { status: 409, message: "This material can't do that right now." },
+  INVALID_MATERIAL_STATE: { status: 409, message: "This file's status just changed. Refresh and try again." },
   MATERIAL_NOT_FOUND: { status: 404, message: "Material not found." },
   /** T-06b: the Blob delete failed and nothing changed, so a retry finishes the job. */
   MATERIAL_DELETE_FAILED: { status: 503, message: "Couldn't delete this file. Try again." },

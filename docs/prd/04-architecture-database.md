@@ -189,6 +189,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - `requireMaterial` gives the same 404 `MATERIAL_NOT_FOUND` for missing, malformed, deleted, someone else's or deleted-space materials.
 - Delete is a hard delete in one request (Arya, 2026-11-13): the Blob file first, then the row. A file that's already gone counts as deleted. If the Blob delete fails nothing changes and the route returns 503 `MATERIAL_DELETE_FAILED`, so a retry finishes the job.
 - Download of a row whose file is gone returns 404 `FILE_UNAVAILABLE`; deleting it again fixes it.
+- Confirmed by Arya (2026-11-14, #35): file names are 1–255 characters, and the T-06a error messages stand, except `INVALID_MATERIAL_STATE`, now "This file's status just changed. Refresh and try again." (it only appears when the status changed in another tab or request).
 
 **Topics contract notes (T-08b).** The source of truth is `src/features/topics/topics-schemas.ts`.
 - A material's AI suggestions are `draft` topics linked to it through `material_topics`; topic lists show confirmed topics only (`?include=archived` adds archived ones).
@@ -198,6 +199,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 **Quiz contract notes (T-11a).** The source of truth is `src/features/quizzes/quizzes-schemas.ts`.
 - `POST /api/spaces/:spaceId/sets` accepts `kind: "quiz"` only for now (decks are a later task). It checks, in order: Ready materials in this space, confirmed topics of those materials, topics ≤ questions, then the daily limit (429 `DAILY_LIMIT_REACHED`).
 - `GET /api/sets/:id` never returns the correct option, explanation or sources.
+- `DELETE /api/sets/:id` (updated #35, Arya 2026-11-14): 409 `SET_HAS_RESULTS` when the quiz has a submitted attempt; otherwise 204, and an in-progress attempt goes with it. The service locks the quiz's attempt rows first, so a concurrent submit either finishes first (delete refused) or finds its attempt gone (404 `ATTEMPT_NOT_FOUND`).
 - The database rejects an MCQ without exactly four options and a 0–3 correct index, and any item or source that crosses Study Spaces. Deleting a material removes its source links, so past results show "Source removed".
 
 **Quiz generation notes (T-11b).**

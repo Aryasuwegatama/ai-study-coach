@@ -64,6 +64,7 @@ These are the rules the team builds and tests against; each bullet is meant to b
 - Submitting asks for confirmation (unanswered questions are listed). Then the server scores it.
 - Results show the total score, a score per topic, each question with the student's answer, the correct answer, the explanation and the source. Every question carries an **AI-generated** label. **View source** shows the cited excerpt with its page or slide number; the original file opens only for its owner.
 - A quiz can be retaken; each retake shuffles question and option order. Every question has a **Report issue** button.
+- **A quiz with submitted results can't be deleted** (Arya, 2026-11-14, #35): its score, per-topic results, mastery evidence and revision items are the student's record. A quiz that failed, is still generating, was never taken or has only an unfinished attempt can be deleted. Hiding a taken quiz from the Quiz Library while keeping its records is planned as Week 3 polish.
 
 ### Flashcards
 

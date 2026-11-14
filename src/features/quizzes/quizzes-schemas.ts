@@ -20,8 +20,11 @@ import { z } from "zod";
  * - `GET /api/sets/:id` → `SetDetailResponse`. Items never include the
  *   correct option, explanation or sources (answers only come back from a
  *   submitted attempt, T-14).
- * - `DELETE /api/sets/:id` → 204. Past attempts on it go with it
- *   (ponytail: retention is decided with account deletion).
+ * - `DELETE /api/sets/:id` → 204 for a quiz with no submitted attempt
+ *   (failed, generating, never attempted, or only in progress; an
+ *   in-progress attempt goes with it). A quiz with a submitted attempt →
+ *   409 `SET_HAS_RESULTS`: its results, mastery evidence and revision items
+ *   are the student's record (Arya, 2026-11-14, #35).
  * - Missing, malformed or someone else's set: 404 `SET_NOT_FOUND`.
  *
  * Generation (PRD Section 3, Pipeline B): retrieve up to 8 chunks per
@@ -55,6 +58,7 @@ export const QUIZ_API_ERRORS = {
     message: "Select fewer topics or increase the number of questions, so every topic gets at least one.",
   },
   DAILY_LIMIT_REACHED: { status: 429, message: "Daily limit reached, try again tomorrow." },
+  SET_HAS_RESULTS: { status: 409, message: "This quiz has results, so it can't be deleted." },
 } as const;
 export type QuizApiErrorCode = keyof typeof QUIZ_API_ERRORS;
 
