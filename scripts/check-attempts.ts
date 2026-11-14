@@ -414,6 +414,42 @@ async function e2e(a: Session, b: Session) {
     racedSubmit.status === 404 && racedSave.status === 404 && (await errorCode(racedSubmit)) === "ATTEMPT_NOT_FOUND" && (await errorCode(racedSave)) === "ATTEMPT_NOT_FOUND",
     `${racedSubmit.status} ${racedSave.status}`,
   );
+
+  // Codex review on #37: a FIRST attempt created and submitted while the delete runs. Hold
+  // that attempt's transaction open (not yet committed) and fire the delete: it must wait,
+  // see the submitted result, and refuse, rather than miss it and cascade it away.
+  const late = await seedSet(space.id, [moreChunk.id], [t1.id]);
+  let lateDelete: Promise<Response> | undefined;
+  let lateAttemptId = "";
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(attempts)
+      .values({ spaceId: space.id, setId: late.set.id, studentId: a.userId, status: "submitted", score: 0, total: 1, submittedAt: new Date() })
+      .returning({ id: attempts.id });
+    lateAttemptId = row.id;
+    lateDelete = del(late.set.id);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  });
+  const lateRes = await lateDelete!;
+  const lateKept = await db.select({ id: attempts.id }).from(attempts).where(eq(attempts.id, lateAttemptId));
+  check(
+    "Race: a delete overlapping a first attempt being created and submitted → 409 SET_HAS_RESULTS, the result is kept",
+    lateRes.status === 409 && (await errorCode(lateRes)) === "SET_HAS_RESULTS" && (await setExists(late.set.id)) && lateKept.length === 1,
+    `${lateRes.status} kept=${lateKept.length}`,
+  );
+
+  // A start that queues behind the delete's lock on the quiz row (as deleteSet takes it) and
+  // then finds the quiz gone ends as a 404, never a 500.
+  const gone = await seedSet(space.id, [moreChunk.id], [t1.id]);
+  let goneStart: Promise<Response> | undefined;
+  await db.transaction(async (tx) => {
+    await tx.select({ id: studySets.id }).from(studySets).where(eq(studySets.id, gone.set.id)).for("update");
+    goneStart = startRoute(req(`/api/sets/${gone.set.id}/attempts`, a, "POST"), p({ id: gone.set.id }));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await tx.delete(studySets).where(eq(studySets.id, gone.set.id));
+  });
+  const goneRes = await goneStart!;
+  check("Race: starting a quiz while it is being deleted → 404 SET_NOT_FOUND, never 500", goneRes.status === 404 && (await errorCode(goneRes)) === "SET_NOT_FOUND", `${goneRes.status}`);
 }
 
 main().catch((error) => {
