@@ -41,6 +41,7 @@ import { GET as masteryRoute } from "../src/app/api/topics/[id]/mastery/route";
 import { GET as revisionRoute } from "../src/app/api/revision/route";
 import { POST as sessionRoute } from "../src/app/api/revision/session/route";
 import { POST as reviewRoute } from "../src/app/api/revision/items/[id]/review/route";
+import { DELETE as deleteSetRoute } from "../src/app/api/sets/[id]/route";
 
 type CheckResult = { name: string; ok: boolean; message: string };
 const results: CheckResult[] = [];
@@ -355,6 +356,64 @@ async function e2e(a: Session, b: Session) {
   check("Past results still open with no sources (\"Source removed\") and the same score", res.status === 200 && past.result?.score === 7 && past.result.questions.every((q) => q.sources.length === 0));
   const [{ kept }] = await db.select({ kept: count() }).from(attempts).where(and(eq(attempts.studentId, a.userId), eq(attempts.status, "submitted")));
   check("Submitted attempts are kept", kept === 3);
+
+  // --- Deleting a quiz (#35): a quiz with submitted results is the student's record ---------
+  const del = (id: string, s = a) => deleteSetRoute(req(`/api/sets/${id}`, s, "DELETE"), p({ id }));
+  const setExists = async (id: string) => (await db.select({ id: studySets.id }).from(studySets).where(eq(studySets.id, id))).length === 1;
+  const record = async () =>
+    JSON.stringify({
+      attempts: (await db.select({ n: count() }).from(attempts).where(eq(attempts.setId, set.id)))[0].n,
+      reviews: (await db.select({ n: count() }).from(revisionItems).where(eq(revisionItems.studentId, a.userId)))[0].n,
+      mastery: (await progressOf()).topics,
+    });
+  const before = await record();
+  res = await del(set.id);
+  check("Delete: a quiz with submitted results → 409 SET_HAS_RESULTS", res.status === 409 && (await errorCode(res)) === "SET_HAS_RESULTS");
+  check("Delete refused: the quiz, its attempts, mastery and revision items are unchanged", (await setExists(set.id)) && (await record()) === before);
+  res = await del(set.id, b);
+  check("Delete: someone else's quiz → 404 SET_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "SET_NOT_FOUND");
+
+  // The first material was deleted above, so new quizzes cite a fresh one.
+  const moreId = randomUUID();
+  await db.insert(materials).values({ id: moreId, spaceId: space.id, originalName: "more.pdf", blobPath: `check/${moreId}.pdf`, status: "ready" });
+  const [moreChunk] = await db.insert(chunks).values({ materialId: moreId, spaceId: space.id, chunkIndex: 0, content: "More text.", pageStart: 1, pageEnd: 1 }).returning();
+  const fresh = await seedSet(space.id, [moreChunk.id], [t1.id]);
+  res = await del(fresh.set.id);
+  check("Delete: a quiz never attempted → 204, gone", res.status === 204 && !(await setExists(fresh.set.id)));
+  const failed = await seedSet(space.id, [moreChunk.id], [t1.id], "failed");
+  res = await del(failed.set.id);
+  check("Delete: a failed quiz → 204, gone", res.status === 204 && !(await setExists(failed.set.id)));
+  res = await del(generating.set.id);
+  check("Delete: a quiz still generating → 204, gone", res.status === 204 && !(await setExists(generating.set.id)));
+
+  const open = await seedSet(space.id, [moreChunk.id], [t1.id]);
+  const openAttempt = ((await (await startRoute(req(`/api/sets/${open.set.id}/attempts`, a, "POST"), p({ id: open.set.id }))).json()) as { attempt: AttemptResponse }).attempt;
+  res = await del(open.set.id);
+  const openLeft = await db.select({ id: attempts.id }).from(attempts).where(eq(attempts.id, openAttempt.id));
+  check("Delete: a quiz with only an in-progress attempt → 204, the attempt goes with it", res.status === 204 && !(await setExists(open.set.id)) && openLeft.length === 0);
+  res = await submitRoute(req(`/api/attempts/${openAttempt.id}/submit`, a, "POST"), p({ id: openAttempt.id }));
+  check("Submit after its quiz was deleted → 404 ATTEMPT_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "ATTEMPT_NOT_FOUND");
+
+  // The race: a submit and an autosave queue behind the attempt's row lock while the quiz is
+  // deleted (as deleteSet does: lock the attempts, then delete). Each must end as a 404, not a 500.
+  const raced = await seedSet(space.id, [moreChunk.id], [t1.id]);
+  const racedAttempt = ((await (await startRoute(req(`/api/sets/${raced.set.id}/attempts`, a, "POST"), p({ id: raced.set.id }))).json()) as { attempt: AttemptResponse }).attempt;
+  let waiting: Promise<Response>[] = [];
+  await db.transaction(async (tx) => {
+    await tx.select({ id: attempts.id }).from(attempts).where(eq(attempts.setId, raced.set.id)).for("update");
+    waiting = [
+      submitRoute(req(`/api/attempts/${racedAttempt.id}/submit`, a, "POST"), p({ id: racedAttempt.id })),
+      answerRoute(req(`/api/attempts/${racedAttempt.id}/answers`, a, "PATCH", { itemId: racedAttempt.questions![0].itemId, selectedIndex: 0 }), p({ id: racedAttempt.id })),
+    ];
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await tx.delete(studySets).where(eq(studySets.id, raced.set.id));
+  });
+  const [racedSubmit, racedSave] = await Promise.all(waiting);
+  check(
+    "Race: a submit and an autosave waiting while their quiz is deleted → 404 ATTEMPT_NOT_FOUND, never 500",
+    racedSubmit.status === 404 && racedSave.status === 404 && (await errorCode(racedSubmit)) === "ATTEMPT_NOT_FOUND" && (await errorCode(racedSave)) === "ATTEMPT_NOT_FOUND",
+    `${racedSubmit.status} ${racedSave.status}`,
+  );
 }
 
 main().catch((error) => {
