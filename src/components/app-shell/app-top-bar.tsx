@@ -17,7 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/spaces": "My Study Spaces",
 };
 
-const SPACE_OVERVIEW_PATTERN = /^\/spaces\/[^/]+\/overview(?:\/.*)?$/;
+const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials)(?:\/.*)?$/;
 
 /**
  * The shared app shell's top bar (Figma node 80:6946, "Single
@@ -26,10 +26,11 @@ const SPACE_OVERVIEW_PATTERN = /^\/spaces\/[^/]+\/overview(?:\/.*)?$/;
  * `jobs` table, a later backend task (T-04b plan: "leave out the
  * notification bell").
  *
- * T-05 adds the Study Space Overview breadcrumb ("My workspace › My
- * Study Spaces › {name}"): `spaceBreadcrumbName` is a Suspense-wrapped
- * server slot (same pattern as `userMenu`) that resolves the current
- * space's name — see `space-breadcrumb-name.tsx`.
+ * T-05 adds the Study Space breadcrumb ("My workspace › My Study Spaces
+ * › {name}"), shown on Overview and (T-09a) Materials:
+ * `spaceBreadcrumbName` is a Suspense-wrapped server slot (same pattern
+ * as `userMenu`) that resolves the current space's name — see
+ * `space-breadcrumb-name.tsx`.
  */
 export function AppTopBar({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNode }) {
   return (
@@ -52,9 +53,9 @@ export function AppTopBar({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactN
 
 function BreadcrumbTrail({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNode }) {
   const pathname = usePathname();
-  const isSpaceOverview = SPACE_OVERVIEW_PATTERN.test(pathname);
+  const isSpaceSubpage = SPACE_SUBPAGE_PATTERN.test(pathname);
 
-  if (isSpaceOverview) {
+  if (isSpaceSubpage) {
     return (
       <>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />

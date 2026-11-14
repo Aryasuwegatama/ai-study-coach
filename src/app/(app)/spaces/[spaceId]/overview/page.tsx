@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
-import { SpaceOverviewActions } from "@/features/spaces/components/space-overview-actions";
+import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewEmptyState } from "@/features/spaces/components/space-overview-empty-state";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -60,17 +60,9 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="truncate text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">
-            {space.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">Personal Study Space · Private to you</p>
-        </div>
-        <SpaceOverviewActions spaceId={space.id} name={space.name} />
-      </div>
-      <SpaceOverviewTabs />
-      <SpaceOverviewEmptyState name={space.name} />
+      <SpaceHeader spaceId={space.id} name={space.name} />
+      <SpaceOverviewTabs spaceId={space.id} active="overview" />
+      <SpaceOverviewEmptyState spaceId={space.id} name={space.name} />
     </>
   );
 }
