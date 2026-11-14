@@ -33,7 +33,6 @@ const VALIDATION_HEADINGS: Partial<Record<MaterialApiErrorCode, string>> = {
 };
 
 type Step =
-  | { kind: "limit-reached" }
   | { kind: "ready" }
   | { kind: "validation-error"; heading: string; message: string }
   | { kind: "uploading"; file: File; percent: number; controller: AbortController }
@@ -60,12 +59,16 @@ export function MaterialUploadDialog({
   atLimit: boolean;
   onUploaded: () => void;
 }) {
-  const [step, setStep] = useState<Step>(atLimit ? { kind: "limit-reached" } : { kind: "ready" });
+  const [step, setStep] = useState<Step>({ kind: "ready" });
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Worked out on every render, never stored as a step: a stored "limit
+  // reached" outlived a delete that freed a slot (Codex review on #36).
+  // An upload already in progress keeps its own view.
+  const showLimit = atLimit && step.kind === "ready";
 
   function resetStep() {
-    setStep(atLimit ? { kind: "limit-reached" } : { kind: "ready" });
+    setStep({ kind: "ready" });
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -156,7 +159,7 @@ export function MaterialUploadDialog({
             <DialogTitle>Upload material</DialogTitle>
           </DialogHeader>
 
-          {step.kind === "limit-reached" && (
+          {showLimit && (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">{MATERIAL_API_ERRORS.MATERIAL_LIMIT_REACHED.message}</p>
               <DialogFooter>
@@ -167,7 +170,7 @@ export function MaterialUploadDialog({
             </div>
           )}
 
-          {step.kind === "ready" && (
+          {step.kind === "ready" && !showLimit && (
             <div className="flex flex-col gap-4">
               <div
                 onDragOver={(event) => {
