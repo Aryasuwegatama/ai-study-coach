@@ -160,7 +160,9 @@ git push -u origin spike/T-02-ai-smoke
 | T-07b | Executable auth/session and cross-space ownership tests | **Khushi** | `test/T-07b-auth-ownership` | T-01b and T-05 merged plus isolated test DB | Blocked by prerequisites |
 | T-08a | Material processing: QStash worker claims, PDF/PPTX/TXT extraction, chunk records, resumable steps | **Rashid** | `feat/T-08a-extract-chunk` | T-06b + T-01a merged | In review |
 | T-08b | pgvector embeddings, RAG groundwork, AI topic suggestions and confirmation-backed data persistence | **Rashid** | `feat/T-08b-embed-topics` | T-08a and T-02 completed | In review |
-| T-09 | Materials screens, statuses and topic-confirmation UI | **Arya** | `feat/T-09-materials-ui` | UI draft after T-06a contract; real integration after T-06b/T-08b | Blocked for integration |
+| T-09a | Materials screens (library, upload, statuses) on labelled example data (issue #25, 2026-11-13: split from T-09) | **Arya** | `feat/T-09a-materials-ui` | T-05 and T-06a merged | **In progress** |
+| T-09b | Connect Materials screens to the real API and Blob upload; remove the examples | **Arya** | `feat/T-09b-materials-integration` | T-09a merged and T-06b merged | Blocked by prerequisites |
+| T-09c | Topic review and confirm screens | **Arya** | `feat/T-09c-topic-review-ui` | T-09b merged and T-08b's topic contract | Blocked by prerequisites |
 | T-10 | Upload, signed-worker, retry/idempotency and cross-space source tests | **Khushi** | `test/T-10-materials-jobs` | T-06b/T-08a implementation | Blocked by prerequisites |
 | T-11a | Quiz generation API contract, schema and source/topic membership rules | **Rashid** | `feat/T-11a-quiz-contract` | T-02 and accepted extraction/topic contract; can draft before T-08b completes | In review |
 | T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | In review |
