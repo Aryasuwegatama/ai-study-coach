@@ -178,9 +178,16 @@ export async function getSet(user: SessionUser, setId: string): Promise<SetDetai
 export async function deleteSet(user: SessionUser, setId: string): Promise<void> {
   const set = await requireSet(setId, user);
   await db.transaction(async (tx) => {
-    // Lock the quiz's attempts: a submit in flight finishes first and is
-    // seen here, and a submit that arrives after waits, then finds its
-    // attempt gone (404). Submit locks its attempt row the same way.
+    // Lock the quiz row first. Creating an attempt has to key-share lock
+    // it (the attempt's foreign key), so a first attempt can't be created
+    // between this check and the delete: one being created now finishes
+    // first and is seen below, and a later one waits, then finds the quiz
+    // gone (Codex review on #37).
+    const [locked] = await tx.select({ id: studySets.id }).from(studySets).where(eq(studySets.id, set.id)).for("update");
+    if (!locked) throw quizError("SET_NOT_FOUND");
+    // Then its attempts: a submit in flight finishes first and is seen
+    // here, and a submit that arrives after waits, then finds its attempt
+    // gone (404). Submit locks its attempt row the same way.
     const rows = await tx
       .select({ status: attempts.status })
       .from(attempts)

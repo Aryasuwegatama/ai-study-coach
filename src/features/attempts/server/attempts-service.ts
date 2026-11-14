@@ -15,7 +15,7 @@ import {
   topics,
 } from "@/server/db/schema";
 import type { SessionUser } from "@/server/auth/auth-session";
-import { requireSet } from "@/features/quizzes/server";
+import { quizError, requireSet } from "@/features/quizzes/server";
 import {
   ATTEMPT_API_ERRORS,
   type AttemptApiErrorCode,
@@ -33,10 +33,12 @@ export function attemptError(code: AttemptApiErrorCode): ApiError {
   return new ApiError(code, message, status);
 }
 
-function isUniqueViolation(error: unknown): boolean {
+function hasPgCode(error: unknown, code: string): boolean {
   const e = error as { code?: string; cause?: { code?: string } } | null;
-  return e?.code === "23505" || e?.cause?.code === "23505";
+  return e?.code === code || e?.cause?.code === code;
 }
+const isUniqueViolation = (error: unknown) => hasPgCode(error, "23505");
+const isForeignKeyViolation = (error: unknown) => hasPgCode(error, "23503");
 
 function shuffle<T>(values: T[]): T[] {
   const out = [...values];
@@ -101,6 +103,8 @@ export async function startAttempt(user: SessionUser, setId: string): Promise<{ 
     });
     return { attempt: await toAttemptResponse(attempt), created: true };
   } catch (error) {
+    // The quiz was deleted while this start waited behind the delete's lock.
+    if (isForeignKeyViolation(error)) throw quizError("SET_NOT_FOUND");
     // Two tabs pressed Start at once: the other one won, resume it.
     const winner = isUniqueViolation(error) ? await inProgress() : undefined;
     if (!winner) throw error;

@@ -199,7 +199,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 **Quiz contract notes (T-11a).** The source of truth is `src/features/quizzes/quizzes-schemas.ts`.
 - `POST /api/spaces/:spaceId/sets` accepts `kind: "quiz"` only for now (decks are a later task). It checks, in order: Ready materials in this space, confirmed topics of those materials, topics ≤ questions, then the daily limit (429 `DAILY_LIMIT_REACHED`).
 - `GET /api/sets/:id` never returns the correct option, explanation or sources.
-- `DELETE /api/sets/:id` (updated #35, Arya 2026-11-14): 409 `SET_HAS_RESULTS` when the quiz has a submitted attempt; otherwise 204, and an in-progress attempt goes with it. The service locks the quiz's attempt rows first, so a concurrent submit either finishes first (delete refused) or finds its attempt gone (404 `ATTEMPT_NOT_FOUND`).
+- `DELETE /api/sets/:id` (updated #35, Arya 2026-11-14): 409 `SET_HAS_RESULTS` when the quiz has a submitted attempt; otherwise 204, and an in-progress attempt goes with it. The service locks the quiz row, then its attempt rows, before checking. A concurrent submit either finishes first (delete refused) or finds its attempt gone (404 `ATTEMPT_NOT_FOUND`); a first attempt being created at that moment finishes first and is counted, and a start that arrives after waits, then gets 404 `SET_NOT_FOUND` (Codex review on #37).
 - The database rejects an MCQ without exactly four options and a 0–3 correct index, and any item or source that crosses Study Spaces. Deleting a material removes its source links, so past results show "Source removed".
 
 **Quiz generation notes (T-11b).**
