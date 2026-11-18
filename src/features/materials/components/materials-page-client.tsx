@@ -84,6 +84,7 @@ export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
   return (
     <>
       <MaterialsLibrary
+        spaceId={spaceId}
         materials={materials}
         loading={loading}
         actionError={actionError}

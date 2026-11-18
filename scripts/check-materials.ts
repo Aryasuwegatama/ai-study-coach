@@ -16,11 +16,11 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { put } from "@vercel/blob/client";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
-import { jobs, materials, studySpaces } from "../src/server/db/schema";
+import { jobs, learningItems, materialTopics, materials, studySets, studySpaces, topics } from "../src/server/db/schema";
 import { serverEnv } from "../src/lib/server-env";
 import { setPublisherForChecks } from "../src/server/jobs/jobs-client";
 import { ABANDONED_UPLOAD_MS } from "../src/features/materials/server";
@@ -338,6 +338,99 @@ async function run(userA: Session, userB: Session, stamp: number) {
   check("Second delete: 404 MATERIAL_NOT_FOUND", deletedAgain.status === 404 && (await deletedAgain.text()) === NOT_FOUND_BODY);
   const cancelled = await remove(userA.cookie, pending.body.material.id);
   check("Cancel (delete while uploading): 204", cancelled.status === 204 && !(await rowOf(pending.body.material.id)), `${cancelled.status}`);
+
+  // --- Topics deleted with their last material (Arya, 2026-11-19, T-09c) --------
+  // A topic linked only to the deleted material, with no quiz/flashcard
+  // history and no listing set, is deleted along with it; anything with
+  // history, or still linked elsewhere, stays.
+  const [spaceE] = await db.insert(studySpaces).values({ ownerId: userA.userId, name: "Topic deletion check" }).returning();
+  const m1Bytes = Buffer.from(`Topic deletion check m1 ${stamp}`);
+  const m2Bytes = Buffer.from(`Topic deletion check m2 ${stamp}`);
+  const m1 = await create(userA.cookie, spaceE.id, { name: "m1.txt", size: m1Bytes.length, contentType: TXT_MIME });
+  await browserUpload(m1.body.upload.pathname, m1.body.upload.clientToken, m1Bytes, TXT_MIME);
+  await complete(userA.cookie, m1.body.material.id);
+  const m1Id = m1.body.material.id;
+  const m2 = await create(userA.cookie, spaceE.id, { name: "m2.txt", size: m2Bytes.length, contentType: TXT_MIME });
+  await browserUpload(m2.body.upload.pathname, m2.body.upload.clientToken, m2Bytes, TXT_MIME);
+  await complete(userA.cookie, m2.body.material.id);
+  const m2Id = m2.body.material.id;
+
+  const insertTopic = async (name: string, status: "draft" | "confirmed" | "archived") =>
+    (
+      await db
+        .insert(topics)
+        .values({ spaceId: spaceE.id, name, normalizedName: name.toLowerCase().replace(/\s+/g, ""), status, origin: "manual" })
+        .returning()
+    )[0];
+  const linkTopic = (materialId: string, topicId: string) =>
+    db.insert(materialTopics).values({ spaceId: spaceE.id, materialId, topicId });
+
+  const topicNoHistory = await insertTopic("No History", "confirmed");
+  await linkTopic(m1Id, topicNoHistory.id);
+
+  const topicShared = await insertTopic("Shared Topic", "confirmed");
+  await linkTopic(m1Id, topicShared.id);
+  await linkTopic(m2Id, topicShared.id);
+
+  const topicWithItem = await insertTopic("Has Quiz Item", "confirmed");
+  await linkTopic(m1Id, topicWithItem.id);
+  const [setForItem] = await db
+    .insert(studySets)
+    .values({ spaceId: spaceE.id, kind: "quiz", title: "Has item set", materialIds: [m1Id], topicIds: [topicWithItem.id], requestedCount: 5, status: "ready" })
+    .returning();
+  const [learningItem] = await db
+    .insert(learningItems)
+    .values({
+      setId: setForItem.id,
+      spaceId: spaceE.id,
+      topicId: topicWithItem.id,
+      kind: "mcq",
+      position: 0,
+      prompt: "A question?",
+      options: ["a", "b", "c", "d"],
+      correctIndex: 0,
+      normalizedPrompt: "a question",
+      promptVersion: "check-v1",
+    })
+    .returning();
+
+  const topicInGeneratingSet = await insertTopic("In Generating Set", "confirmed");
+  await linkTopic(m1Id, topicInGeneratingSet.id);
+  await db
+    .insert(studySets)
+    .values({ spaceId: spaceE.id, kind: "quiz", title: "Generating set", materialIds: [m1Id], topicIds: [topicInGeneratingSet.id], requestedCount: 5, status: "generating" });
+
+  const topicArchivedNoHistory = await insertTopic("Archived No History", "archived");
+  await linkTopic(m1Id, topicArchivedNoHistory.id);
+
+  const topicDraft = await insertTopic("Draft Topic", "draft");
+  await linkTopic(m1Id, topicDraft.id);
+
+  const deleteM1 = await remove(userA.cookie, m1Id);
+  check("Delete a material with mixed topic history: 204", deleteM1.status === 204, `${deleteM1.status}`);
+
+  const remainingIds = new Set((await db.select({ id: topics.id }).from(topics).where(eq(topics.spaceId, spaceE.id))).map((t) => t.id));
+  check("No-history topic is deleted with its last material", !remainingIds.has(topicNoHistory.id));
+  check("Draft topic is still deleted with its material, as before", !remainingIds.has(topicDraft.id));
+  check("Archived topic with no history, linked only here, is deleted", !remainingIds.has(topicArchivedNoHistory.id));
+
+  const sharedStillLinkedToM2 = await db
+    .select()
+    .from(materialTopics)
+    .where(and(eq(materialTopics.topicId, topicShared.id), eq(materialTopics.materialId, m2Id)));
+  check("A topic shared with a second material stays, and stays linked to it", remainingIds.has(topicShared.id) && sharedStillLinkedToM2.length === 1);
+
+  const itemStillExists = await db.select().from(learningItems).where(eq(learningItems.id, learningItem.id));
+  check("A topic with a learning_items row stays, and the item still exists", remainingIds.has(topicWithItem.id) && itemStillExists.length === 1);
+
+  check("A topic listed in a generating set's topic_ids, with no items yet, stays", remainingIds.has(topicInGeneratingSet.id));
+
+  const bDeleteM2 = await remove(userB.cookie, m2Id);
+  check(
+    "Student B deleting A's material (with topic history) still gives 404",
+    bDeleteM2.status === 404 && (await bDeleteM2.text()) === NOT_FOUND_BODY && !!(await rowOf(m2Id)),
+    `${bDeleteM2.status}`,
+  );
 
   // --- 20-material limit --------------------------------------------------------
   // spaceA holds 1 material (the PDF); fill it to 20 with direct rows.

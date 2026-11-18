@@ -17,7 +17,7 @@ import { z } from "zod";
 import { put } from "@vercel/blob/client";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
-import { aiCalls, chunks, jobs, materials, studySpaces, topics } from "../src/server/db/schema";
+import { aiCalls, chunks, jobs, learningItems, materials, studySets, studySpaces, topics } from "../src/server/db/schema";
 import { setPublisherForChecks, type StepMessage } from "../src/server/jobs/jobs-client";
 import { runJobStep } from "../src/server/jobs/jobs-runner";
 import { blobExists, deleteBlob } from "../src/server/storage/storage-client";
@@ -271,6 +271,88 @@ async function e2e(a: Session, b: Session) {
   await deleteMaterialRoute(req(`/api/materials/${second}`, a, "DELETE"), p({ id: second }));
   const leftDrafts = draftIds.length ? await db.select().from(topics).where(inArray(topics.id, draftIds)) : [];
   check("Deleting a material in review deletes its draft topics", draftIds.length === 3 && leftDrafts.length === 0);
+
+  // --- Topics from deleted materials (materials=linked/unlinked, T-09c) ---------------
+  const third = await upload(a, space.id, "unlink-test.txt", paragraphs.slice(0, 3).join("\n\n").replace(/section/g, "chapter"));
+  await drain();
+  const thirdDraft = (await (await draftGetRoute(req(`/api/materials/${third}/topic-draft`, a), p({ id: third }))).json()) as TopicDraftResponse;
+  await draftPutRoute(
+    req(`/api/materials/${third}/topic-draft`, a, "PUT", {
+      topics: thirdDraft.topics.map((t, i) => ({ id: t.id, name: `Unlink${i}`, description: t.description })),
+    }),
+    p({ id: third }),
+  );
+  const thirdConfirmed = (await (await confirmRoute(req(`/api/materials/${third}/topic-draft/confirm`, a, "POST"), p({ id: third }))).json()) as {
+    topics: TopicResponse[];
+  };
+  const unlinkIds = thirdConfirmed.topics.map((t) => t.id);
+  // Give one of the three history (a generated item), as if a quiz had
+  // been made from it: the other two have none (Arya, 2026-11-19, T-09c:
+  // a topic is deleted with its last material unless it has history).
+  const topicWithHistoryId = unlinkIds[0];
+  const [setForHistory] = await db
+    .insert(studySets)
+    .values({ spaceId: space.id, kind: "quiz", title: "History set", materialIds: [third], topicIds: [topicWithHistoryId], requestedCount: 5, status: "ready" })
+    .returning();
+  await db.insert(learningItems).values({
+    setId: setForHistory.id,
+    spaceId: space.id,
+    topicId: topicWithHistoryId,
+    kind: "mcq",
+    position: 0,
+    prompt: "A question?",
+    options: ["a", "b", "c", "d"],
+    correctIndex: 0,
+    normalizedPrompt: "a question",
+    promptVersion: "check-v1",
+  });
+
+  const linkedBefore = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=linked`, a), p({ spaceId: space.id }))).json()) as {
+    topics: TopicResponse[];
+  };
+  const unlinkedBefore = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=unlinked`, a), p({ spaceId: space.id }))).json()) as {
+    topics: TopicResponse[];
+  };
+  check(
+    "materials=linked includes a topic whose material still exists; materials=unlinked doesn't",
+    unlinkIds.every((tid) => linkedBefore.topics.some((t) => t.id === tid)) &&
+      unlinkIds.every((tid) => !unlinkedBefore.topics.some((t) => t.id === tid)),
+  );
+
+  await deleteMaterialRoute(req(`/api/materials/${third}`, a, "DELETE"), p({ id: third }));
+
+  const linkedAfter = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=linked`, a), p({ spaceId: space.id }))).json()) as {
+    topics: TopicResponse[];
+  };
+  const unlinkedAfter = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=unlinked`, a), p({ spaceId: space.id }))).json()) as {
+    topics: TopicResponse[];
+  };
+  const defaultAfter = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics`, a), p({ spaceId: space.id }))).json()) as {
+    topics: TopicResponse[];
+  };
+  const noHistoryIds = unlinkIds.slice(1);
+  check(
+    "Deleting its material moves a topic with history to materials=unlinked, out of materials=linked; the default list still has it",
+    !linkedAfter.topics.some((t) => t.id === topicWithHistoryId) &&
+      unlinkedAfter.topics.some((t) => t.id === topicWithHistoryId) &&
+      defaultAfter.topics.some((t) => t.id === topicWithHistoryId),
+  );
+  check(
+    "Deleting its material deletes a topic with no history entirely, not just unlinks it",
+    noHistoryIds.every(
+      (tid) =>
+        !linkedAfter.topics.some((t) => t.id === tid) &&
+        !unlinkedAfter.topics.some((t) => t.id === tid) &&
+        !defaultAfter.topics.some((t) => t.id === tid),
+    ),
+  );
+
+  const invalidFilter = await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=bogus`, a), p({ spaceId: space.id }));
+  check("materials=bogus is 400", invalidFilter.status === 400);
+  check(
+    "Student B's space with materials=unlinked still gives 404",
+    (await topicsListRoute(req(`/api/spaces/${space.id}/topics?materials=unlinked`, b), p({ spaceId: space.id }))).status === 404,
+  );
 }
 
 main().catch((error) => {

@@ -69,6 +69,13 @@ export function DeleteMaterialDialog({
             results stay.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {/* T-09c, Arya 2026-11-19: a topic found only in this file is
+            deleted with it, unless the student has already made a quiz
+            or flashcards from it — those stay, with their history. */}
+        <p className="text-sm text-muted-foreground">
+          Topics found only in this file are removed. Topics you&apos;ve made quizzes or flashcards from move to
+          &quot;Topics from deleted materials&quot;, and their results stay.
+        </p>
         {error && <p className="text-sm font-medium text-destructive">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>

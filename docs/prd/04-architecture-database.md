@@ -121,7 +121,7 @@ Every slow task is a row in `jobs`, moved forward one step at a time by QStash c
 
 **Daily limit:** count the student's `generate_quiz` and `generate_deck` jobs created since midnight in their time zone; refuse at 20.
 
-**Local development:** use a verified QStash dev configuration/tunnel where needed; unit/integration tests call the step handler with a fake queue and an authenticated test signature. Do not assume a QStash local server exists without confirming the current tooling.
+**Local development:** a local QStash server (`npx @upstash/qstash-cli dev`, default `http://127.0.0.1:8080`) is verified working (T-09c, Arya, 2026-11-18) — put its printed `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY` in `.env.local` in place of the cloud values (see the README) to reach Review needed on `localhost`. Unit/integration tests still call the step handler directly with a fake queue and an authenticated test signature.
 
 **Preview deployments.** Vercel preview protection may block QStash callbacks depending on project settings. Every published job step therefore carries Vercel's protection-bypass secret in the `x-vercel-protection-bypass` header, and `APP_URL` on previews must resolve to the correct verified preview host where callback delivery is supported. This is an integration test to perform, not a configuration that has already been validated.
 
@@ -188,6 +188,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - Retry is allowed only from `failed`; any other status gets 409 `INVALID_MATERIAL_STATE`.
 - `requireMaterial` gives the same 404 `MATERIAL_NOT_FOUND` for missing, malformed, deleted, someone else's or deleted-space materials.
 - Delete is a hard delete in one request (Arya, 2026-11-13): the Blob file first, then the row. A file that's already gone counts as deleted. If the Blob delete fails nothing changes and the route returns 503 `MATERIAL_DELETE_FAILED`, so a retry finishes the job.
+- A topic is deleted only together with its last material, and only if no quiz or flashcard item was ever generated for it and no quiz lists it; otherwise it stays (confirmed or archived) with its history (Arya, 2026-11-19, T-09c).
 - Download of a row whose file is gone returns 404 `FILE_UNAVAILABLE`; deleting it again fixes it.
 - Confirmed by Arya (2026-11-14, #35): file names are 1–255 characters, and the T-06a error messages stand, except `INVALID_MATERIAL_STATE`, now "This file's status just changed. Refresh and try again." (it only appears when the status changed in another tab or request).
 - Abandoned `uploading` rows older than 15 minutes are also removed whenever the student lists or adds materials in that space (T-09b, `removeAbandonedUploads()`); the daily cron above remains the backstop.
@@ -195,7 +196,8 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 **Topics contract notes (T-08b).** The source of truth is `src/features/topics/topics-schemas.ts`.
 - A material's AI suggestions are `draft` topics linked to it through `material_topics`; topic lists show confirmed topics only (`?include=archived` adds archived ones).
 - `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
-- Deleting a material in Review topics deletes its draft topics; confirmed topics stay. Topics are archived, never deleted.
+- Deleting a material in Review topics deletes its draft topics; confirmed topics stay. A topic is deleted only together with its last material, and only if no quiz or flashcard item was ever generated for it and no quiz lists it; otherwise it stays (confirmed or archived) with its history (Arya, 2026-11-19, T-09c).
+- Topics left without any linked material, because they have history, stay confirmed and keep it. The Overview lists them separately as "Topics from deleted materials" (`?materials=unlinked`, T-09c). Confirming a material later relinks topics with the same name.
 
 **Quiz contract notes (T-11a).** The source of truth is `src/features/quizzes/quizzes-schemas.ts`.
 - `POST /api/spaces/:spaceId/sets` accepts `kind: "quiz"` only for now (decks are a later task). It checks, in order: Ready materials in this space, confirmed topics of those materials, topics ≤ questions, then the daily limit (429 `DAILY_LIMIT_REACHED`).

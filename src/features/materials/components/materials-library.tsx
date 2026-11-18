@@ -18,6 +18,7 @@ import { MaterialsEmptyState } from "./materials-empty-state";
  * reshapes itself, which keeps each layout's markup simple.
  */
 export function MaterialsLibrary({
+  spaceId,
   materials,
   loading,
   actionError,
@@ -26,6 +27,7 @@ export function MaterialsLibrary({
   onDelete,
   onDownload,
 }: {
+  spaceId: string;
   materials: MaterialResponse[];
   loading: boolean;
   /** The last retry/download failure (T-09b plan step 4), announced here so
@@ -106,6 +108,7 @@ export function MaterialsLibrary({
                     </TableCell>
                     <TableCell>
                       <MaterialRowActions
+                        spaceId={spaceId}
                         material={material}
                         onRetry={onRetry}
                         onDelete={onDelete}
@@ -125,6 +128,7 @@ export function MaterialsLibrary({
                   <div className="flex items-start justify-between gap-2">
                     <span className="min-w-0 truncate font-medium text-foreground">{material.originalName}</span>
                     <MaterialRowActions
+                      spaceId={spaceId}
                       material={material}
                       onRetry={onRetry}
                       onDelete={onDelete}

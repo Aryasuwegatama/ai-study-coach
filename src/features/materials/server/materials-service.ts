@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, getTableColumns, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, inArray, isNull, lt, ne, notExists, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
-import { materialTopics, materials, studySpaces, topics } from "@/server/db/schema";
+import { learningItems, materialTopics, materials, studySets, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import {
@@ -342,6 +342,11 @@ export async function getMaterialFile(user: SessionUser, materialId: string) {
  * Hard delete (Arya, 2026-11-13): the Blob file first, then the row. If
  * the Blob delete fails nothing changes, so a retry finishes the job and
  * no file is ever left without a row pointing to it.
+ *
+ * Confirmed/archived topics left with no material, no generated item and
+ * no listing set are deleted with their last material (Arya, 2026-11-19,
+ * T-09c); anything else stays — with its history — and the Overview
+ * lists it under "Topics from deleted materials".
  */
 export async function deleteMaterial(user: SessionUser, materialId: string): Promise<void> {
   const material = await requireMaterial(materialId, user);
@@ -351,6 +356,12 @@ export async function deleteMaterial(user: SessionUser, materialId: string): Pro
     throw materialError("MATERIAL_DELETE_FAILED");
   }
   await db.transaction(async (tx) => {
+    // Locks this space's topic writes (the same lock `topics-service.ts`'s
+    // `lockSpace()` takes) against a concurrent topic-draft save, confirm
+    // or quiz/deck generation, so the "no history yet" checks below can't
+    // race one of those into creating the very history they're checking for.
+    await tx.select({ id: studySpaces.id }).from(studySpaces).where(eq(studySpaces.id, material.spaceId)).for("update");
+
     // Its unconfirmed draft topics belong to it alone (T-08b); chunks and
     // topic links cascade with the row.
     const drafts = await tx
@@ -359,6 +370,45 @@ export async function deleteMaterial(user: SessionUser, materialId: string): Pro
       .innerJoin(topics, eq(topics.id, materialTopics.topicId))
       .where(and(eq(materialTopics.materialId, material.id), eq(topics.status, "draft")));
     if (drafts.length) await tx.delete(topics).where(inArray(topics.id, drafts.map((d) => d.id)));
+
+    // Confirmed/archived topics this material links to, read before the
+    // material row (and so its `material_topics` rows) go, so the delete
+    // below can check each one with its last link already gone.
+    const linked = await tx
+      .select({ id: topics.id })
+      .from(materialTopics)
+      .innerJoin(topics, eq(topics.id, materialTopics.topicId))
+      .where(and(eq(materialTopics.materialId, material.id), ne(topics.status, "draft")));
+
     await tx.delete(materials).where(eq(materials.id, material.id));
+
+    if (linked.length) {
+      // Deletes a linked topic iff, now that this material's link is
+      // gone: (a) no `material_topics` row is left for it; (b) no
+      // `learning_items` row references it (no quiz question or
+      // flashcard was ever generated); (c) no `study_sets` row lists it
+      // in `topic_ids`, whatever that set's status (covers a quiz still
+      // generating). `learning_items` and `revision_items` reference
+      // topics `ON DELETE CASCADE` (see the comment on
+      // `learning_items_topic_space_fk` in `study-sets.ts`), so deleting
+      // a topic with history would wipe quiz questions, answers and
+      // revision items — never delete one unless (a), (b) and (c) all
+      // hold, checked and deleted in one atomic statement.
+      await tx
+        .delete(topics)
+        .where(
+          and(
+            inArray(topics.id, linked.map((t) => t.id)),
+            notExists(tx.select({ one: sql`1` }).from(materialTopics).where(eq(materialTopics.topicId, topics.id))),
+            notExists(tx.select({ one: sql`1` }).from(learningItems).where(eq(learningItems.topicId, topics.id))),
+            notExists(
+              tx
+                .select({ one: sql`1` })
+                .from(studySets)
+                .where(and(eq(studySets.spaceId, material.spaceId), sql`${topics.id} = any(${studySets.topicIds})`)),
+            ),
+          ),
+        );
+    }
   });
 }
