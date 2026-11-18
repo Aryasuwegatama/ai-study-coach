@@ -273,8 +273,11 @@ export type RetryMaterialResponse = { material: MaterialResponse };
  * Cancel: the browser aborts its `put()` (`abortSignal`), then calls
  *   `DELETE /api/materials/:id` — the same route and 204 as a normal
  *   delete, allowed in any status. The token's short expiry means a
- *   cancelled upload can't land later. Abandoned `uploading` rows are
- *   removed by the daily cron after 1 hour (PRD Section 4).
+ *   cancelled upload can't land later. An abandoned `uploading` row (the
+ *   tab closed, refreshed or lost its connection before "complete") is
+ *   removed after 15 minutes by `removeAbandonedUploads()` (T-09b), run at
+ *   the start of `listMaterials` and `createMaterial`; the PRD's daily cron
+ *   (PRD Section 4) remains the backstop for spaces nobody opens again.
  *
  * Retry: only from `failed`; 202 with the material back in `processing`,
  *   at the stage that failed (earlier progress is kept). If the job can't

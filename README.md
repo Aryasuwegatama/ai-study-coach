@@ -162,6 +162,14 @@ open <http://localhost:3000/sign-in> and select "Continue with Google". If
 Google reports that access is blocked, the account has not yet been added
 as a test user.
 
+**Testing uploads.** Upload, progress, cancel, validation, duplicate,
+delete, download and the 20-file limit all work locally with `pnpm dev`.
+After "complete", the material ends as **Processing failed**, because
+QStash can't publish a job to a `localhost` URL — that's expected locally,
+not a bug, and "Retry processing" fails the same way. Full processing
+(Review needed with suggested topics) is only tested on a Vercel Preview
+deployment; see `docs/evaluation/ai-smoke-test.md`.
+
 If a secret is ever exposed publicly or committed by mistake, report it to
 the project lead immediately so it can be rotated.
 

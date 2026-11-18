@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { MaterialWithSize } from "../client/materials-client";
+import type { MaterialResponse } from "../materials-schemas";
 
 /**
  * Per-row actions (issue #25, "Delete has no Figma design"): "Retry
@@ -24,10 +24,10 @@ export function MaterialRowActions({
   onDelete,
   onDownload,
 }: {
-  material: MaterialWithSize;
+  material: MaterialResponse;
   onRetry: (id: string) => void;
-  onDelete: (material: MaterialWithSize) => void;
-  onDownload: (material: MaterialWithSize) => void;
+  onDelete: (material: MaterialResponse) => void;
+  onDownload: (material: MaterialResponse) => void;
 }) {
   const canDownload = material.status !== "uploading";
 

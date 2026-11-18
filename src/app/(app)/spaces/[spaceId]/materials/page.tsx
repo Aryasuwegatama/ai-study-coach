@@ -19,7 +19,8 @@ export const metadata: Metadata = {
 
 type MaterialsPageProps = { params: Promise<{ spaceId: string }> };
 
-/** The Materials tab (T-09a; issue #25) on labelled example data. */
+/** The Materials tab: T-09a built the screens (issue #25); T-09b (issue
+ * #42) connects them to the real Materials API and Blob upload. */
 export default function MaterialsPage({ params }: MaterialsPageProps) {
   return (
     <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">

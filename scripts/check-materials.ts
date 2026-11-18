@@ -23,6 +23,7 @@ import { db } from "../src/server/db/db-client";
 import { jobs, materials, studySpaces } from "../src/server/db/schema";
 import { serverEnv } from "../src/lib/server-env";
 import { setPublisherForChecks } from "../src/server/jobs/jobs-client";
+import { ABANDONED_UPLOAD_MS } from "../src/features/materials/server";
 import { blobExists, createUploadToken, deleteBlob } from "../src/server/storage/storage-client";
 import { ACCEPTED_FILE_TYPES, MAX_MATERIAL_BYTES } from "../src/features/materials/materials-schemas";
 import type { CreateMaterialResponse, MaterialResponse } from "../src/features/materials/materials-schemas";
@@ -348,6 +349,129 @@ async function run(userA: Session, userB: Session, stamp: number) {
   );
   const twentyFirst = await create(userA.cookie, spaceA.id, { name: "one-too-many.pdf", size: 10, contentType: PDF_MIME });
   check("21st material: 409 MATERIAL_LIMIT_REACHED", twentyFirst.status === 409 && twentyFirst.body.error?.code === "MATERIAL_LIMIT_REACHED", `${twentyFirst.status}`);
+
+  // --- Abandoned upload clean-up (T-09b) -----------------------------------------
+  // A dedicated space, so these backdated rows never interact with the exact
+  // counts the 20-material-limit test above relies on.
+  const staleAge = ABANDONED_UPLOAD_MS + 60_000; // comfortably past the 15-minute threshold
+  const backdate = (id: string) =>
+    db.update(materials).set({ createdAt: new Date(Date.now() - staleAge) }).where(eq(materials.id, id));
+
+  const [spaceC] = await db.insert(studySpaces).values({ ownerId: userA.userId, name: "Abandoned uploads check" }).returning();
+
+  const fresh = await create(userA.cookie, spaceC.id, { name: "fresh.txt", size: txtBytes.length, contentType: TXT_MIME });
+  const afterFresh = await json<{ materials: MaterialResponse[] }>(await list(userA.cookie, spaceC.id));
+  check(
+    "Abandoned uploads: a fresh uploading row stays",
+    afterFresh.materials.some((m) => m.id === fresh.body.material.id),
+  );
+
+  const stale = await create(userA.cookie, spaceC.id, { name: "stale.txt", size: txtBytes.length, contentType: TXT_MIME });
+  await browserUpload(stale.body.upload.pathname, stale.body.upload.clientToken, txtBytes, TXT_MIME);
+  await backdate(stale.body.material.id);
+  const afterStale = await json<{ materials: MaterialResponse[] }>(await list(userA.cookie, spaceC.id));
+  const staleGoneFromList = !afterStale.materials.some((m) => m.id === stale.body.material.id);
+  const staleRowGone = !(await rowOf(stale.body.material.id));
+  const staleBlobGone = !(await blobExists(stale.body.upload.pathname));
+  check(
+    "Abandoned uploads: a stale (>15 min) uploading row disappears on the next list, blob gone",
+    staleGoneFromList && staleRowGone && staleBlobGone,
+    `inList ${!staleGoneFromList}, rowGone ${staleRowGone}, blobGone ${staleBlobGone}`,
+  );
+
+  const [spaceD] = await db.insert(studySpaces).values({ ownerId: userA.userId, name: "Abandoned uploads at limit" }).returning();
+  const staleAtLimit = await create(userA.cookie, spaceD.id, { name: "stale-at-limit.txt", size: 10, contentType: TXT_MIME });
+  await backdate(staleAtLimit.body.material.id);
+  await db.insert(materials).values(
+    Array.from({ length: 19 }, (_, i) => {
+      const id = randomUUID();
+      return { id, spaceId: spaceD.id, originalName: `limit-filler-${i}.txt`, blobPath: `materials/${id}.txt` };
+    }),
+  );
+  const acceptedAtLimit = await create(userA.cookie, spaceD.id, { name: "accepted.txt", size: 10, contentType: TXT_MIME });
+  check(
+    "Abandoned uploads: a space at 20 with one stale upload accepts a new upload",
+    acceptedAtLimit.status === 201,
+    `${acceptedAtLimit.status}`,
+  );
+
+  const bStale = await create(userB.cookie, spaceB.id, { name: "b-stale.txt", size: 10, contentType: TXT_MIME });
+  await backdate(bStale.body.material.id);
+  await list(userA.cookie, spaceC.id); // student A listing their own, unrelated space
+  check(
+    "Abandoned uploads: another student's stale row is untouched by this student's list",
+    !!(await rowOf(bStale.body.material.id)),
+  );
+
+  // A backdated row that already left "uploading" is never a clean-up
+  // candidate in the first place (Codex review on #43): the outer select's
+  // own `status = 'uploading'` filter already protects it.
+  const alreadyProcessing = await create(userA.cookie, spaceC.id, {
+    name: "already-processing.txt",
+    size: txtBytes.length,
+    contentType: TXT_MIME,
+  });
+  await browserUpload(alreadyProcessing.body.upload.pathname, alreadyProcessing.body.upload.clientToken, txtBytes, TXT_MIME);
+  await db
+    .update(materials)
+    .set({ status: "processing", createdAt: new Date(Date.now() - staleAge) })
+    .where(eq(materials.id, alreadyProcessing.body.material.id));
+  await list(userA.cookie, spaceC.id);
+  const stillProcessing = await rowOf(alreadyProcessing.body.material.id);
+  check(
+    "Abandoned uploads: a backdated row already processing stays, blob kept",
+    stillProcessing?.status === "processing" && (await blobExists(alreadyProcessing.body.upload.pathname)),
+    `status ${stillProcessing?.status}`,
+  );
+
+  // The race itself (Codex review on #43): a concurrent `complete`-style
+  // lock on a stale row must win over clean-up. Holds `FOR UPDATE` on a
+  // backdated uploading row and moves it to "processing", without
+  // committing, while the list's clean-up runs — it must claim nothing
+  // (`SKIP LOCKED`) and return promptly rather than wait on the lock.
+  async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer!: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const race = await create(userA.cookie, spaceC.id, { name: "race.txt", size: txtBytes.length, contentType: TXT_MIME });
+  await browserUpload(race.body.upload.pathname, race.body.upload.clientToken, txtBytes, TXT_MIME);
+  await backdate(race.body.material.id);
+
+  let releaseHolder!: () => void;
+  const released = new Promise<void>((resolve) => {
+    releaseHolder = resolve;
+  });
+  const holderDone = db.transaction(async (tx) => {
+    await tx.select({ id: materials.id }).from(materials).where(eq(materials.id, race.body.material.id)).for("update");
+    await tx.update(materials).set({ status: "processing" }).where(eq(materials.id, race.body.material.id));
+    await released; // keep the row locked until the clean-up below has had its chance
+  });
+
+  const raceStart = Date.now();
+  let listTimedOut = false;
+  try {
+    await withTimeout(list(userA.cookie, spaceC.id), 5000, "list() during the lock race");
+  } catch {
+    listTimedOut = true;
+  }
+  const raceElapsedMs = Date.now() - raceStart;
+  releaseHolder();
+  await holderDone;
+
+  const raceRow = await rowOf(race.body.material.id);
+  check(
+    "Abandoned uploads: a concurrent complete wins the race; clean-up skips the locked row and returns promptly",
+    !listTimedOut && raceElapsedMs < 2000 && raceRow?.status === "processing" && (await blobExists(race.body.upload.pathname)),
+    `timedOut ${listTimedOut}, elapsed ${raceElapsedMs}ms, status ${raceRow?.status}`,
+  );
 
   // --- Database constraint ------------------------------------------------------
   const [hashed] = await db.select().from(materials).where(eq(materials.id, pdfId));

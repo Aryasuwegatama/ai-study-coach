@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import { UploadCloud } from "lucide-react";
+import Link from "next/link";
+import { Loader2, UploadCloud } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   ACCEPTED_FILE_TYPES,
   MATERIAL_API_ERRORS,
+  MATERIAL_FAILURE_REASONS,
   parseCreateMaterialRequest,
   type MaterialApiErrorCode,
 } from "../materials-schemas";
@@ -37,7 +39,12 @@ type Step =
   | { kind: "validation-error"; heading: string; message: string }
   | { kind: "uploading"; file: File; percent: number; controller: AbortController }
   | { kind: "cancel-confirm"; file: File; percent: number; controller: AbortController }
+  // The file has fully reached Blob; cancelling would no longer have any
+  // effect on the pending/retried `complete` call (Codex review on #43),
+  // so there's no Cancel button here and no AbortController to hold.
+  | { kind: "finishing"; fileName: string }
   | { kind: "processing" }
+  | { kind: "queue-failed"; message: string }
   | { kind: "server-error"; message: string };
 
 /**
@@ -71,6 +78,51 @@ export function MaterialUploadDialog({
     setStep({ kind: "ready" });
   }
 
+  function requestCancel() {
+    setStep((prev) =>
+      prev.kind === "uploading"
+        ? { kind: "cancel-confirm", file: prev.file, percent: prev.percent, controller: prev.controller }
+        : prev,
+    );
+  }
+
+  // Abandoned uploads, browser side (T-09b plan step 5). While the file is
+  // still being sent (before 100%), a `beforeunload` listener shows the
+  // browser's own "Leave site?" warning for a closed tab, refresh or lost
+  // connection. The Back button doesn't trigger `beforeunload` in this
+  // Next.js App Router (it's a client-side route change, not a page
+  // unload), so it gets its own guard: one extra same-URL history entry
+  // means Back fires `popstate` here first, which is turned into the same
+  // "Cancel this upload?" confirmation as closing the dialog — the student
+  // either lets the upload finish (Keep uploading) or cancels it cleanly
+  // (Cancel upload aborts, which deletes the row). Both listeners come off
+  // once the file reaches 100% and the step moves to "finishing" — there's
+  // nothing left to cancel by then (Codex review on #43), so nothing warns.
+  const inProgress = (step.kind === "uploading" || step.kind === "cancel-confirm") && step.percent < 100;
+  useEffect(() => {
+    if (!inProgress) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    window.history.pushState({ materialUploadGuard: true }, "", window.location.href);
+    function handlePopState() {
+      requestCancel();
+      // Restore the guard entry so a second Back press is caught the same
+      // way, in case the student chooses "Keep uploading".
+      window.history.pushState({ materialUploadGuard: true }, "", window.location.href);
+    }
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [inProgress]);
+
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       if (step.kind === "uploading") {
@@ -78,6 +130,15 @@ export function MaterialUploadDialog({
         return;
       }
       if (step.kind === "cancel-confirm") return;
+      if (step.kind === "finishing") {
+        // Closing here is allowed and doesn't cancel anything (Codex
+        // review on #43): the upload finishes in the background
+        // regardless, so `step` is left alone rather than reset to
+        // "ready" — the eventual `.then()` still lands on "processing",
+        // "queue-failed" or "server-error" whether this is open or not.
+        onOpenChange(false);
+        return;
+      }
       resetStep();
       onOpenChange(false);
       return;
@@ -102,20 +163,43 @@ export function MaterialUploadDialog({
     const controller = new AbortController();
     setStep({ kind: "uploading", file, percent: 0, controller });
 
-    const uploadPromise = client.upload(file, {
-      onProgress: (percent) => {
-        setStep((prev) => (prev.kind === "uploading" ? { ...prev, percent } : prev));
-      },
-      signal: controller.signal,
-    });
-    // Not awaited: `client.upload` inserts the "uploading" row before its
-    // first `await`, so this refresh shows it in the library immediately.
-    onUploaded();
-
-    uploadPromise
-      .then(() => {
-        setStep({ kind: "processing" });
+    client
+      .upload(file, {
+        onProgress: (percent) => {
+          setStep((prev) => (prev.kind === "uploading" ? { ...prev, percent } : prev));
+        },
+        // The real client's row only exists once its create step returns
+        // (plan step 4, "Order of the first refresh"); refresh then,
+        // rather than right after calling `upload()`.
+        onCreated: onUploaded,
+        // The file has fully reached Blob: move to the non-cancellable
+        // "Checking your file" step. If "Cancel this upload?" was still
+        // open (the student clicked Cancel but hadn't confirmed), this
+        // also closes it — the AlertDialog's `open` is derived from
+        // `step.kind === "cancel-confirm"` (Codex review on #43).
+        onSent: () => {
+          setStep((prev) =>
+            prev.kind === "uploading" || prev.kind === "cancel-confirm"
+              ? { kind: "finishing", fileName: prev.file.name }
+              : prev,
+          );
+        },
+        signal: controller.signal,
+      })
+      .then((material) => {
         onUploaded();
+        if (material.status === "failed") {
+          // The job couldn't be queued (plan step 4, "Complete answers
+          // failed"): the library row already shows Retry; this dialog
+          // just reports it instead of claiming the material is still
+          // "Preparing".
+          setStep({
+            kind: "queue-failed",
+            message: material.error?.message ?? MATERIAL_FAILURE_REASONS.PROCESSING_FAILED,
+          });
+        } else {
+          setStep({ kind: "processing" });
+        }
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -136,14 +220,6 @@ export function MaterialUploadDialog({
     setIsDragging(false);
     const file = event.dataTransfer.files?.[0];
     if (file) handleFile(file);
-  }
-
-  function requestCancel() {
-    setStep((prev) =>
-      prev.kind === "uploading"
-        ? { kind: "cancel-confirm", file: prev.file, percent: prev.percent, controller: prev.controller }
-        : prev,
-    );
   }
 
   function finishAndClose() {
@@ -198,6 +274,18 @@ export function MaterialUploadDialog({
                 />
               </div>
               <p className="text-xs text-muted-foreground">PDF, PPTX or TXT · Maximum 10 MB</p>
+              <div className="flex flex-col gap-1 rounded-xl bg-muted/50 p-3">
+                <p className="text-xs font-semibold text-foreground">How your file is used</p>
+                <p className="text-xs text-muted-foreground">
+                  Your file is stored privately, and only you can see it. To suggest topics and create quizzes
+                  and flashcards, parts of its text are sent to OpenAI and Google through Vercel&apos;s AI
+                  Gateway. Only upload files you&apos;re allowed to use, and leave out anything personal or
+                  confidential.{" "}
+                  <Link href="/privacy" className="font-medium text-primary underline underline-offset-2">
+                    Privacy policy
+                  </Link>
+                </p>
+              </div>
             </div>
           )}
 
@@ -230,6 +318,19 @@ export function MaterialUploadDialog({
             </div>
           )}
 
+          {step.kind === "finishing" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 rounded-xl bg-muted p-4">
+                <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium text-foreground">{step.fileName}</span>
+                  <span className="text-xs text-muted-foreground">Checking your file</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">This takes a few seconds.</p>
+            </div>
+          )}
+
           {step.kind === "processing" && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
@@ -241,6 +342,20 @@ export function MaterialUploadDialog({
               <DialogFooter>
                 <Button type="button" className="rounded-full" onClick={finishAndClose}>
                   Continue in background
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {step.kind === "queue-failed" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-semibold text-destructive">Processing failed</p>
+                <p className="text-sm text-muted-foreground">{step.message}</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" className="rounded-full" onClick={finishAndClose}>
+                  Close
                 </Button>
               </DialogFooter>
             </div>

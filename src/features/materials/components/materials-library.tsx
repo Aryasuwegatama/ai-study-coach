@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MATERIAL_API_ERRORS, MAX_MATERIALS_PER_SPACE } from "../materials-schemas";
+import { MATERIAL_API_ERRORS, MAX_MATERIALS_PER_SPACE, type MaterialResponse } from "../materials-schemas";
 import { fileTypeLabel, formatMaterialSize } from "../materials-format";
-import type { MaterialWithSize } from "../client/materials-client";
 import { MaterialRowActions } from "./material-row-actions";
 import { MaterialStatusBadge } from "./material-status-badge";
 import { MaterialsEmptyState } from "./materials-empty-state";
@@ -21,17 +20,21 @@ import { MaterialsEmptyState } from "./materials-empty-state";
 export function MaterialsLibrary({
   materials,
   loading,
+  actionError,
   onUpload,
   onRetry,
   onDelete,
   onDownload,
 }: {
-  materials: MaterialWithSize[];
+  materials: MaterialResponse[];
   loading: boolean;
+  /** The last retry/download failure (T-09b plan step 4), announced here so
+   * it's visible and reaches a screen reader without a toast library. */
+  actionError?: string | null;
   onUpload: () => void;
   onRetry: (id: string) => void;
-  onDelete: (material: MaterialWithSize) => void;
-  onDownload: (material: MaterialWithSize) => void;
+  onDelete: (material: MaterialResponse) => void;
+  onDownload: (material: MaterialResponse) => void;
 }) {
   const atLimit = materials.length >= MAX_MATERIALS_PER_SPACE;
 
@@ -39,12 +42,7 @@ export function MaterialsLibrary({
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-foreground">Materials · {materials.length}</h2>
-            <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
-              EXAMPLE DATA
-            </span>
-          </div>
+          <h2 className="text-xl font-semibold text-foreground">Materials · {materials.length}</h2>
           <p className="text-sm text-muted-foreground">
             Private to this space · PDF, PPTX or TXT · Maximum 10 MB per file
           </p>
@@ -67,6 +65,12 @@ export function MaterialsLibrary({
           )}
         </div>
       </div>
+
+      {actionError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {actionError}
+        </p>
+      )}
 
       {loading ? (
         <MaterialsLibrarySkeleton />
@@ -137,11 +141,6 @@ export function MaterialsLibrary({
           </div>
         </>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        Example data: these materials are illustrative, and the upload above runs a simulated progress —
-        nothing is sent to a server yet.
-      </p>
     </section>
   );
 }

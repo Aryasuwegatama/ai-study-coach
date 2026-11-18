@@ -12,7 +12,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MaterialsClientError, type MaterialsClient, type MaterialWithSize } from "../client/materials-client";
+import type { MaterialResponse } from "../materials-schemas";
+import { MaterialsClientError, type MaterialsClient } from "../client/materials-client";
 
 /**
  * Delete has no Figma design (issue #25): the same confirmation pattern
@@ -27,7 +28,7 @@ export function DeleteMaterialDialog({
   client,
   onDeleted,
 }: {
-  material: MaterialWithSize | null;
+  material: MaterialResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: MaterialsClient;

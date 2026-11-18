@@ -1,7 +1,10 @@
 import { ACCEPTED_FILE_TYPES } from "./materials-schemas";
 
-/** "2.4 MB" — 1 MB = 1,000,000 bytes, the contract's own definition. */
-export function formatMaterialSize(bytes: number): string {
+/** "2.4 MB" — 1 MB = 1,000,000 bytes, the contract's own definition.
+ * `null` while the material is still uploading (`sizeBytes` is only known
+ * once "complete" measures the real file). */
+export function formatMaterialSize(bytes: number | null): string {
+  if (bytes === null) return "—";
   if (bytes < 1_000) return `${bytes} B`;
   if (bytes < 1_000_000) return `${roundTo1(bytes / 1_000)} KB`;
   return `${roundTo1(bytes / 1_000_000)} MB`;

@@ -1,6 +1,24 @@
 # AI smoke test results
 
-Run with `pnpm run check:ai` (`scripts/check-ai.ts`). Two generations of results: the original T-02 spike against Gemini directly, and the T-02b switch to the Vercel AI Gateway. The gateway section is current; the Gemini section is kept for the record, since it's what motivated the switch.
+Run with `pnpm run check:ai` (`scripts/check-ai.ts`). Two generations of results: the original T-02 spike against Gemini directly, and the T-02b switch to the Vercel AI Gateway. The gateway section is current; the Gemini section is kept for the record, since it's what motivated the switch. A third section below records the app's first real uploads (T-09b), run on a Vercel Preview rather than with `check:ai`.
+
+## First real uploads (T-09b, 18 Nov 2026)
+
+The app's first real AI calls: two real files, uploaded through the Materials UI on the PR #42/#43 Preview deployment (`feat/T-09b-materials-integration`), not locally — QStash can't reach `localhost`. Protection Bypass for Automation let QStash reach the Preview, and every job step was delivered (no missed deliveries). Models: `openai/gpt-5-nano` (generate) and `google/gemini-embedding-001` (embed), both through the Vercel AI Gateway — the same setup checked below under T-02b.
+
+| File | Size / shape | Steps (verify → extract → embed/suggest) | Time to Review needed | Topics |
+| --- | --- | --- | --- | --- |
+| `database-normalisation-notes.txt` (synthetic) | 5.3 KB, 9 sections | 4 s / 4 s / 11 s | about 20 s | 7, matching all 7 intended topics: overview and anomalies, functional dependencies, 1NF, 2NF, 3NF, BCNF, denormalisation |
+| `intro-cybersecurity-slides.pptx` (synthetic) | 56.4 KB, 12 slides with speaker notes | 5 s / 4 s / 10 s | about 20 s | 10, matching all 10 content slides; the title and summary slides were correctly **not** turned into topics |
+
+Both files' topic descriptions were accurate, with nothing invented. The PPTX was stored in Blob with the PPTX content type (not a generic fallback).
+
+Other observations:
+
+- **Source pages are chunk-wide groups, not the exact page** — 3 sections per chunk for the TXT, 4 slides per chunk for the PPTX — but always the right group. Worth noting for the AI evaluation (PRD Section 3): a cited "page" is really a range, not a single page.
+- **The topic draft isn't returned in document order.** T-09c should sort it before showing it to the student.
+
+**Not tested on this Preview**, left to Khushi's T-10 and T-13: a PDF, the prompt-injection file, and the scanned/over-limit failure files.
 
 ## 18 November 2026 — Vercel AI Gateway (T-02b)
 
