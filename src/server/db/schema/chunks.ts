@@ -10,7 +10,11 @@ import { materials } from "./materials";
  * hanging off a material deletes with it).
  *
  * `embedding` and `embedding_model` stay null until T-08b embeds the chunk
- * (768-D, L2-normalised `gemini-embedding-001`; T-02).
+ * (768-D, L2-normalised `gemini-embedding-001`; T-02). From T-02b, embedding
+ * calls go through the Vercel AI Gateway and `embedding_model` records
+ * `google/gemini-embedding-001`, not the bare `gemini-embedding-001` name
+ * stored by earlier rows; those old rows stop matching retrieval, which is
+ * acceptable because only test data exists.
  */
 export const chunks = pgTable(
   "chunks",

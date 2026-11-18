@@ -35,7 +35,8 @@ pnpm run db:generate      # generate a Drizzle migration from schema changes
 pnpm run db:migrate       # apply pending migrations (uses DATABASE_URL_UNPOOLED)
 pnpm run auth:generate    # regenerate the Better Auth Drizzle schema after
                            # changing src/server/auth/auth-config.ts
-pnpm run check:connections  # verify database, Blob, QStash and Gemini are reachable
+pnpm run check:connections  # verify database, Blob, QStash and the AI Gateway are reachable
+pnpm run report:ai-usage    # print ai_calls usage, latency and estimated cost per purpose/model
 pnpm run check:auth         # verify sessions, sign-out, the Google sign-in URL and rate limiting
 pnpm run check:spaces       # verify Study Space CRUD, ownership and validation
 ```
@@ -81,7 +82,7 @@ From Section 4. Study Spaces is the pattern every feature follows.
 1. **Route** (`src/app/…`) validates the request with the feature's Zod schema.
 2. **`requireUser()`** returns the signed-in user or responds 401.
 3. **Feature service** (`src/features/<feature>/server/`) runs the business rule and checks ownership with `requireSpace(spaceId, user)` (404 if not theirs).
-4. **Adapters** (`src/server/`) talk to Postgres (Drizzle), Blob, QStash and Gemini. Features never call these services directly.
+4. **Adapters** (`src/server/`) talk to Postgres (Drizzle), Blob, QStash and the AI Gateway. Features never call these services directly.
 5. **Response** is JSON; errors use `{ "error": { "code", "message" } }` with stable codes.
 
 | Path | Contents |
@@ -106,7 +107,7 @@ Name files explicitly — never a bare generic name like `client.ts`, `config.ts
 
 ## Rules that are never broken
 
-- Gemini is called only through `callAI()`.
+- The AI Gateway is called only through `callAI()` and `embedTexts()`.
 - The database schema changes only through migrations.
 - Secrets never appear in code.
 - Every space-scoped route calls `requireSpace()`.

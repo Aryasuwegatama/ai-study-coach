@@ -2,7 +2,7 @@
 
 Version 1.2 · 2 November 2026 · Owner: Arya
 
-The app is one Next.js project (a modular monolith): screens, API routes and background workers live in one repository and deploy together to Vercel. Postgres (Neon) is the single source of truth for every record, including search vectors; private files live in Vercel Blob; QStash runs background steps; Gemini is called only from the server.
+The app is one Next.js project (a modular monolith): screens, API routes and background workers live in one repository and deploy together to Vercel. Postgres (Neon) is the single source of truth for every record, including search vectors; private files live in Vercel Blob; QStash runs background steps; the AI Gateway (T-02b) is called only from the server.
 
 The **proposed** initial data model has 17 Core domain tables plus generated Better Auth tables. It is not migration-tested. Mastery is calculated from scored attempts on read rather than stored as a separate table.
 
@@ -15,7 +15,7 @@ Authenticated student endpoints use thin routes, Zod validation and ownership-sc
 1. **Page or API route** (`src/app/…`) reads the request and validates it with the feature's Zod schema.
 2. **Session check:** `requireUser()` returns the signed-in user or responds 401.
 3. **Feature service** (`src/features/<feature>/server/`) runs the business rule and checks ownership through `requireSpace(spaceId, user)`, which responds 404 if the space is not theirs.
-4. **Adapters** (`src/server/`) talk to Postgres (Drizzle), Blob, QStash and Gemini (`callAI()`). Features never call these services directly.
+4. **Adapters** (`src/server/`) talk to Postgres (Drizzle), Blob, QStash and the AI Gateway (`callAI()`). Features never call these services directly.
 5. **Response** is JSON, with a stable error code and a safe message on failure.
 
 ```jsx
@@ -34,7 +34,7 @@ ai-study-coach/
 │  ├─ server/
 │  │  ├─ db/        # Drizzle client, schema/*.ts, mastery query
 │  │  ├─ auth/      # Better Auth config, requireUser, requireSpace
-│  │  ├─ ai/        # callAI, prompts/*.ts, gemini + fake providers
+│  │  ├─ ai/        # callAI, prompts/*.ts, AI Gateway + fake providers
 │  │  ├─ jobs/      # QStash publish, signature check, step handlers
 │  │  └─ storage/   # Blob upload token, read, delete
 │  ├─ components/ui/                # shadcn/ui
@@ -231,9 +231,9 @@ Real values live in `.env.local` (git-ignored) and in Vercel's project settings;
 | `OAUTH_PROXY_SECRET` | Encrypts the OAuth handoff from Production to a Preview deployment during the redirect-based Google sign-in (T-01c); Production and every Preview share one value; not needed locally |
 | `BLOB_READ_WRITE_TOKEN` | Private Blob store (local development; Vercel uses its own sign-in in production) |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | Publishing job steps; verifying they came from QStash |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Gemini API (the AI SDK's Google provider reads this name) |
-| `AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED` | Model names, so models can change without code changes |
-| `AI_PROVIDER` | `gemini` or `fake` (tests and load test) |
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway (T-02b); needed locally, optional on Vercel, which authenticates with OIDC instead |
+| `AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED` | Gateway model IDs (`provider/model`, for example `openai/gpt-5-nano`), so models can change without code changes |
+| `AI_PROVIDER` | `gateway` or `fake` (tests and load test) |
 | `CRON_SECRET` | Protects the daily clean-up route |
 | `APP_URL` | Where QStash sends job steps. Optional (T-08a): when unset, previews use VERCEL_BRANCH_URL and Production uses BETTER_AUTH_URL. QStash can't reach `localhost`, so local runs need a tunnel URL here or the check scripts' fake publisher |
 | DATABASE_URL_TEST | The separate test database on your personal branch; integration tests reset it before each run |
@@ -256,7 +256,7 @@ Real values live in `.env.local` (git-ignored) and in Vercel's project settings;
 - Add explicit composite SQL constraints, not only Drizzle `relations()` metadata: `materials (id,space_id)`; `chunks (id,space_id)`; `topics (id,space_id)`; `learning_items (id,space_id)` are valid referenced unique pairs. Both sides of `material_topics` and `item_sources` carry the same `space_id`, and all insert paths must check owner and parent membership.
 - Generation-slot accounting must be atomic and recoverable. A QStash per-request parallelism setting is not proof of a two-job cap across multi-request jobs.
 - Deleting a Study Space, account or material must preserve the Blob cleanup intent outside the rows scheduled for cascade. Test an interrupted deletion and its successful retry.
-- Before migration: generate the configured Better Auth schema; check `gemini-embedding-001` output dimension (768 if supported); verify Neon pgvector extension, database transactions and connection driver compatibility. The 17-table design is a proposal, not verified migrations.
+- Before migration: generate the configured Better Auth schema; check `gemini-embedding-001` output dimension (768 if supported) through the AI Gateway; verify Neon pgvector extension, database transactions and connection driver compatibility. The 17-table design is a proposal, not verified migrations.
 - Vercel production is currently a boilerplate site; preview, collaborator-triggered builds, QStash callback authentication, provider quota and database isolation must all be validated before being described as working.
 
 ## v1.2 schema acceptance tests before first feature release

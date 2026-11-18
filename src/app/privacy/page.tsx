@@ -19,6 +19,9 @@ export const metadata: Metadata = {
  * Content reflects the T-01c plan issue's wording, confirmed by Arya
  * (2026-11-06/07): this is a capstone demo deployment, not a commercial
  * product, and uploaded materials are expected to be sample/test content.
+ * The "Services we use" and "How the AI works" sections were updated for
+ * T-02b (2026-11-18), when AI calls moved from Gemini's free tier, directly,
+ * to OpenAI and Google through the Vercel AI Gateway.
  * Update this page whenever a later task changes what the app collects,
  * who can see it, or how long it is kept.
  */
@@ -75,8 +78,9 @@ export default function PrivacyPolicyPage() {
           <section className="flex flex-col gap-2">
             <h2 className="text-base font-semibold text-foreground">Services we use</h2>
             <p>
-              Google (sign-in and the Gemini AI), Neon (database), Vercel (hosting and
-              private file storage) and Upstash (background processing).
+              Google (sign-in), Vercel&apos;s AI Gateway (which routes AI requests to
+              OpenAI and Google), Neon (database), Vercel (hosting and private file
+              storage) and Upstash (background processing).
             </p>
           </section>
 
@@ -85,12 +89,12 @@ export default function PrivacyPolicyPage() {
               How the AI works with your materials
             </h2>
             <p>
-              Parts of your uploaded materials are sent to Google&apos;s Gemini AI to
-              suggest topics and create quizzes and flashcards. This project uses
-              Gemini&apos;s free tier. Under Google&apos;s terms for free (&ldquo;Unpaid&rdquo;)
-              use, Google may use the content it receives to improve its products, and
-              human reviewers may read, annotate and process it. This is another reason
-              to upload sample materials only.
+              Parts of your uploaded materials are sent through Vercel&apos;s AI Gateway
+              to OpenAI (to suggest topics and write quiz and flashcard questions, and
+              to check those questions against your materials) and to Google (to create
+              search embeddings used to find the right parts of your materials). We use
+              models that the gateway flags as not used to train the provider&apos;s own
+              AI. This is still a reason to upload sample materials only.
             </p>
           </section>
 
@@ -134,7 +138,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <p className="text-xs leading-[1.125rem] text-muted-foreground">
-            Last updated: 11 November 2026
+            Last updated: 18 November 2026
           </p>
         </article>
       </main>

@@ -2,14 +2,14 @@
 
 Version 1.2 · 2 November 2026 · Owner: Arya
 
-The app proposes four AI operation classes through the Vercel AI SDK and Gemini, subject to verified model access. Publish results only after **schema, source-membership, answer-support and duplicate checks**; valid JSON alone is insufficient.
+The app proposes four AI operation classes through the Vercel AI SDK, reached through the **Vercel AI Gateway** (T-02b, 18 November 2026; see Section 1), subject to verified model access. Publish results only after **schema, source-membership, answer-support and duplicate checks**; valid JSON alone is insufficient.
 
 | AI job | Model | When it runs |
 | --- | --- | --- |
-| Embed text for search | `gemini-embedding-001` (768 dimensions) | After each document upload, and per selected topic when generating quiz or deck practice |
-| Suggest topics | Gemini Flash | Triggered per uploaded material; may use multiple bounded AI calls plus consolidation when token budget requires |
-| Write questions and cards | Gemini Flash | When the student generates a quiz or deck |
-| Check answers | Gemini Flash-Lite | Right after writing, before anything is published |
+| Embed text for search | `google/gemini-embedding-001` (768 dimensions) | After each document upload, and per selected topic when generating quiz or deck practice |
+| Suggest topics | `openai/gpt-5-nano`, reasoning effort `low` | Triggered per uploaded material; may use multiple bounded AI calls plus consolidation when token budget requires |
+| Write questions and cards | `openai/gpt-5-nano`, reasoning effort `low` | When the student generates a quiz or deck |
+| Check answers | `openai/gpt-5-nano`, reasoning effort `low` | Right after writing, before anything is published |
 
 This section defines how the AI parts work. Scope and stack are in Section 1, and product rules are in Section 2.
 
@@ -50,9 +50,9 @@ A quiz is built from retrieved source text and generated in one or more bounded 
 
 1. **Check limits.** The daily limit (20 generations) must not be reached. The job is queued for QStash delivery. Database admission, using a transactional lock/slot check, permits at most **two active quiz/deck generation jobs combined**, across all processing steps and users. Excess generation jobs remain queued; QStash flow control throttles deliveries only. QStash flow control is an additional delivery throttle, not the source of truth for long-running job concurrency.
 2. **Retrieve sources per ticked topic.** Embed `"<topic name>: <description>"` (task type `RETRIEVAL_QUERY`) and take the closest chunks from the ticked materials, plus up to 2 chunks from the pages the topic was found on. Retrieve up to eight chunks per topic and at most 40 source chunks per AI request; when a selection needs more, process bounded topic groups and combine validated results. Never guarantee three chunks when fewer exist; topics supported by fewer than two chunks can receive at most three questions. Reject selecting more topics than requested questions with an actionable message.
-3. **Write questions.** Each bounded Gemini Flash generation call receives the sources labelled `[S1]`, `[S2]`… grouped by topic (`[T1]`, `[T2]`…) and how many questions each topic needs. It returns JSON: question, 4 options, the correct option, explanation, topic label, source labels and a difficulty tag (easy, medium or hard).
+3. **Write questions.** Each bounded `AI_MODEL_GENERATE` call receives the sources labelled `[S1]`, `[S2]`… grouped by topic (`[T1]`, `[T2]`…) and how many questions each topic needs. It returns JSON: question, 4 options, the correct option, explanation, topic label, source labels and a difficulty tag (easy, medium or hard).
 4. **Code checks.** The JSON matches the schema; the 4 options are different and non-empty; the topic is one of those ticked; every source label was provided; the question is not a duplicate of another in this quiz or already published for that topic (compared after lower-casing and removing punctuation).
-5. **Answer check.** Each bounded Gemini Flash-Lite check reads its batch of candidate questions with the text of the cited sources and answers two things: is the answer supported by the sources, and is there exactly one correct option? Any "no" rejects the question, and the reason is logged.
+5. **Answer check.** Each bounded `AI_MODEL_CHECK` call reads its batch of candidate questions with the text of the cited sources and answers two things: is the answer supported by the sources, and is there exactly one correct option? Any "no" rejects the question, and the reason is logged.
 6. **Top up once.** If fewer questions passed than requested, one more round of steps 3–5 asks for the shortfall only.
 7. **Publish.** With at least 5 questions: shuffle the options, save the questions with their sources, mark the quiz Ready, and notify the student. With fewer than 5: mark it Failed with the reason.
 
@@ -77,8 +77,8 @@ These rules cover the course's Baseline Expectations for prompt management, inje
 **Prompts and models**
 
 - Each prompt lives in `src/server/ai/prompts/<job>.ts` and exports a `PROMPT_VERSION` (for example `quiz-v1`). Changing a prompt means bumping the version, so the evaluation can say which version produced which questions.
-- Model names come from environment variables (`AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED`), never hard-coded. Switching to the AI Gateway fallback is a config change.
-- All calls go through one wrapper, `callAI()`, which handles logging, retries and the fake provider used in tests.
+- Model names come from environment variables (`AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED`), as gateway model IDs (`provider/model`, for example `openai/gpt-5-nano`), never hard-coded. Switching models, or the reasoning effort passed in `providerOptions.openai.reasoningEffort`, is a config change (T-02b).
+- All calls go through one wrapper, `callAI()`, which handles logging, retries, a per-call time limit (about 120 seconds, logged as the `TIMEOUT` error code on expiry) and the fake provider used in tests.
 
 **Prompt-injection guardrails**
 
@@ -99,7 +99,7 @@ These rules cover the course's Baseline Expectations for prompt management, inje
 
 **Testing without spending quota**
 
-- A fake provider returns fixed, valid JSON instantly. Unit/integration tests and the 20-user load test use it; only approved evaluation and demos use real Gemini. GitHub Actions CI is intentionally not configured at this stage.
+- A fake provider returns fixed, valid JSON instantly. Unit/integration tests and the 20-user load test use it; only approved evaluation and demos make real gateway calls. GitHub Actions CI is intentionally not configured at this stage.
 
 ## AI quality evaluation
 
@@ -125,13 +125,13 @@ Five measurements, all defined now (before building, as the Baseline Expectation
 - Current SDK implementation: `generateText` with `Output.object({ schema })` in AI SDK 6, subject to installed-version verification. `generateObject` is deprecated.
 - Rate limits: measure the actual account limits; one total bounded retry budget using delayed delivery. QStash limits endpoint calls, while the database enforces the maximum two whole-generation-job slots.
 - Record exact generation and embedding model names and prompt versions. Embedding-model changes require re-embedding because output spaces are incompatible.
-- Fake AI for automated and load tests; approved nonsensitive materials and disclosure for real Gemini tests.
+- Fake AI for automated and load tests; approved nonsensitive materials and disclosure for real gateway tests.
 - Evaluate 100 published MCQs with two knowledgeable reviewers, topics from 10 documents, 50 cards and measured latency/token totals.
 
 ## v1.2 resilience and data-handling clarification
 
 - The material pipeline must persist stable source offsets/page or slide ranges across batching; a citation referring to a nonexistent source or unrelated Study Space must be rejected.
-- Never store raw uploaded text or provider prompts in routine AI-call telemetry. Use only approved test content with external APIs; show a clear free-tier processing disclosure before uploads.
+- Never store raw uploaded text or provider prompts in routine AI-call telemetry. Use only approved test content with external APIs; show a clear processing disclosure before uploads, naming the gateway and the providers it reaches (Section 1; the `/privacy` page).
 - AI results are suggestions requiring structural and source-support validation; a valid citation label does not by itself establish factual correctness.
 - A retry must not duplicate published items, consume an extra daily generation allowance for the same idempotency key, or advance a step already successfully committed.
 
@@ -140,3 +140,4 @@ Five measurements, all defined now (before building, as the Baseline Expectation
 - [Google Embeddings](https://ai.google.dev/gemini-api/docs/embeddings): `gemini-embedding-001` supports 768 dimensions but requires manual normalisation at non-default dimensions. `gemini-embedding-2` uses an incompatible embedding space and different task-type semantics; changes demand re-embedding.
 - [AI SDK structured outputs](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data): SDK 6 supports `generateText` and `Output.object()`. Verify the installed packages before coding the adapter.
 - [QStash Flow Control](https://upstash.com/docs/qstash/features/flowcontrol): parallelism controls concurrent delivery requests, not complete persistent jobs.
+- **Vercel AI Gateway (T-02b, 18 November 2026):** `import { gateway } from "ai"` is built into the installed `ai` 6.0.322 package — no `@ai-sdk/gateway` dependency to add. The exported `gateway` singleton authenticates with `AI_GATEWAY_API_KEY` when set (local development) and falls back to Vercel OIDC when it isn't (Vercel deployments); confirm OIDC on each PR's preview before merging. Provider-specific options (for example OpenAI's `reasoningEffort`) are passed under the underlying provider's name in `providerOptions`, not under `gateway`.

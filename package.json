@@ -21,10 +21,10 @@
     "check:attempts": "tsx scripts/check-attempts.ts",
     "check:materials-contract": "tsx scripts/check-materials-contract.ts",
     "check:materials": "tsx scripts/check-materials.ts",
-    "check:ai": "tsx scripts/check-ai.ts"
+    "check:ai": "tsx scripts/check-ai.ts",
+    "report:ai-usage": "tsx scripts/report-ai-usage.ts"
   },
   "dependencies": {
-    "@ai-sdk/google": "3.0.141",
     "@base-ui/react": "^1.9.0",
     "@upstash/qstash": "^2.12.1",
     "@vercel/blob": "^2.8.2",

@@ -14,7 +14,20 @@ import { checkModel, generateModel } from "./ai-client";
  * Transient provider errors (429, 503, network) are rethrown so the job
  * runner releases the step and QStash redelivers it: one retry budget for
  * the whole step, no SDK retries on top (`maxRetries: 0`).
+ *
+ * Every real call carries a time limit (T-02b) so a hung request fails and
+ * is retried by the job runner, instead of running until the platform's own
+ * function timeout kills it and leaves the material stuck in Processing.
  */
+
+/** Gateway calls abort after this long and are logged as `TIMEOUT` (T-02b). */
+const AI_CALL_TIMEOUT_MS = 120_000;
+
+/** `openai/gpt-5-nano`'s reasoning effort, per model (PRD Section 3; T-02b decision). */
+const REASONING_EFFORT: Record<"generate" | "check", "low"> = {
+  generate: "low",
+  check: "low",
+};
 
 /** The model's answer was unusable twice; the job fails with AI_UNUSABLE_ANSWER. */
 export class AIUnusableError extends Error {
@@ -81,7 +94,9 @@ export async function callAI<S extends z.ZodType>(options: {
           system: `${options.system}\n\n${SOURCE_RULES}`,
           prompt: options.prompt,
           output: Output.object({ schema: options.schema }),
+          providerOptions: { openai: { reasoningEffort: REASONING_EFFORT[options.model] } },
           maxRetries: 0,
+          abortSignal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
         });
         value = result.output as z.infer<S>;
         usage = result.usage;
@@ -107,6 +122,12 @@ export async function callAI<S extends z.ZodType>(options: {
 }
 
 function errorCode(error: unknown): string {
+  if (isTimeoutError(error)) return "TIMEOUT";
   const status = (error as { statusCode?: number } | null)?.statusCode;
   return status ? `HTTP_${status}` : "CALL_FAILED";
+}
+
+/** `AbortSignal.timeout()` rejects with a `TimeoutError`; aborting it manually gives `AbortError`. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
