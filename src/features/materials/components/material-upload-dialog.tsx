@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import Link from "next/link";
-import { UploadCloud } from "lucide-react";
+import { Loader2, UploadCloud } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +39,10 @@ type Step =
   | { kind: "validation-error"; heading: string; message: string }
   | { kind: "uploading"; file: File; percent: number; controller: AbortController }
   | { kind: "cancel-confirm"; file: File; percent: number; controller: AbortController }
+  // The file has fully reached Blob; cancelling would no longer have any
+  // effect on the pending/retried `complete` call (Codex review on #43),
+  // so there's no Cancel button here and no AbortController to hold.
+  | { kind: "finishing"; fileName: string }
   | { kind: "processing" }
   | { kind: "queue-failed"; message: string }
   | { kind: "server-error"; message: string };
@@ -92,7 +96,8 @@ export function MaterialUploadDialog({
   // "Cancel this upload?" confirmation as closing the dialog — the student
   // either lets the upload finish (Keep uploading) or cancels it cleanly
   // (Cancel upload aborts, which deletes the row). Both listeners come off
-  // once the file reaches 100%, so nothing warns afterwards.
+  // once the file reaches 100% and the step moves to "finishing" — there's
+  // nothing left to cancel by then (Codex review on #43), so nothing warns.
   const inProgress = (step.kind === "uploading" || step.kind === "cancel-confirm") && step.percent < 100;
   useEffect(() => {
     if (!inProgress) return;
@@ -125,6 +130,15 @@ export function MaterialUploadDialog({
         return;
       }
       if (step.kind === "cancel-confirm") return;
+      if (step.kind === "finishing") {
+        // Closing here is allowed and doesn't cancel anything (Codex
+        // review on #43): the upload finishes in the background
+        // regardless, so `step` is left alone rather than reset to
+        // "ready" — the eventual `.then()` still lands on "processing",
+        // "queue-failed" or "server-error" whether this is open or not.
+        onOpenChange(false);
+        return;
+      }
       resetStep();
       onOpenChange(false);
       return;
@@ -158,6 +172,18 @@ export function MaterialUploadDialog({
         // (plan step 4, "Order of the first refresh"); refresh then,
         // rather than right after calling `upload()`.
         onCreated: onUploaded,
+        // The file has fully reached Blob: move to the non-cancellable
+        // "Checking your file" step. If "Cancel this upload?" was still
+        // open (the student clicked Cancel but hadn't confirmed), this
+        // also closes it — the AlertDialog's `open` is derived from
+        // `step.kind === "cancel-confirm"` (Codex review on #43).
+        onSent: () => {
+          setStep((prev) =>
+            prev.kind === "uploading" || prev.kind === "cancel-confirm"
+              ? { kind: "finishing", fileName: prev.file.name }
+              : prev,
+          );
+        },
         signal: controller.signal,
       })
       .then((material) => {
@@ -289,6 +315,19 @@ export function MaterialUploadDialog({
                   Cancel upload
                 </Button>
               </DialogFooter>
+            </div>
+          )}
+
+          {step.kind === "finishing" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 rounded-xl bg-muted p-4">
+                <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium text-foreground">{step.fileName}</span>
+                  <span className="text-xs text-muted-foreground">Checking your file</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">This takes a few seconds.</p>
             </div>
           )}
 

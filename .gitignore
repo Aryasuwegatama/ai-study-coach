@@ -43,3 +43,6 @@ next-env.d.ts
 
 /AGENTS.md
 /CLAUDE.md
+
+# local-only manual test fixtures (never commit uploaded/test files)
+/test-materials/

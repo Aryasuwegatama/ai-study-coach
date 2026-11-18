@@ -101,7 +101,7 @@ export function createApiMaterialsClient(spaceId: string): MaterialsClient {
       return data.materials;
     },
 
-    async upload(file, { onProgress, onCreated, signal }: UploadOptions) {
+    async upload(file, { onProgress, onCreated, onSent, signal }: UploadOptions) {
       // Step 1: the row only exists once this returns.
       const created = await requestJson<CreateMaterialResponse>(`/api/spaces/${spaceId}/materials`, {
         method: "POST",
@@ -133,10 +133,15 @@ export function createApiMaterialsClient(spaceId: string): MaterialsClient {
         throw error;
       }
 
+      // Cancel confirmed at the exact moment the send finished: still
+      // honoured, the same as the step-1 check above. From here on,
+      // cancelling has no effect (Codex review on #43) — `onSent` tells
+      // the dialog to stop offering it.
       if (signal.aborted) {
         await deleteBestEffort(materialId);
         throw cancelledError();
       }
+      onSent?.();
 
       // Step 3: tell the server the file landed.
       return completeWithRetry(materialId);

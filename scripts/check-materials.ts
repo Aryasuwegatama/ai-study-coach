@@ -403,6 +403,76 @@ async function run(userA: Session, userB: Session, stamp: number) {
     !!(await rowOf(bStale.body.material.id)),
   );
 
+  // A backdated row that already left "uploading" is never a clean-up
+  // candidate in the first place (Codex review on #43): the outer select's
+  // own `status = 'uploading'` filter already protects it.
+  const alreadyProcessing = await create(userA.cookie, spaceC.id, {
+    name: "already-processing.txt",
+    size: txtBytes.length,
+    contentType: TXT_MIME,
+  });
+  await browserUpload(alreadyProcessing.body.upload.pathname, alreadyProcessing.body.upload.clientToken, txtBytes, TXT_MIME);
+  await db
+    .update(materials)
+    .set({ status: "processing", createdAt: new Date(Date.now() - staleAge) })
+    .where(eq(materials.id, alreadyProcessing.body.material.id));
+  await list(userA.cookie, spaceC.id);
+  const stillProcessing = await rowOf(alreadyProcessing.body.material.id);
+  check(
+    "Abandoned uploads: a backdated row already processing stays, blob kept",
+    stillProcessing?.status === "processing" && (await blobExists(alreadyProcessing.body.upload.pathname)),
+    `status ${stillProcessing?.status}`,
+  );
+
+  // The race itself (Codex review on #43): a concurrent `complete`-style
+  // lock on a stale row must win over clean-up. Holds `FOR UPDATE` on a
+  // backdated uploading row and moves it to "processing", without
+  // committing, while the list's clean-up runs — it must claim nothing
+  // (`SKIP LOCKED`) and return promptly rather than wait on the lock.
+  async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer!: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const race = await create(userA.cookie, spaceC.id, { name: "race.txt", size: txtBytes.length, contentType: TXT_MIME });
+  await browserUpload(race.body.upload.pathname, race.body.upload.clientToken, txtBytes, TXT_MIME);
+  await backdate(race.body.material.id);
+
+  let releaseHolder!: () => void;
+  const released = new Promise<void>((resolve) => {
+    releaseHolder = resolve;
+  });
+  const holderDone = db.transaction(async (tx) => {
+    await tx.select({ id: materials.id }).from(materials).where(eq(materials.id, race.body.material.id)).for("update");
+    await tx.update(materials).set({ status: "processing" }).where(eq(materials.id, race.body.material.id));
+    await released; // keep the row locked until the clean-up below has had its chance
+  });
+
+  const raceStart = Date.now();
+  let listTimedOut = false;
+  try {
+    await withTimeout(list(userA.cookie, spaceC.id), 5000, "list() during the lock race");
+  } catch {
+    listTimedOut = true;
+  }
+  const raceElapsedMs = Date.now() - raceStart;
+  releaseHolder();
+  await holderDone;
+
+  const raceRow = await rowOf(race.body.material.id);
+  check(
+    "Abandoned uploads: a concurrent complete wins the race; clean-up skips the locked row and returns promptly",
+    !listTimedOut && raceElapsedMs < 2000 && raceRow?.status === "processing" && (await blobExists(race.body.upload.pathname)),
+    `timedOut ${listTimedOut}, elapsed ${raceElapsedMs}ms, status ${raceRow?.status}`,
+  );
+
   // --- Database constraint ------------------------------------------------------
   const [hashed] = await db.select().from(materials).where(eq(materials.id, pdfId));
   let duplicateRejected = false;

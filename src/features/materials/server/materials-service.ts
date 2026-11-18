@@ -103,23 +103,54 @@ export const ABANDONED_UPLOAD_MS = 3 * MATERIAL_UPLOAD_TOKEN_TTL_MS;
  * that just moved on is never touched. Run at the start of `listMaterials`
  * and `createMaterial`; never throws, so a clean-up problem never blocks the
  * list or the upload it's guarding.
+ *
+ * Race with `completeMaterial` (Codex review on #43): the first select below
+ * only finds candidates; it doesn't lock anything, so a `complete` call
+ * could still move a candidate row to `processing` before this gets to it.
+ * Each candidate is therefore re-claimed with `FOR UPDATE SKIP LOCKED` in
+ * its own transaction, still `WHERE status = 'uploading'`, *before* the Blob
+ * delete — the same row lock `completeMaterial`'s update
+ * (`WHERE id AND status = 'uploading'`) needs:
+ *   - if clean-up claims the row first, `completeMaterial`'s update waits
+ *     on the lock, then finds the row gone once clean-up commits: no job is
+ *     queued, and the student sees 404 `MATERIAL_NOT_FOUND`;
+ *   - if `completeMaterial` updates first, clean-up's claim finds the row no
+ *     longer `uploading` (or `SKIP LOCKED` skips it while held) and leaves
+ *     it and its file alone.
+ * `completeMaterial` is unchanged — its existing lock is what makes this
+ * safe. Each transaction holds its row lock for one `deleteBlob` call,
+ * acceptable at this scale (a handful of stale rows at most, on a list or
+ * upload request).
  */
 async function removeAbandonedUploads(spaceId: string): Promise<void> {
   try {
     const cutoff = new Date(Date.now() - ABANDONED_UPLOAD_MS);
-    const stale = await db
-      .select({ id: materials.id, blobPath: materials.blobPath })
+    const candidates = await db
+      .select({ id: materials.id })
       .from(materials)
       .where(and(eq(materials.spaceId, spaceId), eq(materials.status, "uploading"), lt(materials.createdAt, cutoff)));
 
-    for (const row of stale) {
+    for (const candidate of candidates) {
       try {
-        await deleteBlob(row.blobPath);
+        await db.transaction(async (tx) => {
+          const [claimed] = await tx
+            .select({ id: materials.id, blobPath: materials.blobPath })
+            .from(materials)
+            .where(and(eq(materials.id, candidate.id), eq(materials.status, "uploading"), lt(materials.createdAt, cutoff)))
+            .for("update", { skipLocked: true });
+          // Not found: already handled, moved on since the first select, or
+          // another request holds its lock right now — leave it alone.
+          if (!claimed) return;
+
+          await deleteBlob(claimed.blobPath);
+          await tx.delete(materials).where(and(eq(materials.id, claimed.id), eq(materials.status, "uploading")));
+        });
       } catch {
-        // Skip quietly; the next list or upload in this space tries again.
+        // The Blob delete failed and the transaction rolled back (the row
+        // and file are both kept, exactly as before); skip quietly and let
+        // the next list or upload in this space try again.
         continue;
       }
-      await db.delete(materials).where(and(eq(materials.id, row.id), eq(materials.status, "uploading")));
     }
   } catch {
     // Never block the list or the upload it's guarding.

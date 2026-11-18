@@ -21,6 +21,14 @@ export type UploadOptions = {
    * fires, not right after `upload()` is called.
    */
   onCreated?: () => void;
+  /**
+   * Called once the file has fully reached Blob (`put()` resolved) and the
+   * upload is no longer cancellable (Codex review on #43): cancelling
+   * from this point would have no effect on an in-flight or retried
+   * `complete`, so the dialog switches to a non-cancellable "Checking
+   * your file" step here instead of promising a cancel it can't honour.
+   */
+  onSent?: () => void;
   signal: AbortSignal;
 };
 
