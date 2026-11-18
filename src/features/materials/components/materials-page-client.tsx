@@ -2,23 +2,26 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MAX_MATERIALS_PER_SPACE } from "../materials-schemas";
-import { createExampleMaterialsClient } from "../client/example-materials-client";
-import type { MaterialWithSize } from "../client/materials-client";
+import { MAX_MATERIALS_PER_SPACE, type MaterialResponse } from "../materials-schemas";
+import { createApiMaterialsClient } from "../client/api-materials-client";
+import { MaterialsClientError } from "../client/materials-client";
 import { useMaterialsList } from "../hooks/use-materials-list";
 import { DeleteMaterialDialog } from "./delete-material-dialog";
 import { MaterialUploadDialog } from "./material-upload-dialog";
 import { MaterialsLibrary } from "./materials-library";
+import { MaterialsListError } from "./materials-list-error";
+
+const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 /**
- * Owns the example `MaterialsClient`, the polling hook and both dialogs
- * (issue #25, plan steps 4–7). `?upload=1` opens the upload dialog the
- * same way `/spaces?create=1` opens Create Study Space, so the
+ * Owns the real `MaterialsClient` (T-09b), the polling hook and both
+ * dialogs (issue #25 / #42, plan steps 2–4). `?upload=1` opens the upload
+ * dialog the same way `/spaces?create=1` opens Create Study Space, so the
  * Overview's "Upload material" button can link straight here.
  */
 export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
-  const [client] = useState(() => createExampleMaterialsClient());
-  const { materials, loading, refresh } = useMaterialsList(client);
+  const [client] = useState(() => createApiMaterialsClient(spaceId));
+  const { materials, loading, error, refresh } = useMaterialsList(client);
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldOpenFromUrl = searchParams.get("upload") === "1";
@@ -28,7 +31,8 @@ export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
     setPrevShouldOpenFromUrl(shouldOpenFromUrl);
     if (shouldOpenFromUrl) setUploadOpen(true);
   }
-  const [deleteTarget, setDeleteTarget] = useState<MaterialWithSize | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MaterialResponse | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function handleUploadOpenChange(nextOpen: boolean) {
     setUploadOpen(nextOpen);
@@ -37,19 +41,56 @@ export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
     }
   }
 
+  async function handleRetry(id: string) {
+    try {
+      await client.retry(id);
+      setActionError(null);
+    } catch (err) {
+      setActionError(err instanceof MaterialsClientError ? err.message : GENERIC_ERROR_MESSAGE);
+    } finally {
+      void refresh();
+    }
+  }
+
+  async function handleDownload(material: MaterialResponse) {
+    try {
+      await client.download(material);
+      setActionError(null);
+    } catch (err) {
+      setActionError(err instanceof MaterialsClientError ? err.message : GENERIC_ERROR_MESSAGE);
+    }
+  }
+
   const atLimit = materials.length >= MAX_MATERIALS_PER_SPACE;
+
+  // The first load failed and nothing has loaded yet: replace the library
+  // (and its endless skeleton) with a dedicated error state and a manual
+  // retry (T-09b plan step 4, "List errors").
+  if (error && materials.length === 0 && !loading) {
+    return (
+      <>
+        <MaterialsListError message={error} onRetry={refresh} />
+        <MaterialUploadDialog
+          open={uploadOpen}
+          onOpenChange={handleUploadOpenChange}
+          client={client}
+          atLimit={atLimit}
+          onUploaded={refresh}
+        />
+      </>
+    );
+  }
 
   return (
     <>
       <MaterialsLibrary
         materials={materials}
         loading={loading}
+        actionError={actionError}
         onUpload={() => setUploadOpen(true)}
-        onRetry={(id) => {
-          void client.retry(id).then(refresh);
-        }}
+        onRetry={(id) => void handleRetry(id)}
         onDelete={setDeleteTarget}
-        onDownload={(material) => client.download(material)}
+        onDownload={(material) => void handleDownload(material)}
       />
       <MaterialUploadDialog
         open={uploadOpen}

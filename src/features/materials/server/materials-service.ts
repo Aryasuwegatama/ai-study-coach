@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, getTableColumns, inArray, isNull, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, inArray, isNull, lt, ne } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
 import { materialTopics, materials, studySpaces, topics } from "@/server/db/schema";
@@ -87,9 +87,49 @@ export async function requireMaterial(materialId: string, user: SessionUser): Pr
   return row;
 }
 
+/**
+ * How long an abandoned `uploading` row is left before `removeAbandonedUploads`
+ * treats it as dead (plan step 5). `MATERIAL_UPLOAD_TOKEN_TTL_MS` (5 minutes)
+ * is how long the browser's upload token works, and a 10 MB file takes about
+ * 80 seconds on a slow connection — so after 15 minutes (3x the token's life)
+ * no real upload for that row can still be in progress.
+ */
+export const ABANDONED_UPLOAD_MS = 3 * MATERIAL_UPLOAD_TOKEN_TTL_MS;
+
+/**
+ * Self-heals stuck uploads (plan step 5): removes this space's `uploading`
+ * rows older than `ABANDONED_UPLOAD_MS`, Blob file first (a missing file
+ * counts as deleted), then the row — but only rows still `uploading`, so one
+ * that just moved on is never touched. Run at the start of `listMaterials`
+ * and `createMaterial`; never throws, so a clean-up problem never blocks the
+ * list or the upload it's guarding.
+ */
+async function removeAbandonedUploads(spaceId: string): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - ABANDONED_UPLOAD_MS);
+    const stale = await db
+      .select({ id: materials.id, blobPath: materials.blobPath })
+      .from(materials)
+      .where(and(eq(materials.spaceId, spaceId), eq(materials.status, "uploading"), lt(materials.createdAt, cutoff)));
+
+    for (const row of stale) {
+      try {
+        await deleteBlob(row.blobPath);
+      } catch {
+        // Skip quietly; the next list or upload in this space tries again.
+        continue;
+      }
+      await db.delete(materials).where(and(eq(materials.id, row.id), eq(materials.status, "uploading")));
+    }
+  } catch {
+    // Never block the list or the upload it's guarding.
+  }
+}
+
 /** Newest first. */
 export async function listMaterials(user: SessionUser, spaceId: string): Promise<MaterialResponse[]> {
   const space = await requireSpace(spaceId, user);
+  await removeAbandonedUploads(space.id);
   const rows = await db
     .select()
     .from(materials)
@@ -104,6 +144,7 @@ export async function createMaterial(
   body: unknown,
 ): Promise<CreateMaterialResponse> {
   const space = await requireSpace(spaceId, user);
+  await removeAbandonedUploads(space.id);
 
   const parsed = parseCreateMaterialRequest(body);
   if (!parsed.success) {

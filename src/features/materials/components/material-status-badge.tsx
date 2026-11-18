@@ -1,5 +1,4 @@
-import type { MaterialStatus } from "../materials-schemas";
-import type { MaterialWithSize } from "../client/materials-client";
+import type { MaterialResponse, MaterialStatus } from "../materials-schemas";
 
 /**
  * Status labels and the status-token colours from `globals.css` (issue
@@ -23,7 +22,7 @@ const STATUS_BADGE_CLASSES: Record<MaterialStatus, string> = {
   failed: "bg-destructive/10 text-destructive",
 };
 
-export function MaterialStatusBadge({ material }: { material: MaterialWithSize }) {
+export function MaterialStatusBadge({ material }: { material: MaterialResponse }) {
   const progressSuffix =
     material.status === "processing" && material.progress
       ? ` · ${material.progress.done} of ${material.progress.total} sections`

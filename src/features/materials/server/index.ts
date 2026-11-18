@@ -11,6 +11,7 @@ export {
   requireMaterial,
   materialError,
   toMaterialResponse,
+  ABANDONED_UPLOAD_MS,
 } from "./materials-service";
 export type { MaterialRecord } from "./materials-service";
 export type { MaterialResponse } from "../materials-schemas";

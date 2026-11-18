@@ -125,7 +125,7 @@ Every slow task is a row in `jobs`, moved forward one step at a time by QStash c
 
 **Preview deployments.** Vercel preview protection may block QStash callbacks depending on project settings. Every published job step therefore carries Vercel's protection-bypass secret in the `x-vercel-protection-bypass` header, and `APP_URL` on previews must resolve to the correct verified preview host where callback delivery is supported. This is an integration test to perform, not a configuration that has already been validated.
 
-**Daily clean-up.** A Vercel Cron job (once a day, allowed on the Hobby plan) calls `GET /api/cron/cleanup` with a secret. It:
+**Daily clean-up.** Abandoned `uploading` materials (the tab closed, refreshed or lost its connection before "complete") are also removed 15 minutes after creation, whenever a student lists or adds materials in that space (`removeAbandonedUploads()`, T-09b); the cron below remains the backstop for spaces nobody opens again. A Vercel Cron job (once a day, allowed on the Hobby plan) calls `GET /api/cron/cleanup` with a secret. It:
 
 - deletes materials stuck in `uploading` for over an hour, with their files;
 - detects expired job leases and safely reclaims or fails the associated step after its retry budget, rather than unconditionally failing all jobs older than 15 minutes;
@@ -190,6 +190,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - Delete is a hard delete in one request (Arya, 2026-11-13): the Blob file first, then the row. A file that's already gone counts as deleted. If the Blob delete fails nothing changes and the route returns 503 `MATERIAL_DELETE_FAILED`, so a retry finishes the job.
 - Download of a row whose file is gone returns 404 `FILE_UNAVAILABLE`; deleting it again fixes it.
 - Confirmed by Arya (2026-11-14, #35): file names are 1–255 characters, and the T-06a error messages stand, except `INVALID_MATERIAL_STATE`, now "This file's status just changed. Refresh and try again." (it only appears when the status changed in another tab or request).
+- Abandoned `uploading` rows older than 15 minutes are also removed whenever the student lists or adds materials in that space (T-09b, `removeAbandonedUploads()`); the daily cron above remains the backstop.
 
 **Topics contract notes (T-08b).** The source of truth is `src/features/topics/topics-schemas.ts`.
 - A material's AI suggestions are `draft` topics linked to it through `material_topics`; topic lists show confirmed topics only (`?include=archived` adds archived ones).
