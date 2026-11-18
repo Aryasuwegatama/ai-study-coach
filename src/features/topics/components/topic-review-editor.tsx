@@ -129,7 +129,9 @@ export function TopicReviewEditor({
   );
   const visibleRows = useMemo(() => rows.filter((row) => !row.removed), [rows]);
   const errors = useMemo(() => rowErrors(visibleRows), [visibleRows]);
-  const hasErrors = errors.size > 0;
+  const atLimit = visibleRows.length >= MAX_DRAFT_TOPICS;
+  // The count check is a backstop: Add and Undo both stop at the limit.
+  const hasErrors = errors.size > 0 || visibleRows.length > MAX_DRAFT_TOPICS;
   const busy = pending !== null;
 
   function updateName(key: string, name: string) {
@@ -144,6 +146,7 @@ export function TopicReviewEditor({
   }
 
   function undoRow(key: string) {
+    if (atLimit) return;
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, removed: false } : row)));
     setDirty(true);
     focusTargetRef.current = { key, target: "input" };
@@ -219,7 +222,7 @@ export function TopicReviewEditor({
           variant="outline"
           className="gap-2 rounded-full"
           onClick={addRow}
-          disabled={busy || visibleRows.length >= MAX_DRAFT_TOPICS}
+          disabled={busy || atLimit}
         >
           <Plus className="size-4" aria-hidden="true" />
           Add topic
@@ -236,6 +239,7 @@ export function TopicReviewEditor({
             error={errors.get(row.key) ?? null}
             alreadyLinked={!row.removed && normalizedConfirmed.has(normalizeTopicNameClient(row.name.trim()))}
             totalCount={visibleRows.length}
+            undoDisabled={busy || atLimit}
             onNameChange={updateName}
             onRemove={removeRow}
             onUndo={undoRow}

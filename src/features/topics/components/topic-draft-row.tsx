@@ -27,6 +27,7 @@ export function TopicDraftRow({
   error,
   alreadyLinked,
   totalCount,
+  undoDisabled,
   onNameChange,
   onRemove,
   onUndo,
@@ -39,6 +40,8 @@ export function TopicDraftRow({
   error: string | null;
   alreadyLinked: boolean;
   totalCount: number;
+  /** True while saving, or when the draft is already at `MAX_DRAFT_TOPICS`. */
+  undoDisabled: boolean;
   onNameChange: (key: string, name: string) => void;
   onRemove: (key: string) => void;
   onUndo: (key: string) => void;
@@ -60,6 +63,7 @@ export function TopicDraftRow({
           size="sm"
           className="rounded-full"
           onClick={() => onUndo(row.key)}
+          disabled={undoDisabled}
         >
           Undo
         </Button>
