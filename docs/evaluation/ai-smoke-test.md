@@ -17,7 +17,7 @@ Run with the committed `pnpm run check:ai` (`scripts/check-ai.ts`), 9 real gatew
 | --- | --- |
 | Forced 1 ms timeout | ✅ Aborted immediately with `error.name === "TimeoutError"` — `callAI()`'s `isTimeoutError()` classifies this as the `TIMEOUT` error code, confirming the per-call time limit (about 120 s in real calls) fails fast instead of hanging |
 | Ping (minimal reasoning) | ✅ "OK", 940 ms, 0 reasoning tokens |
-| Embedding dimension and norm | ✅ 768 dimensions; raw norm 0.5816 — **not** unit length, so manual L2 normalisation is still required |
+| Embedding dimension and norm | ✅ 768 dimensions; raw norm 0.5816 — **not** unit length, so manual L2 normalisation is still required. Unlike direct Gemini, the gateway reports embedding token usage (12 tokens for the one-sentence test), and `embedTexts()` now logs it as `input_tokens` so `report:ai-usage` can price embeddings (re-checked 18 Nov after Codex's review on PR #41) |
 | L2 normalisation | ✅ Norm 1.000000 on all four document vectors |
 | Retrieval sanity | ✅ The "keys" query scored the keys page (p2) highest: cosine 0.652, **0.804**, 0.631, 0.659 |
 | Real topic prompt (reasoning `low`) | ✅ Passed `checkSuggestions`: 6 topics; 11.3 s; 304 input / 818 output tokens, of which 640 were reasoning |

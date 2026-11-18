@@ -25,7 +25,22 @@ const PRICES_PER_MILLION_TOKENS: Record<string, { input: number; output: number 
   "openai/gpt-5.4-nano": { input: 0.05, output: 0.4 },
   "openai/gpt-5-mini": { input: 0.25, output: 2 },
   "google/gemini-embedding-001": { input: 0.15, output: 0 },
+  // The fake provider (automated checks) costs nothing.
+  fake: { input: 0, output: 0 },
+  "fake-hashed-words": { input: 0, output: 0 },
 };
+
+/**
+ * A successful call is billed, so missing token counts mean its cost is
+ * unknown, not zero. Embeddings have no output tokens, so only input counts
+ * for them. Failed calls usually have no usage and aren't counted here.
+ */
+function usageMissing(row: { status: string; model: string; inputTokens: number | null; outputTokens: number | null }): boolean {
+  if (row.status === "error") return false;
+  const price = PRICES_PER_MILLION_TOKENS[row.model];
+  if (price && price.input === 0 && price.output === 0) return false;
+  return row.inputTokens === null || (row.outputTokens === null && (price?.output ?? 1) > 0);
+}
 
 function percentile(values: number[], p: number): number {
   if (values.length === 0) return 0;
@@ -46,12 +61,13 @@ async function main() {
 
   const rows = await db.select().from(aiCalls).where(gte(aiCalls.createdAt, since));
 
-  type Group = { purpose: string; model: string; latencies: number[]; inputTokens: number; outputTokens: number; ok: number; invalidOutput: number; error: number };
+  type Group = { purpose: string; model: string; latencies: number[]; inputTokens: number; outputTokens: number; missingUsage: number; ok: number; invalidOutput: number; error: number };
   const groups = new Map<string, Group>();
   for (const row of rows) {
     const key = `${row.purpose}::${row.model}`;
-    const group = groups.get(key) ?? { purpose: row.purpose, model: row.model, latencies: [], inputTokens: 0, outputTokens: 0, ok: 0, invalidOutput: 0, error: 0 };
+    const group = groups.get(key) ?? { purpose: row.purpose, model: row.model, latencies: [], inputTokens: 0, outputTokens: 0, missingUsage: 0, ok: 0, invalidOutput: 0, error: 0 };
     group.latencies.push(row.latencyMs);
+    if (usageMissing(row)) group.missingUsage++;
     group.inputTokens += row.inputTokens ?? 0;
     group.outputTokens += row.outputTokens ?? 0;
     if (row.status === "ok") group.ok++;
@@ -68,21 +84,28 @@ async function main() {
   console.log(`AI usage over the last ${days} day(s) (${rows.length} calls):\n`);
 
   let totalCost = 0;
+  let totalMissingUsage = 0;
   const totalUnknownCostModels = new Set<string>();
   for (const group of [...groups.values()].sort((a, b) => a.purpose.localeCompare(b.purpose) || a.model.localeCompare(b.model))) {
     const cost = estimateCostUsd(group.model, group.inputTokens, group.outputTokens);
     if (cost === null) totalUnknownCostModels.add(group.model);
     else totalCost += cost;
+    totalMissingUsage += group.missingUsage;
 
+    const missingNote = group.missingUsage ? ` — plus ${group.missingUsage} call(s) with no token counts, cost unknown` : "";
     console.log(`${group.purpose} — ${group.model}`);
     console.log(`  calls: ${group.latencies.length} (ok ${group.ok}, invalid_output ${group.invalidOutput}, error ${group.error})`);
     console.log(`  latency: p50 ${percentile(group.latencies, 50)} ms, p95 ${percentile(group.latencies, 95)} ms`);
-    console.log(`  tokens: in ${group.inputTokens}, out ${group.outputTokens}`);
-    console.log(`  estimated cost: ${cost === null ? "unknown (price not in PRICES_PER_MILLION_TOKENS)" : `US$${cost.toFixed(4)}`}`);
+    console.log(`  tokens: in ${group.inputTokens}, out ${group.outputTokens}${group.missingUsage ? ` (${group.missingUsage} call(s) reported none)` : ""}`);
+    console.log(`  estimated cost: ${cost === null ? "unknown (price not in PRICES_PER_MILLION_TOKENS)" : `US$${cost.toFixed(4)}${missingNote}`}`);
     console.log("");
   }
 
-  console.log(`Estimated total cost: US$${totalCost.toFixed(4)}${totalUnknownCostModels.size ? ` (excludes unpriced models: ${[...totalUnknownCostModels].join(", ")})` : ""}`);
+  const exclusions = [
+    totalUnknownCostModels.size ? `unpriced models: ${[...totalUnknownCostModels].join(", ")}` : "",
+    totalMissingUsage ? `${totalMissingUsage} call(s) with no token counts` : "",
+  ].filter(Boolean);
+  console.log(`Estimated total cost: US$${totalCost.toFixed(4)}${exclusions.length ? ` (excludes ${exclusions.join("; ")})` : ""}`);
   console.log("Never assume guaranteed zero spend; cross-check against Vercel → AI Gateway → Budgets & Spend.");
 }
 

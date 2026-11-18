@@ -93,7 +93,7 @@ async function checkEmbeddings() {
     check(
       `Embedding (${serverEnv().AI_MODEL_EMBED}): 768 dimensions, raw vector not unit length`,
       rawVector.length === EMBEDDING_DIMENSIONS,
-      `length ${rawVector.length}, raw norm ${norm(rawVector).toFixed(4)}`,
+      `length ${rawVector.length}, raw norm ${norm(rawVector).toFixed(4)}, usage tokens ${raw.usage?.tokens ?? "not reported"}`,
     );
 
     const docs = await embedTexts(PIECES.map((p) => p.content), "RETRIEVAL_DOCUMENT");

@@ -50,12 +50,14 @@ export async function embedTexts(
   log?: { jobId: string | null; purpose: string },
 ): Promise<{ vectors: number[][]; tokens: number | undefined }> {
   const started = Date.now();
-  const record = (status: string, errorCode: string | null) =>
+  const record = (status: string, errorCode: string | null, inputTokens?: number) =>
     log
       ? logAICall({
           jobId: log.jobId,
           purpose: log.purpose,
           model: embeddingModelName(),
+          // Embeddings have no output tokens; null when the provider reports no usage.
+          inputTokens: inputTokens ?? null,
           latencyMs: Date.now() - started,
           status,
           errorCode,
@@ -80,7 +82,7 @@ export async function embedTexts(
         throw new Error(`Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${e.length}.`);
       }
     }
-    await record("ok", null);
+    await record("ok", null, usage?.tokens);
     return { vectors: embeddings.map(l2Normalize), tokens: usage?.tokens };
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
