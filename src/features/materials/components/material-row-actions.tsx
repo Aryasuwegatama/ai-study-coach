@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,18 +13,21 @@ import type { MaterialResponse } from "../materials-schemas";
 
 /**
  * Per-row actions (issue #25, "Delete has no Figma design"): "Retry
- * processing" for a failed row and a disabled "Review topics" for
- * review_topics sit outside the menu as primary actions; Download and
- * Delete sit in the "⋯" menu, the same split as the Study Space header's.
- * Download is blocked only while `uploading` (contract: "Download...
- * While uploading: 409 INVALID_MATERIAL_STATE").
+ * processing" for a failed row and "Review topics" for review_topics
+ * (T-09c: now a real link to the review page, not disabled) sit outside
+ * the menu as primary actions; Download and Delete sit in the "⋯" menu,
+ * the same split as the Study Space header's. Download is blocked only
+ * while `uploading` (contract: "Download... While uploading: 409
+ * INVALID_MATERIAL_STATE").
  */
 export function MaterialRowActions({
+  spaceId,
   material,
   onRetry,
   onDelete,
   onDownload,
 }: {
+  spaceId: string;
   material: MaterialResponse;
   onRetry: (id: string) => void;
   onDelete: (material: MaterialResponse) => void;
@@ -45,7 +49,14 @@ export function MaterialRowActions({
         </Button>
       )}
       {material.status === "review_topics" && (
-        <Button type="button" variant="outline" size="sm" className="rounded-full" disabled aria-disabled="true">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          nativeButton={false}
+          render={<Link href={`/spaces/${spaceId}/materials/${material.id}/topics`} />}
+        >
           Review topics
         </Button>
       )}

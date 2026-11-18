@@ -163,7 +163,7 @@ git push -u origin spike/T-02-ai-smoke
 | T-08b | pgvector embeddings, RAG groundwork, AI topic suggestions and confirmation-backed data persistence | **Rashid** | `feat/T-08b-embed-topics` | T-08a and T-02 completed | **Done 13 Nov** (#29) |
 | T-09a | Materials screens (library, upload, statuses) on labelled example data (issue #25, 2026-11-13: split from T-09) | **Arya** | `feat/T-09a-materials-ui` | T-05 and T-06a merged | **Done 14 Nov** (#36) |
 | T-09b | Connect Materials screens to the real API and Blob upload; remove the examples | **Arya** | `feat/T-09b-materials-integration` | T-09a, T-06b and T-02b merged (T-09b runs the app's first real AI calls) | **Done 18 Nov** (#43) |
-| T-09c | Topic review and confirm screens | **Arya** | `feat/T-09c-topic-review-ui` | T-09b merged and T-08b's topic contract | Blocked by prerequisites |
+| T-09c | Topic review and confirm screens; populated Overview; rename, archive and restore confirmed topics | **Arya** | `feat/T-09c-topic-review-ui` | T-09b merged and T-08b's topic contract | Blocked by prerequisites |
 | T-10 | Upload, signed-worker, retry/idempotency and cross-space source tests | **Khushi** | `test/T-10-materials-jobs` | T-06b/T-08a implementation | Blocked by prerequisites |
 | T-11a | Quiz generation API contract, schema and source/topic membership rules | **Rashid** | `feat/T-11a-quiz-contract` | T-02 and accepted extraction/topic contract; can draft before T-08b completes | **Done 13 Nov** (#30) |
 | T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | **Done 13 Nov** (#31) |

@@ -164,11 +164,23 @@ as a test user.
 
 **Testing uploads.** Upload, progress, cancel, validation, duplicate,
 delete, download and the 20-file limit all work locally with `pnpm dev`.
-After "complete", the material ends as **Processing failed**, because
-QStash can't publish a job to a `localhost` URL — that's expected locally,
-not a bug, and "Retry processing" fails the same way. Full processing
-(Review needed with suggested topics) is only tested on a Vercel Preview
-deployment; see `docs/evaluation/ai-smoke-test.md`.
+Full processing (**Review needed** with suggested topics) also works
+locally once a local QStash server is running (T-09c, Arya, 2026-11-18):
+
+1. In a second terminal, run `npx @upstash/qstash-cli@latest dev`. It
+   starts a local QStash server (default `http://127.0.0.1:8080`) and
+   prints its own `QSTASH_URL`, `QSTASH_TOKEN`,
+   `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY` — local test
+   values, not secrets.
+2. In `.env.local`, comment out the four cloud QStash lines (keep them for
+   switching back) and add those four local values instead. Leave
+   `APP_URL` unset: job steps then go to `BETTER_AUTH_URL`, which is
+   `http://localhost:3000` locally.
+3. Restart `pnpm dev`, then upload a file. The local server must keep
+   running for every local upload; without it, processing fails to queue
+   and the material ends as **Processing failed**, the same way it did
+   before this was set up — that's expected, not a bug. See
+   `docs/evaluation/ai-smoke-test.md` for the Preview-based alternative.
 
 If a secret is ever exposed publicly or committed by mistake, report it to
 the project lead immediately so it can be rotated.

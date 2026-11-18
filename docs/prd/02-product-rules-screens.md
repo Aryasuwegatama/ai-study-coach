@@ -44,6 +44,7 @@ These are the rules the team builds and tests against; each bullet is meant to b
 - Status after upload: **Processing** → **Review topics** (topics are ready for review) → **Ready** (topics confirmed). Or **Failed**, with a reason and a **Retry** button.
 - Scanned or image-only files fail with "No readable text found (scanned pages are not supported)". Files over 200 pages or slides fail with "File too long (maximum 200 pages)", and files with more than 240,000 characters of text fail with "Too much text. Split the file into smaller parts." Uploading a file that is already in the space shows "This file is already in this space".
 - Deleting a material removes it from all future quizzes, cards and revision. Past quiz results stay, and their sources show "Source removed".
+- A topic that only came from that material is deleted with it, unless the student already made a quiz or flashcards from it — those topics stay, with their results, and the Overview lists them separately as "Topics from deleted materials" until a new material brings them back.
 
 ### Topics
 

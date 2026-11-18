@@ -91,8 +91,11 @@ export const learningItems = pgTable(
       name: "learning_items_topic_space_fk",
       columns: [table.topicId, table.spaceId],
       foreignColumns: [topics.id, topics.spaceId],
-      // Topics are archived, never deleted, so this only fires when the
-      // whole space goes (otherwise it would block the space's cascade).
+      // A topic is deleted only together with its last material, and
+      // only if no learning item was ever generated for it (Arya,
+      // 2026-11-19, T-09c — see `deleteMaterial()`'s notExists checks in
+      // materials-service.ts). So this cascade never actually fires on a
+      // topic with history; it only fires when the whole space goes.
     }).onDelete("cascade"),
     unique("learning_items_id_space_id_unique").on(table.id, table.spaceId),
     unique("learning_items_id_space_id_set_id_unique").on(table.id, table.spaceId, table.setId),

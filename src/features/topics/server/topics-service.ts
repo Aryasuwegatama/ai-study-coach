@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, isNull, ne, notExists, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
 import { materials, materialTopics, studySpaces, topics } from "@/server/db/schema";
@@ -14,6 +14,7 @@ import {
   type TopicApiErrorCode,
   type TopicDraftResponse,
   type TopicResponse,
+  type TopicsMaterialsFilter,
 } from "../topics-schemas";
 
 type TopicRow = typeof topics.$inferSelect;
@@ -68,8 +69,20 @@ export async function requireTopic(topicId: string, user: SessionUser): Promise<
   return row.topic;
 }
 
-export async function listTopics(user: SessionUser, spaceId: string, includeArchived: boolean): Promise<TopicResponse[]> {
+export async function listTopics(
+  user: SessionUser,
+  spaceId: string,
+  options: { includeArchived?: boolean; materials?: TopicsMaterialsFilter } = {},
+): Promise<TopicResponse[]> {
+  const { includeArchived = false, materials: materialsFilter = "any" } = options;
   const space = await requireSpace(spaceId, user);
+  // Correlated to the outer `topics.id` (T-09c, Arya 2026-11-18): a topic
+  // left with no linked material — its only material was deleted — stays
+  // confirmed and keeps its history; the Overview lists it separately.
+  const linkedToSomeMaterial = db
+    .select({ one: sql`1` })
+    .from(materialTopics)
+    .where(eq(materialTopics.topicId, topics.id));
   const rows = await db
     .select()
     .from(topics)
@@ -77,6 +90,11 @@ export async function listTopics(user: SessionUser, spaceId: string, includeArch
       and(
         eq(topics.spaceId, space.id),
         includeArchived ? inArray(topics.status, ["confirmed", "archived"]) : eq(topics.status, "confirmed"),
+        materialsFilter === "linked"
+          ? exists(linkedToSomeMaterial)
+          : materialsFilter === "unlinked"
+            ? notExists(linkedToSomeMaterial)
+            : undefined,
       ),
     )
     .orderBy(asc(sql`lower(${topics.name})`));
