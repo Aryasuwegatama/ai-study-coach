@@ -1,8 +1,9 @@
 #!/usr/bin/env tsx
 /**
  * Verifies the T-01a infrastructure is actually reachable: database (query
- * + transaction + pgvector), Private Blob, QStash and Gemini. Prints only
- * pass/fail and short, safe messages — never a secret value.
+ * + transaction + pgvector), Private Blob, QStash and the Vercel AI Gateway
+ * (T-02b). Prints only pass/fail and short, safe messages — never a secret
+ * value.
  *
  * Run with: pnpm run check:connections
  */
@@ -72,19 +73,21 @@ async function checkQStash(): Promise<CheckResult> {
   }
 }
 
-async function checkGemini(): Promise<CheckResult> {
+async function checkAIGateway(): Promise<CheckResult> {
   try {
     const { text } = await generateText({
       model: checkModel(),
       prompt: "Reply with the single word: OK",
+      providerOptions: { openai: { reasoningEffort: "minimal" } },
+      maxRetries: 0,
     });
     return {
-      name: "Gemini",
+      name: "AI Gateway",
       ok: text.trim().length > 0,
       message: text.trim().length > 0 ? "Request succeeded" : "Empty response",
     };
   } catch (error) {
-    return { name: "Gemini", ok: false, message: safeMessage(error) };
+    return { name: "AI Gateway", ok: false, message: safeMessage(error) };
   }
 }
 
@@ -99,7 +102,7 @@ async function main() {
     checkDatabase(),
     checkBlob(),
     checkQStash(),
-    checkGemini(),
+    checkAIGateway(),
   ]);
 
   for (const result of results) {

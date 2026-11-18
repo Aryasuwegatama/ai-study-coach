@@ -114,7 +114,7 @@ These are the rules the team builds and tests against; each bullet is meant to b
 - After the first sign-in with no spaces, the student is taken to Create Study Space.
 - Profile: change name.
 - Security: **Delete account** (planned Week 2) reauthenticates with a fresh Google sign-in, blocks further access and initiates a recoverable deletion process. A completion confirmation is issued only once scoped database records and private objects are removed according to the approved retention policy.
-- A public **Privacy policy** page (no sign-in required) states what is collected, why, which third-party services (including the Gemini API) process it, and how to request deletion. Linked from the sign-in page and from the Google OAuth consent screen.
+- A public **Privacy policy** page (no sign-in required) states what is collected, why, which third-party services (including the Vercel AI Gateway, which reaches OpenAI and Google; T-02b) process it, and how to request deletion. Linked from the sign-in page and from the Google OAuth consent screen.
 - Light theme only in Core.
 
 ### Accessibility and devices

@@ -40,9 +40,11 @@ const serverEnvSchema = z.object({
   // Sent as `x-vercel-protection-bypass` so QStash reaches protected previews.
   VERCEL_AUTOMATION_BYPASS_SECRET: z.string().min(1).optional(),
 
-  // AI provider.
-  AI_PROVIDER: z.enum(["gemini", "fake"]).default("gemini"),
-  GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
+  // AI provider: the Vercel AI Gateway (T-02b), or the fake provider used by
+  // every automated check and the load test. `AI_GATEWAY_API_KEY` is only
+  // needed locally — Vercel deployments authenticate with OIDC instead.
+  AI_PROVIDER: z.enum(["gateway", "fake"]).default("gateway"),
+  AI_GATEWAY_API_KEY: z.string().min(1).optional(),
   AI_MODEL_GENERATE: z.string().min(1),
   AI_MODEL_CHECK: z.string().min(1),
   AI_MODEL_EMBED: z.string().min(1),
@@ -100,12 +102,6 @@ export function serverEnv(): ServerEnv {
       .join(", ");
     throw new Error(
       `Invalid or missing environment variables: ${missing}. Check .env.local against the Environment variables table in docs/prd/04-architecture-database.md.`,
-    );
-  }
-
-  if (result.data.AI_PROVIDER === "gemini" && !result.data.GOOGLE_GENERATIVE_AI_API_KEY) {
-    throw new Error(
-      "GOOGLE_GENERATIVE_AI_API_KEY is required when AI_PROVIDER=gemini.",
     );
   }
 

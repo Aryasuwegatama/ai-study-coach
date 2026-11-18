@@ -65,27 +65,35 @@ The stack follows the Capstone 1 architecture using low-cost or free-tier servic
 | Login | Better Auth (Google sign-in only) | Free library | Sessions without writing your own; no passwords are stored or hashed. |
 | File storage | Vercel Private Blob | Plan-dependent, verify usage | Private store and owner-checked access, with recoverable deletion. Requires supported SDK/private-store configuration; user files are never public by default. |
 | Background jobs | Upstash QStash | Plan-dependent, verify usage | Signed callbacks, retries and per-step flow control. Database claims, leases, durable cleanup, idempotency and two-whole-job admission are application responsibilities. |
-| AI | Vercel AI SDK with the Google Gemini API free tier | Provider-specific free allowance, subject to current terms | See the next section. |
+| AI | Vercel AI SDK with the Vercel AI Gateway (T-02b, 18 Nov) | US$5 free credit per 30 days, then pay-as-you-go | See the next section. |
 | Local development and verification | Personal Neon dev/test databases and manual PR checks | Free-tier limits to verify | Use separate development/test connections and run local lint, typecheck, build and relevant tests before each PR; **GitHub Actions CI is not part of this baseline**. |
 | Tests | Vitest, Playwright, axe, k6 (load) | Free | Unit, end-to-end, accessibility and load evidence. |
 
-## Free AI models
+## AI models through the Vercel AI Gateway
 
-The proposed provider is Google's Gemini API free tier. Confirm actual model eligibility, credit or billing requirements, quotas and content-handling terms in the project's account before use ([Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)).
+**v1.2 update (Arya, 18 November 2026 — T-02b).** The initial proposal below used Google's Gemini API free tier directly. It was replaced because the free tier allowed only 20 generate requests a day and repeatedly returned 503 "high demand" errors (3.6 and 3.8 Flash, 14–18 November; on 15 and 18 November, 3.8 Flash never answered at all), and because Google's free-tier terms allow submitted content to be used to improve its products. AI calls now go through the **Vercel AI Gateway**, which reaches multiple providers through one connection and bills from a US$5 / 30-day free credit, then pay-as-you-go. Confirm current pricing, quotas and content-handling terms in the project's gateway account before relying on them.
 
-| Job | Model | Notes |
+| Job | Gateway model ID | Notes |
 | --- | --- | --- |
-| Topic discovery, MCQs, short-answer cards, flashcards | A **pinned stable Gemini Flash model ID** chosen after a real smoke test | Structured JSON using supported AI SDK APIs; split inputs at a verified token budget. Avoid untested moving aliases and unbounded prompts. |
-| Answer check (FR-07) | **Gemini Flash-Lite** | Cheaper and faster; it only answers "supported, one correct answer: yes or no". |
-| Embeddings for search | **`gemini-embedding-001`**, fixed 768 dimensions | Model supports 768-D output when requested. **Manually L2-normalise truncated 768-D vectors** before storing and querying with cosine distance; use matching model/version and task-type settings for document/query inputs. Never compare vectors from different embedding models. ([Google embeddings](https://ai.google.dev/gemini-api/docs/embeddings)) |
+| Topic discovery, MCQs, short-answer cards, flashcards (`AI_MODEL_GENERATE`) | `openai/gpt-5-nano`, reasoning effort `low` | $0.05 / $0.40 per million input/output tokens. Structured JSON using supported AI SDK APIs; split inputs at a verified token budget. The upgrade path if quality is poor is `openai/gpt-5.4-nano`, then `openai/gpt-5-mini` — a config change only. |
+| Answer check (FR-07) (`AI_MODEL_CHECK`) | `openai/gpt-5-nano`, reasoning effort `low` (an evaluation measured whether `minimal` is enough; see `docs/evaluation/ai-smoke-test.md`) | Same price. Only answers "supported, one correct answer: yes or no". |
+| Embeddings for search (`AI_MODEL_EMBED`) | `google/gemini-embedding-001`, fixed 768 dimensions, reached through the gateway | $0.15 per million input tokens; OpenAI's embedding models are not covered by the gateway's free credit, so embeddings stay on Google's model. **Manually L2-normalise truncated 768-D vectors** before storing and querying with cosine distance; use matching model/version and task-type settings for document/query inputs. Never compare vectors from different embedding models. ([Google embeddings](https://ai.google.dev/gemini-api/docs/embeddings)) |
 
-**Rate limits.** Google shows each project's free-tier limits in AI Studio rather than publishing fixed numbers ([Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)); do not rely on community estimates or fixed daily quotas. Measure and document the project's currently enforced model-specific limits; enforce no more than two active generation jobs at the database level and apply a per-student daily cap. QStash delivery and retries alone do not enforce whole-job concurrency.
+All three models are flagged by the gateway as not used to train the provider's own AI, within the free credit, and reachable with one connection (`import { gateway } from "ai"`, built into the installed `ai` SDK — no extra package).
 
-**Privacy trade-off (covered in the responsible AI report).** The unpaid API terms may allow submitted content to be used for service improvement. Display an upload-time disclosure, obtain informed tester agreement, and use only permitted, non-sensitive or synthetic materials. Do not submit unpublished student records, private lecture notes without permission, or confidential files. Record provider terms checked and the relevant date in the responsible AI report.
+**Auth.** Locally, `AI_GATEWAY_API_KEY` in `.env.local`. On Vercel deployments, OIDC authenticates automatically, with no key; this is confirmed on each PR's preview deployment before merging.
 
-**Fallback.** Keep model names in environment variables and call them only through the AI SDK. If Gemini's free limits become a problem, evaluate Vercel AI Gateway or another provider against current pricing, privacy terms, model API and embedding compatibility before changing configuration. Switching embedding models requires model/version metadata and re-embedding all existing chunks; do not assume a drop-in replacement.
+**Cost guardrails.** Automated checks and the load test use `AI_PROVIDER=fake`; real gateway calls happen only in deliberate smoke tests and actual student use. A budget alert is set in Vercel → AI Gateway → Budgets & Spend. A hard spend cap is a later task (after T-09b). Buying credit and turning on "Disallow Prompt Training" / "Zero Data Retention" is a later decision, made before real users (both need purchased credit on the Hobby plan).
 
-**Provider selection:** Gemini is the initial proposed choice, not an unchangeable rule. Alternative providers require verified API, privacy, rate-limit, cost and embedding compatibility before adoption.
+**Rate limits.** Measure and document the project's currently enforced model-specific limits rather than relying on community estimates; enforce no more than two active generation jobs at the database level and apply a per-student daily cap. QStash delivery and retries alone do not enforce whole-job concurrency. Every real AI call also carries a time limit (about 120 seconds; PRD Section 3) so a hung call fails and is retried instead of leaving a material stuck in Processing.
+
+**Fallback.** Keep model names in environment variables (`AI_MODEL_GENERATE`, `AI_MODEL_CHECK`, `AI_MODEL_EMBED`) and call them only through the AI SDK's gateway provider. Switching chat models (for example to `openai/gpt-5-mini`) is a config change. Switching embedding models requires model/version metadata and re-embedding all existing chunks; do not assume a drop-in replacement.
+
+**Provider selection:** the models above are the current choice, not an unchangeable rule. A further provider or model change requires verified API, privacy, rate-limit, cost and embedding compatibility before adoption, recorded the same way this change was.
+
+### Original proposal (superseded 18 November 2026, kept for the record)
+
+The original plan used Google's Gemini API free tier directly: a pinned stable Gemini Flash model ID for generation, Gemini Flash-Lite for the answer check, and `gemini-embedding-001` for embeddings, all through `@ai-sdk/google`. The embedding model and its 768-dimension, manually-normalised output carried over unchanged to the gateway; only the connection and the chat model names changed. See `docs/evaluation/ai-smoke-test.md` for both the original Gemini measurements (13 November) and the gateway measurements (18 November).
 
 ## Delivery targets
 
@@ -107,7 +115,7 @@ The assessment table does not define what "80% project completion" is measured a
 - **Product scope:** scored MCQs; self-rated recall and typed short-answer cards; mandatory topic confirmation; multi-topic quizzes with one topic per MCQ; latest-ten-distinct-question mastery; simple 1/3/7-day revision.
 - **Advanced scope:** instructor features (FR-13–16) and AI grading/human-review (FR-17) remain deferred design work; the original Project 15 brief names instructor roles and analytics, so request lecturer confirmation of any assessed-scope reduction.
 - **Backend:** Next.js, Better Auth, Neon/Drizzle/pgvector, Private Blob and QStash are *proposed integrations*; only the initial app deployment is completed. Enforce privacy and job concurrency in code/database, not merely provider settings.
-- **AI:** select specific available stable model IDs in the actual Google project; structured output and citations require validation; 768-D embedding vectors using `gemini-embedding-001` require manual normalisation; confirm token limits and usable quotas before implementing ingestion.
+- **AI:** reached through the Vercel AI Gateway (T-02b), not a direct Google connection; structured output and citations require validation; 768-D embedding vectors using `gemini-embedding-001` require manual normalisation; confirm token limits and usable gateway credit before implementing ingestion.
 - **Verification:** 100 MCQs with two subject-knowledgeable reviewers remains an evaluation target; arrange permissions and reviewers early. Development uses local checks and short-lived PR branches, without mandated GitHub Actions CI.
 - **Assessment:** university/lecturer instructions outrank the product plan. The 6 November milestone and 80% wording are targets pending authoritative rubric confirmation; do not claim completion without evidence.
 
@@ -115,5 +123,5 @@ The assessment table does not define what "80% project completion" is measured a
 
 - GitHub: public repository `Aryasuwegatama/ai-study-coach`, `main` protected by PR rules, squash-only merge. No mandatory reviewer approval or GitHub Actions CI has been configured; do not state that automated gates pass.
 - Production: the Next.js starter is deployed on Vercel, but none of the application's Core journeys has been implemented yet. A successful boilerplate deployment does **not** establish the AI, database or security readiness of the app.
-- Database, Better Auth, Blob, QStash and Gemini are intended components, not yet verified integrations. Check provider terms, quotas and compatible model identifiers before creating migrations or background-job logic.
+- Database, Better Auth, Blob, QStash and the AI Gateway are intended components, not yet verified integrations. Check provider terms, quotas and compatible model identifiers before creating migrations or background-job logic.
 - The 6 November target is an aspirational integration milestone, not evidence of an achieved percentage. Report implemented versus unimplemented capabilities honestly and verify formal requirements with the lecturer.

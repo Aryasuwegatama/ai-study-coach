@@ -3,8 +3,12 @@ import { jobs } from "./jobs";
 
 /**
  * One row per AI call (T-08b; PRD Section 4, table 16, and Section 3,
- * "Logging"). Never the prompt or source text. Gemini reports no token
- * usage for embeddings, so those stay null (T-02).
+ * "Logging"). Never the prompt or source text. `model` holds a Vercel AI
+ * Gateway model ID from T-02b onward (for example `openai/gpt-5-nano`),
+ * and `error_code` can be `TIMEOUT` (T-02b's per-call time limit) alongside
+ * the existing codes. Embedding calls record their input tokens (the
+ * gateway reports them; direct Gemini didn't, so pre-T-02b embedding rows
+ * have null tokens), and have no output tokens.
  */
 export const aiCalls = pgTable(
   "ai_calls",

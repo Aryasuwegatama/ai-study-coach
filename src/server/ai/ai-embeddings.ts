@@ -5,15 +5,19 @@ import { embedModel } from "./ai-client";
 import { isFakeAI, logAICall } from "./call-ai";
 
 /**
- * 768-D Gemini embeddings, L2-normalised (T-02; PRD Section 3, Pipeline A
- * step 5). `gemini-embedding-001` only returns unit vectors at its default
- * 3,072 dimensions, so a truncated 768-D vector must be normalised by hand
- * before it's stored or compared.
+ * 768-D `gemini-embedding-001` embeddings, reached through the Vercel AI
+ * Gateway (T-02b) and L2-normalised (T-02; PRD Section 3, Pipeline A step
+ * 5). The model only returns unit vectors at its default 3,072 dimensions,
+ * so a truncated 768-D vector must be normalised by hand before it's stored
+ * or compared.
  *
  * Callers pass at most one bounded step of texts (PRD: 50 chunks); the SDK
  * sends up to 100 per provider request, so a step is a single request.
  */
 export const EMBEDDING_DIMENSIONS = 768;
+
+/** Gateway calls abort after this long and are logged as `TIMEOUT` (T-02b). */
+const AI_CALL_TIMEOUT_MS = 120_000;
 
 export type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 
@@ -46,12 +50,14 @@ export async function embedTexts(
   log?: { jobId: string | null; purpose: string },
 ): Promise<{ vectors: number[][]; tokens: number | undefined }> {
   const started = Date.now();
-  const record = (status: string, errorCode: string | null) =>
+  const record = (status: string, errorCode: string | null, inputTokens?: number) =>
     log
       ? logAICall({
           jobId: log.jobId,
           purpose: log.purpose,
           model: embeddingModelName(),
+          // Embeddings have no output tokens; null when the provider reports no usage.
+          inputTokens: inputTokens ?? null,
           latencyMs: Date.now() - started,
           status,
           errorCode,
@@ -69,16 +75,18 @@ export async function embedTexts(
       providerOptions: { google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType } },
       // One retry budget per job step lives in the queue (PRD Section 3).
       maxRetries: 0,
+      abortSignal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
     });
     for (const e of embeddings) {
       if (e.length !== EMBEDDING_DIMENSIONS) {
         throw new Error(`Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${e.length}.`);
       }
     }
-    await record("ok", null);
+    await record("ok", null, usage?.tokens);
     return { vectors: embeddings.map(l2Normalize), tokens: usage?.tokens };
   } catch (error) {
-    await record("error", "CALL_FAILED");
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    await record("error", timedOut ? "TIMEOUT" : "CALL_FAILED");
     throw error;
   }
 }

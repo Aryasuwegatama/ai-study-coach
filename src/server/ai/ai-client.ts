@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { gateway } from "ai";
 import { serverEnv } from "@/lib/server-env";
 
 /**
@@ -8,27 +8,25 @@ import { serverEnv } from "@/lib/server-env";
  * "Rules for every AI call") is built in the AI pipeline tasks (T-02 and
  * later), on top of this. Model IDs come from env, never hard-coded, so
  * switching models is a config change.
+ *
+ * Models are reached through the Vercel AI Gateway (T-02b): the `gateway`
+ * singleton exported from `ai` reads `AI_GATEWAY_API_KEY` from the
+ * environment when set (local development), and falls back to Vercel OIDC
+ * when it isn't (Vercel deployments), so no provider instance needs to be
+ * built here.
  */
-let google: ReturnType<typeof createGoogleGenerativeAI> | undefined;
-
-function googleProvider() {
-  google ??= createGoogleGenerativeAI({
-    apiKey: serverEnv().GOOGLE_GENERATIVE_AI_API_KEY,
-  });
-  return google;
-}
 
 /** The model used for topic suggestions, questions and cards. */
 export function generateModel() {
-  return googleProvider()(serverEnv().AI_MODEL_GENERATE);
+  return gateway(serverEnv().AI_MODEL_GENERATE);
 }
 
 /** The cheaper model used for the answer-support check. */
 export function checkModel() {
-  return googleProvider()(serverEnv().AI_MODEL_CHECK);
+  return gateway(serverEnv().AI_MODEL_CHECK);
 }
 
 /** The embedding model for chunk and query vectors (768-D, manually L2-normalised by the caller). */
 export function embedModel() {
-  return googleProvider().embeddingModel(serverEnv().AI_MODEL_EMBED);
+  return gateway.embeddingModel(serverEnv().AI_MODEL_EMBED);
 }
