@@ -17,7 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/spaces": "My Study Spaces",
 };
 
-const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials)(?:\/.*)?$/;
+const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|analytics)(?:\/.*)?$/;
 
 /**
  * The shared app shell's top bar (Figma node 80:6946, "Single
