@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createExampleQuizzesClient } from "../client/example-quizzes-client";
+import { createApiQuizzesClient } from "../client/api-quizzes-client";
 import { QuizzesClientError } from "../client/quizzes-client";
-import type { SetWithLatestAttempt } from "../fixtures/quizzes-sample-types";
+import type { SetListItemResponse } from "../quizzes-schemas";
 import { useQuizzesList } from "../hooks/use-quizzes-list";
 import { DeleteQuizDialog } from "./delete-quiz-dialog";
 import { QuizLibrary } from "./quiz-library";
@@ -12,15 +12,13 @@ import { QuizzesListError } from "./quizzes-list-error";
 const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 /**
- * Owns the example `QuizzesClient` (T-12a; issue #46), the polling hook
- * and the delete dialog — the same split `materials-page-client.tsx`
- * uses, so T-12b only has to swap `createExampleQuizzesClient()` for the
- * real one.
+ * Owns the real `QuizzesClient` (T-12b; issue #49), the polling hook and
+ * the delete dialog — the same split `materials-page-client.tsx` uses.
  */
 export function QuizzesPageClient({ spaceId }: { spaceId: string }) {
-  const [client] = useState(() => createExampleQuizzesClient());
+  const [client] = useState(() => createApiQuizzesClient(spaceId));
   const { sets, loading, error, refresh } = useQuizzesList(client);
-  const [deleteTarget, setDeleteTarget] = useState<SetWithLatestAttempt | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SetListItemResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function handleDeleted() {

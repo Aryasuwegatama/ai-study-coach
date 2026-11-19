@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SET_POLL_INTERVAL_MS } from "../quizzes-schemas";
+import { SET_POLL_INTERVAL_MS, type SetListItemResponse } from "../quizzes-schemas";
 import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client";
-import type { SetWithLatestAttempt } from "../fixtures/quizzes-sample-types";
 
 function listErrorMessage(error: unknown): string {
   return error instanceof QuizzesClientError ? error.message : "Couldn't load your quizzes. Try again.";
@@ -23,7 +22,7 @@ function listErrorMessage(error: unknown): string {
  * caller creates it once with `useState(() => ...)`).
  */
 export function useQuizzesList(client: QuizzesClient) {
-  const [sets, setSets] = useState<SetWithLatestAttempt[]>([]);
+  const [sets, setSets] = useState<SetListItemResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedOnceRef = useRef(false);

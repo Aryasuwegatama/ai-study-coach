@@ -1,23 +1,41 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/class-names";
-import type { QuestionResult } from "../attempts-schemas";
+import type { QuizzesClient } from "@/features/quizzes/client/quizzes-client";
+import { OPTION_LETTERS, type ItemReport, type QuestionResult } from "../attempts-schemas";
+import { ReportIssueDialog } from "./report-issue-dialog";
 
 /**
- * Review answers (issue #46; Figma node 49:19512). Each question shows
- * the student's answer, the correct answer, the explanation, the
- * AI-generated label and "View source" — a native `<details>` disclosure
+ * Review answers (issue #46 → #49; Figma node 49:19512). Each question
+ * shows the student's answer, the correct answer, the explanation, the
+ * AI-generated label, "View source" — a native `<details>` disclosure
  * rather than a dialog, so every source stays reachable by keyboard with
- * no extra component. An empty `sources` shows "Source removed".
+ * no extra component — and a "Report issue" button (T-12b, one per
+ * question, answer review only). An empty `sources` shows "Source
+ * removed"; a question already reported (`question.report`, read back
+ * after a reload) shows "Reported" instead of the button.
  */
-export function AnswerReviewList({ questions }: { questions: QuestionResult[] }) {
+export function AnswerReviewList({ questions, client }: { questions: QuestionResult[]; client: QuizzesClient }) {
+  const [reports, setReports] = useState<Record<string, ItemReport | null>>(() =>
+    Object.fromEntries(questions.map((question) => [question.itemId, question.report])),
+  );
+  const [reportTarget, setReportTarget] = useState<QuestionResult | null>(null);
+
+  function handleReported(itemId: string, report: ItemReport) {
+    setReports((prev) => ({ ...prev, [itemId]: report }));
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-lg font-semibold text-foreground">Review answers</h3>
-      {questions.map((question) => (
+      {questions.map((question, questionIndex) => {
+        const report = reports[question.itemId] ?? null;
+        return (
         <Card key={question.itemId} className="rounded-[20px] p-5">
           <CardContent className="flex flex-col gap-3 p-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">Question {question.position}</span>
+              <span className="text-xs font-semibold text-muted-foreground">Question {questionIndex + 1}</span>
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -39,7 +57,7 @@ export function AnswerReviewList({ questions }: { questions: QuestionResult[] })
                   <li
                     key={index}
                     className={cn(
-                      "rounded-xl border px-3 py-2 text-sm",
+                      "flex gap-3 rounded-xl border px-3 py-2 text-sm",
                       isCorrectOption
                         ? "border-green bg-soft-green text-green"
                         : isSelected
@@ -47,9 +65,12 @@ export function AnswerReviewList({ questions }: { questions: QuestionResult[] })
                           : "border-border text-foreground",
                     )}
                   >
-                    {option}
-                    {isCorrectOption && <span className="ml-2 text-xs font-semibold">(Correct answer)</span>}
-                    {isSelected && !isCorrectOption && <span className="ml-2 text-xs font-semibold">(Your answer)</span>}
+                    <span className="w-4 shrink-0 font-semibold">{OPTION_LETTERS[index]}</span>
+                    <span className="min-w-0">
+                      {option}
+                      {isCorrectOption && <span className="ml-2 text-xs font-semibold">(Correct answer)</span>}
+                      {isSelected && !isCorrectOption && <span className="ml-2 text-xs font-semibold">(Your answer)</span>}
+                    </span>
                   </li>
                 );
               })}
@@ -74,9 +95,32 @@ export function AnswerReviewList({ questions }: { questions: QuestionResult[] })
                 </div>
               </details>
             )}
+
+            <div>
+              {report ? (
+                <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-muted px-3 text-xs font-semibold text-muted-foreground">
+                  Reported{report.removedFromPractice ? " · Removed from your practice" : ""}
+                </span>
+              ) : (
+                <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => setReportTarget(question)}>
+                  Report issue
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
+
+      <ReportIssueDialog
+        question={reportTarget}
+        open={reportTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setReportTarget(null);
+        }}
+        client={client}
+        onReported={handleReported}
+      />
     </div>
   );
 }

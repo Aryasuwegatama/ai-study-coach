@@ -64,14 +64,23 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
 
   const materials = await listMaterials(user, space.id);
 
+  // The Welcome card only shows for a space with no materials AND no
+  // topics of any status (T-12b, Codex finding on #45): deleting a
+  // space's last material keeps every topic that has quiz history, and
+  // those still deserve the normal two-card layout, not the "start from
+  // scratch" screen. `includeArchived` catches a topic that was archived
+  // after its last material was gone.
   if (materials.length === 0) {
-    return (
-      <>
-        <SpaceHeader spaceId={space.id} name={space.name} />
-        <SpaceOverviewTabs spaceId={space.id} active="overview" />
-        <SpaceOverviewEmptyState spaceId={space.id} name={space.name} />
-      </>
-    );
+    const anyTopics = await listTopics(user, space.id, { includeArchived: true });
+    if (anyTopics.length === 0) {
+      return (
+        <>
+          <SpaceHeader spaceId={space.id} name={space.name} />
+          <SpaceOverviewTabs spaceId={space.id} active="overview" />
+          <SpaceOverviewEmptyState spaceId={space.id} name={space.name} />
+        </>
+      );
+    }
   }
 
   // Confirmed only (PRD: topic lists show confirmed topics only), split

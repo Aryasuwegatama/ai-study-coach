@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { createApiMaterialsClient } from "@/features/materials/client/api-materials-client";
+import { MaterialsClientError } from "@/features/materials/client/materials-client";
+import { topicsClient, TopicsClientError } from "@/features/topics/client/api-topics-client";
 import { QUESTION_COUNTS, QUIZ_API_ERRORS, spreadQuestions, type CreateQuizRequest } from "../quizzes-schemas";
 import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client";
-import type { SetupMaterial } from "../fixtures/quizzes-sample-types";
 
 type QuestionCount = (typeof QUESTION_COUNTS)[number];
 
@@ -18,13 +20,25 @@ function isQuestionCount(value: number): value is QuestionCount {
   return (QUESTION_COUNTS as readonly number[]).includes(value);
 }
 
+/** The setup screen's own view of a material and its confirmed topics
+ * (T-12b, gap 2) — joined client-side from `GET …/materials` and
+ * `GET …/topics?materials=linked` (`TopicResponse.materialIds`), rather
+ * than a dedicated endpoint. Not part of the `QuizzesClient` contract. */
+type SetupTopic = { id: string; name: string };
+type SetupMaterial = { id: string; name: string; ready: boolean; topics: SetupTopic[] };
+
+function loadErrorMessage(err: unknown): string {
+  if (err instanceof MaterialsClientError || err instanceof TopicsClientError) return err.message;
+  return "Couldn't load your materials. Try again.";
+}
+
 /**
- * The Generate Quiz setup screen (issue #46; Figma node 49:18648, Short
- * answer removed and topic checkboxes added). `?topic=<topicId>` ticks
- * only that topic (and its material) — T-15a's "Practise this topic"
- * link depends on this exact behaviour. `?retry=<setId>` (this task's own
- * addition, for the failed card's "Try again") prefills the same
- * materials, topics and count as that quiz.
+ * The Generate Quiz setup screen (issue #46 → #49; Figma node 49:18648,
+ * Short answer removed and topic checkboxes added). `?topic=<topicId>`
+ * ticks only that topic (and its material) — T-15a's "Practise this
+ * topic" link depends on this exact behaviour. `?retry=<setId>` (this
+ * task's own addition, for the failed card's "Try again") prefills the
+ * same materials, topics and count as that quiz.
  */
 export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: QuizzesClient }) {
   const router = useRouter();
@@ -39,18 +53,25 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Loads the materials, then applies the initial selection: `?retry=`
-  // and `?topic=` each override the "every Ready topic starts ticked"
-  // default. Every `setState` call below happens after an `await` gap
-  // (inside this effect's own async `load()`), the same shape
-  // `use-materials-list.ts` uses, so none of it runs synchronously in
-  // the effect body itself.
+  // Loads materials and their confirmed, linked topics, then applies the
+  // initial selection: `?retry=` and `?topic=` each override the "every
+  // Ready topic starts ticked" default. Every `setState` call below
+  // happens after an `await` gap (inside this effect's own async
+  // `load()`), the same shape `use-materials-list.ts` uses, so none of it
+  // runs synchronously in the effect body itself.
   useEffect(() => {
     let ignore = false;
+    const materialsClient = createApiMaterialsClient(spaceId);
     async function load() {
       try {
-        const list = await client.listSetupMaterials();
+        const [materialRows, topicRows] = await Promise.all([materialsClient.list(), topicsClient.list(spaceId, { materials: "linked" })]);
         if (ignore) return;
+        const list: SetupMaterial[] = materialRows.map((material) => ({
+          id: material.id,
+          name: material.originalName,
+          ready: material.status === "ready",
+          topics: topicRows.filter((topic) => topic.materialIds.includes(material.id)).map((topic) => ({ id: topic.id, name: topic.name })),
+        }));
         setMaterials(list);
 
         if (retryParam) {
@@ -68,18 +89,18 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
           return;
         }
 
-        const allTopicIds = list.filter((m) => m.status === "ready").flatMap((m) => m.topics.map((t) => t.id));
+        const allTopicIds = list.filter((m) => m.ready).flatMap((m) => m.topics.map((t) => t.id));
         setSelectedTopicIds(new Set(allTopicIds));
       } catch (err) {
         if (ignore) return;
-        setLoadError(err instanceof QuizzesClientError ? err.message : "Couldn't load your materials. Try again.");
+        setLoadError(loadErrorMessage(err));
       }
     }
     void load();
     return () => {
       ignore = true;
     };
-  }, [client, retryParam, topicParam]);
+  }, [client, spaceId, retryParam, topicParam]);
 
   // Next 16 keeps this page alive, hidden, after "Generate quiz" navigates
   // to the library (`preserving-ui-state.md`), so coming back would show
@@ -92,8 +113,8 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
     };
   }, []);
 
-  const readyMaterials = useMemo(() => materials?.filter((m) => m.status === "ready") ?? [], [materials]);
-  const notReadyMaterials = useMemo(() => materials?.filter((m) => m.status !== "ready") ?? [], [materials]);
+  const readyMaterials = useMemo(() => materials?.filter((m) => m.ready) ?? [], [materials]);
+  const notReadyMaterials = useMemo(() => materials?.filter((m) => !m.ready) ?? [], [materials]);
 
   function materialChecked(material: SetupMaterial): boolean {
     return material.topics.length > 0 && material.topics.every((topic) => selectedTopicIds.has(topic.id));
@@ -126,8 +147,10 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
   const tooManyTopics = selectedTopicCount > count;
   const canGenerate = selectedMaterialIds.length > 0 && selectedTopicCount > 0 && !tooManyTopics && !submitting;
 
+  // Hidden while there are more topics than questions: the spread would
+  // show a 0 for the last topics, and the error below already explains it.
   const previewLine =
-    selectedTopicCount === 0
+    selectedTopicCount === 0 || tooManyTopics
       ? null
       : `${count} questions across ${selectedTopicCount} topic${selectedTopicCount === 1 ? "" : "s"} (${spreadQuestions(count, selectedTopicCount).join(", ")})`;
 
@@ -193,12 +216,7 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xl font-semibold text-foreground">Generate quiz</h2>
-        <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
-          EXAMPLE DATA
-        </span>
-      </div>
+      <h2 className="text-xl font-semibold text-foreground">Generate quiz</h2>
 
       <div className="flex flex-col gap-3">
         {readyMaterials.map((material) => (

@@ -245,6 +245,16 @@ async function e2e(a: Session, b: Session) {
   const confirmed = await confirmRoute(req(`/api/materials/${id}/topic-draft/confirm`, a, "POST"), p({ id }));
   const confirmedBody = (await confirmed.json()) as { material: MaterialResponse; topics: TopicResponse[] };
   check("Confirm: material ready, 3 topics confirmed", confirmed.status === 200 && confirmedBody.material.status === "ready" && confirmedBody.topics.length === 3);
+  check(
+    "Confirm: each confirmed topic carries materialIds with this material (T-12b, gap 2)",
+    confirmedBody.topics.every((t) => t.materialIds.includes(id)),
+    JSON.stringify(confirmedBody.topics.map((t) => t.materialIds)),
+  );
+  const listed = (await (await topicsListRoute(req(`/api/spaces/${space.id}/topics`, a), p({ spaceId: space.id }))).json()) as { topics: TopicResponse[] };
+  check(
+    "List: every GET …/topics response carries materialIds",
+    listed.topics.length === 3 && listed.topics.every((t) => t.materialIds.includes(id)),
+  );
   const spaceTopics = await db.select().from(topics).where(and(eq(topics.spaceId, space.id)));
   check(
     "Confirm linked the matching suggestion to the existing topic (no duplicate, no drafts left)",
@@ -336,6 +346,10 @@ async function e2e(a: Session, b: Session) {
     !linkedAfter.topics.some((t) => t.id === topicWithHistoryId) &&
       unlinkedAfter.topics.some((t) => t.id === topicWithHistoryId) &&
       defaultAfter.topics.some((t) => t.id === topicWithHistoryId),
+  );
+  check(
+    "A topic left with no linked material carries an empty materialIds (T-12b, gap 2)",
+    (unlinkedAfter.topics.find((t) => t.id === topicWithHistoryId)?.materialIds ?? ["not found"]).length === 0,
   );
   check(
     "Deleting its material deletes a topic with no history entirely, not just unlinks it",

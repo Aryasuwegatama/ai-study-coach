@@ -1,8 +1,8 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { safeTimeZone } from "@/lib/time-zone";
 import { db } from "@/server/db/db-client";
-import { attempts, jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "@/server/db/schema";
+import { attemptItems, attempts, jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { publishStep } from "@/server/jobs/jobs-client";
@@ -12,9 +12,11 @@ import {
   QUIZ_API_ERRORS,
   SET_FAILURE_REASONS,
   type CreateQuizRequest,
+  type LatestAttemptSummary,
   type QuizApiErrorCode,
   type SetDetailResponse,
   type SetFailureCode,
+  type SetListItemResponse,
   type SetResponse,
 } from "../quizzes-schemas";
 
@@ -136,14 +138,77 @@ export async function createQuiz(user: SessionUser, spaceId: string, input: Crea
   return toSetResponse(job.set);
 }
 
-export async function listSets(user: SessionUser, spaceId: string, kind: "quiz" | "deck" | null): Promise<SetResponse[]> {
+/**
+ * The Quiz Library's list (T-12b, gap 1): each set with its newest
+ * attempt and whether any attempt was ever submitted. Three queries for
+ * the whole list, not one per quiz — the attempts and active-item counts
+ * are each fetched once, batched over every set id.
+ */
+export async function listSets(user: SessionUser, spaceId: string, kind: "quiz" | "deck" | null): Promise<SetListItemResponse[]> {
   const space = await requireSpace(spaceId, user);
   const rows = await db
     .select()
     .from(studySets)
     .where(and(eq(studySets.spaceId, space.id), kind ? eq(studySets.kind, kind) : undefined))
     .orderBy(desc(studySets.createdAt));
-  return rows.map(toSetResponse);
+  if (rows.length === 0) return [];
+
+  const setIds = rows.map((r) => r.id);
+
+  const attemptRows = await db
+    .select({ id: attempts.id, setId: attempts.setId, status: attempts.status, score: attempts.score, total: attempts.total })
+    .from(attempts)
+    .where(and(inArray(attempts.setId, setIds), eq(attempts.studentId, user.id)))
+    .orderBy(desc(attempts.startedAt));
+
+  const attemptsBySet = new Map<string, typeof attemptRows>();
+  for (const row of attemptRows) {
+    const list = attemptsBySet.get(row.setId);
+    if (list) list.push(row);
+    else attemptsBySet.set(row.setId, [row]);
+  }
+
+  const latestInProgressIds = [...attemptsBySet.values()]
+    .map((list) => list[0])
+    .filter((latest) => latest.status === "in_progress")
+    .map((latest) => latest.id);
+  const answeredCounts = latestInProgressIds.length
+    ? await db
+        .select({ attemptId: attemptItems.attemptId, answered: count() })
+        .from(attemptItems)
+        .where(and(inArray(attemptItems.attemptId, latestInProgressIds), isNotNull(attemptItems.selectedIndex)))
+        .groupBy(attemptItems.attemptId)
+    : [];
+  const answeredByAttemptId = new Map(answeredCounts.map((r) => [r.attemptId, r.answered]));
+
+  const activeCounts = await db
+    .select({ setId: learningItems.setId, active: count() })
+    .from(learningItems)
+    .where(and(inArray(learningItems.setId, setIds), eq(learningItems.status, "active")))
+    .groupBy(learningItems.setId);
+  const activeBySetId = new Map(activeCounts.map((r) => [r.setId, r.active]));
+
+  return rows.map((row) => {
+    const setAttempts = attemptsBySet.get(row.id) ?? [];
+    const latest = setAttempts[0];
+    const hasResults = setAttempts.some((a) => a.status === "submitted");
+    let latestAttempt: LatestAttemptSummary;
+    if (!latest) {
+      latestAttempt = { status: "none" };
+    } else if (latest.status === "in_progress") {
+      latestAttempt = {
+        status: "in_progress",
+        attemptId: latest.id,
+        answeredCount: answeredByAttemptId.get(latest.id) ?? 0,
+        totalCount: latest.total,
+      };
+    } else {
+      const total = latest.total;
+      const score = latest.score ?? 0;
+      latestAttempt = { status: "submitted", attemptId: latest.id, score, total, percent: total ? Math.round((score / total) * 100) : 0 };
+    }
+    return { ...toSetResponse(row), latestAttempt, hasResults, activeCount: activeBySetId.get(row.id) ?? 0 };
+  });
 }
 
 export async function getSet(user: SessionUser, setId: string): Promise<SetDetailResponse> {

@@ -27,16 +27,33 @@ export function topicError(code: TopicApiErrorCode): ApiError {
   return new ApiError(code, message, status);
 }
 
-export function toTopicResponse(row: TopicRow): TopicResponse {
+export function toTopicResponse(row: TopicRow, materialIds: string[] = []): TopicResponse {
   return {
     id: row.id,
     name: row.name,
     description: row.description,
     status: row.status as TopicResponse["status"],
     origin: row.origin as TopicResponse["origin"],
+    materialIds,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/** Batches `material_topics` lookups for several topics in one query (T-12b, gap 2) — never one query per topic. */
+async function materialIdsByTopic(tx: Tx | typeof db, topicIds: string[]): Promise<Map<string, string[]>> {
+  if (topicIds.length === 0) return new Map();
+  const rows = await tx
+    .select({ topicId: materialTopics.topicId, materialId: materialTopics.materialId })
+    .from(materialTopics)
+    .where(inArray(materialTopics.topicId, topicIds));
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = map.get(row.topicId);
+    if (list) list.push(row.materialId);
+    else map.set(row.topicId, [row.materialId]);
+  }
+  return map;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -98,7 +115,8 @@ export async function listTopics(
       ),
     )
     .orderBy(asc(sql`lower(${topics.name})`));
-  return rows.map(toTopicResponse);
+  const materialIds = await materialIdsByTopic(db, rows.map((r) => r.id));
+  return rows.map((row) => toTopicResponse(row, materialIds.get(row.id) ?? []));
 }
 
 async function confirmedWithName(tx: Tx, spaceId: string, name: string, exceptId?: string) {
@@ -160,7 +178,8 @@ export async function updateTopic(
         .set({ name, normalizedName: normalizeTopicName(name), status })
         .where(eq(topics.id, topic.id))
         .returning();
-      return toTopicResponse(row);
+      const materialIds = await materialIdsByTopic(tx, [row.id]);
+      return toTopicResponse(row, materialIds.get(row.id) ?? []);
     });
   } catch (error) {
     if (isUniqueViolation(error)) throw topicError("TOPIC_EXISTS");
@@ -279,7 +298,9 @@ export async function confirmTopicDraft(
       .set({ status: "ready", stage: null, progressDone: null, progressTotal: null })
       .where(eq(materials.id, material.id))
       .returning();
-    const rows = await tx.select().from(topics).where(inArray(topics.id, [...new Set(confirmedIds)]));
-    return { material: toMaterialResponse(ready), topics: rows.map(toTopicResponse) };
+    const uniqueIds = [...new Set(confirmedIds)];
+    const rows = await tx.select().from(topics).where(inArray(topics.id, uniqueIds));
+    const materialIds = await materialIdsByTopic(tx, uniqueIds);
+    return { material: toMaterialResponse(ready), topics: rows.map((row) => toTopicResponse(row, materialIds.get(row.id) ?? [])) };
   });
 }

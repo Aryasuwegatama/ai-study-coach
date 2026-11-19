@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { SetWithLatestAttempt } from "../fixtures/quizzes-sample-types";
+import type { SetListItemResponse } from "../quizzes-schemas";
 import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client";
 
 /**
@@ -29,7 +29,7 @@ export function DeleteQuizDialog({
   client,
   onDeleted,
 }: {
-  quiz: SetWithLatestAttempt | null;
+  quiz: SetListItemResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: QuizzesClient;
