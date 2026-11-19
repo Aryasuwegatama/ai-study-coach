@@ -21,8 +21,19 @@ export type LatestAttemptSummary =
   | { status: "in_progress"; attemptId: string; answeredCount: number; totalCount: number }
   | { status: "submitted"; attemptId: string; score: number; total: number; percent: number };
 
-/** T-12b: needs API — add `latestAttempt` (or an equivalent) to `SetResponse`. */
-export type SetWithLatestAttempt = SetResponse & { latestAttempt: LatestAttemptSummary };
+/**
+ * T-12b: needs API — add `latestAttempt` and `hasResults` (or
+ * equivalents) to `SetResponse`. `hasResults` is separate from
+ * `latestAttempt` because a retake makes the latest attempt "in progress"
+ * while an earlier submitted attempt still exists, and that earlier one
+ * is what blocks Delete (`SET_HAS_RESULTS`, checked against every attempt
+ * row by `quizzes-service.ts`).
+ */
+export type SetWithLatestAttempt = SetResponse & {
+  latestAttempt: LatestAttemptSummary;
+  /** True once any attempt on this quiz has been submitted. */
+  hasResults: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Gap 2: topics per Ready material. `GET /api/spaces/:spaceId/topics`

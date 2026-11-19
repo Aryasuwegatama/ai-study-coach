@@ -17,8 +17,8 @@ import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client
 
 /**
  * Delete confirmation for a quiz with no submitted attempt (PRD Section 2
- * and #35; issue #46). The library only ever opens this for a quiz where
- * `latestAttempt.status !== "submitted"`, but the server's
+ * and #35; issue #46). The library only ever opens this for a quiz with
+ * `hasResults === false`, but the server's
  * `SET_HAS_RESULTS` message is still shown here if that's ever hit (a
  * stale card from before a submit lands elsewhere).
  */

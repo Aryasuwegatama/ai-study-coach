@@ -122,7 +122,7 @@ const hoursAgo = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISO
  * About six quizzes (issue #46) covering every status: ready and not
  * started, in progress, submitted (two different scores), generating,
  * failed (a real `SET_FAILURE_REASONS` reason) and partially generated
- * ("8 of 10 generated"). `latestAttempt` fills gap 1
+ * ("8 of 10 generated"). `latestAttempt` and `hasResults` fill gap 1
  * (`quizzes-sample-types.ts`).
  */
 export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
@@ -139,6 +139,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(2),
     updatedAt: hoursAgo(2),
     latestAttempt: { status: "none" },
+    hasResults: false,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.inProgress,
@@ -153,6 +154,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(26),
     updatedAt: hoursAgo(1),
     latestAttempt: { status: "in_progress", attemptId: "attempt-in-progress", answeredCount: 4, totalCount: 10 },
+    hasResults: false,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.submittedHigh,
@@ -167,6 +169,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(72),
     updatedAt: hoursAgo(70),
     latestAttempt: { status: "submitted", attemptId: "attempt-submitted-high", score: 8, total: 10, percent: 80 },
+    hasResults: true,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.submittedLow,
@@ -181,6 +184,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(120),
     updatedAt: hoursAgo(118),
     latestAttempt: { status: "submitted", attemptId: "attempt-submitted-low", score: 5, total: 10, percent: 50 },
+    hasResults: true,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.generating,
@@ -195,6 +199,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(0.02),
     updatedAt: hoursAgo(0.02),
     latestAttempt: { status: "none" },
+    hasResults: false,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.failed,
@@ -209,6 +214,7 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(5),
     updatedAt: hoursAgo(5),
     latestAttempt: { status: "none" },
+    hasResults: false,
   },
   {
     id: QUIZ_SAMPLE_SET_IDS.partial,
@@ -223,5 +229,6 @@ export const quizzesSampleLibrary: SetWithLatestAttempt[] = [
     createdAt: hoursAgo(10),
     updatedAt: hoursAgo(9.8),
     latestAttempt: { status: "none" },
+    hasResults: false,
   },
 ];

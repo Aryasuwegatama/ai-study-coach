@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
   const [submitOpen, setSubmitOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -64,20 +65,45 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
     [questions],
   );
 
-  async function saveAnswer(itemId: string, selectedIndex: number | null, retryCount = 0): Promise<void> {
-    if (!attempt) return;
-    setAutosaveStatus(retryCount > 0 ? "retrying" : "saving");
-    try {
-      const response = await client.saveAnswer(attempt.id, { itemId, selectedIndex });
-      setAttempt(response);
-      setAutosaveStatus("saved");
-    } catch {
-      if (retryCount < 1) {
-        await saveAnswer(itemId, selectedIndex, retryCount + 1);
-        return;
+  // Saves run one at a time, in the order the student chose (Codex review
+  // on #48): with parallel saves, an older save's retry could land after
+  // a newer one and overwrite it. `failedItemIds` holds questions whose
+  // latest save failed both tries; choosing an answer again retries it.
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const failedItemIds = useRef(new Set<string>());
+
+  async function saveWithRetry(attemptId: string, itemId: string, selectedIndex: number | null): Promise<boolean> {
+    for (let tryCount = 0; tryCount < 2; tryCount++) {
+      setAutosaveStatus(tryCount > 0 ? "retrying" : "saving");
+      try {
+        await client.saveAnswer(attemptId, { itemId, selectedIndex });
+        return true;
+      } catch {
+        // Retried once below; reported as "error" after the second failure.
       }
-      setAutosaveStatus("error");
     }
+    return false;
+  }
+
+  function queueSave(itemId: string, selectedIndex: number | null) {
+    if (!attempt) return;
+    const attemptId = attempt.id;
+    setAutosaveStatus("saving");
+    // The save's response isn't applied to `attempt`: the local selections
+    // are already up to date (optimistic), and a response could predate a
+    // newer selection that's still waiting in the queue.
+    saveQueue.current = saveQueue.current.then(async () => {
+      const saved = await saveWithRetry(attemptId, itemId, selectedIndex);
+      if (saved) failedItemIds.current.delete(itemId);
+      else failedItemIds.current.add(itemId);
+      setAutosaveStatus(failedItemIds.current.size > 0 ? "error" : "saved");
+    });
+  }
+
+  /** Waits for every queued save; false if any answer still isn't saved. */
+  async function flushSaves(): Promise<boolean> {
+    await saveQueue.current;
+    return failedItemIds.current.size === 0;
   }
 
   function handleSelect(selectedIndex: number) {
@@ -93,17 +119,34 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
           }
         : prev,
     );
-    void saveAnswer(itemId, selectedIndex);
+    queueSave(itemId, selectedIndex);
   }
 
   function goTo(index: number) {
     setCurrentIndex(Math.min(Math.max(index, 0), questions.length - 1));
   }
 
+  async function handleSaveAndExit() {
+    setExiting(true);
+    if (await flushSaves()) {
+      router.push(`/spaces/${spaceId}/quizzes`);
+      return;
+    }
+    // `autosaveStatus` is already "error", which tells the student why.
+    setExiting(false);
+  }
+
   async function handleSubmit() {
     if (!attempt) return;
     setSubmitting(true);
     setSubmitError(null);
+    // Submit scores what the server has saved, so every pending save must
+    // land first (Codex review on #48).
+    if (!(await flushSaves())) {
+      setSubmitting(false);
+      setSubmitError("Some answers couldn't be saved. Choose them again, then submit.");
+      return;
+    }
     try {
       const result = await client.submitAttempt(attempt.id);
       router.push(`/spaces/${spaceId}/quizzes/${setId}/results/${result.id}`);
@@ -179,8 +222,8 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes`} />}>
-            Save &amp; exit
+          <Button type="button" variant="outline" className="rounded-full" disabled={exiting} onClick={() => void handleSaveAndExit()}>
+            {exiting ? "Saving…" : "Save & exit"}
           </Button>
           <Button type="button" className="rounded-full" onClick={() => setSubmitOpen(true)}>
             Submit

@@ -63,8 +63,10 @@ function QuizCardActions({
 }) {
   // A quiz can be deleted whatever its generation status (failed, still
   // generating, never attempted or only in progress); only a submitted
-  // attempt blocks it (PRD Section 2 and #35: `SET_HAS_RESULTS`).
-  const canDelete = quiz.latestAttempt.status !== "submitted";
+  // attempt blocks it (PRD Section 2 and #35: `SET_HAS_RESULTS`) — any
+  // submitted attempt, including one before a retake that's now in
+  // progress, which is why this reads `hasResults`, not `latestAttempt`.
+  const canDelete = !quiz.hasResults;
   const attemptHref = `/spaces/${spaceId}/quizzes/${quiz.id}`;
 
   let primary: ReactNode = null;

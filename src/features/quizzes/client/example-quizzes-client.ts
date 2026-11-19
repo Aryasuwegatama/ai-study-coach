@@ -211,6 +211,7 @@ export function createExampleQuizzesClient(): QuizzesClient {
         createdAt: now,
         updatedAt: now,
         latestAttempt: { status: "none" },
+        hasResults: false,
       };
       library = [created, ...library];
 
@@ -233,12 +234,14 @@ export function createExampleQuizzesClient(): QuizzesClient {
     async deleteSet(setId) {
       const row = findSetRow(setId);
       if (!row) throw new QuizzesClientError("SET_NOT_FOUND", QUIZ_API_ERRORS.SET_NOT_FOUND.message);
-      if (row.latestAttempt.status === "submitted") {
+      // Checks every attempt on this quiz, not just the latest one: after a
+      // retake the latest is "in progress" while an earlier submitted one
+      // still exists (same rule as `quizzes-service.ts`).
+      const setAttempts = [...attempts.values()].filter((attempt) => attempt.setId === setId);
+      if (setAttempts.some((attempt) => attempt.status === "submitted")) {
         throw new QuizzesClientError("SET_HAS_RESULTS", QUIZ_API_ERRORS.SET_HAS_RESULTS.message);
       }
-      if (row.latestAttempt.status === "in_progress") {
-        attempts.delete(row.latestAttempt.attemptId);
-      }
+      for (const attempt of setAttempts) attempts.delete(attempt.id);
       library = library.filter((set) => set.id !== setId);
       delete itemBanks[setId];
     },
@@ -336,6 +339,7 @@ export function createExampleQuizzesClient(): QuizzesClient {
                 total: result.total,
                 percent: result.percent,
               },
+              hasResults: true,
             }
           : set,
       );
