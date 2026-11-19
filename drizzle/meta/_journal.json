@@ -64,6 +64,20 @@
       "when": 1795087141222,
       "tag": "0008_content_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795099128709,
+      "tag": "0009_mistakes_without_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795099864268,
+      "tag": "0010_plan_items",
+      "breakpoints": true
     }
   ]
 }

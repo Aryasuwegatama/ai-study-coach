@@ -17,7 +17,8 @@ import { z } from "zod";
  *   (0–3), or `null` to clear. A submitted attempt → 409 `ATTEMPT_SUBMITTED`.
  * - `POST /api/attempts/:id/submit` → 200 `AttemptResponse` with `result`.
  *   The body is ignored: the server scores. Submitting twice returns the
- *   same result. Wrong answers create review items due the next local day.
+ *   same result. A wrong answer opens a mistake (or reopens a cleared one);
+ *   a correct answer clears an open one (T-15).
  * - Missing, malformed or someone else's attempt: 404 `ATTEMPT_NOT_FOUND`.
  * - `POST /api/sets/:id/attempts` on a ready quiz with no `active` items
  *   left (every one was removed by a report) → 409 `SET_NO_ACTIVE_QUESTIONS`

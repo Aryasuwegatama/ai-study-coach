@@ -25,8 +25,8 @@ The table below is a **delivery plan**, not a list of completed features. Core r
 | FR-08 Quiz attempts | Core | MVP | Build | Scored on the server; answers are hidden until submission. |
 | FR-09 Topic mastery | Core | MVP | Build | Latest 10 distinct questions; fewer than 5 shows "insufficient evidence". |
 | FR-10 Weak topics | Core | MVP | Build | Below 60% with enough evidence. |
-| FR-11 Revision planner | Core | MVP | Build (simplified) | A list of Overdue, Today and the next 7 days instead of a full calendar widget. |
-| FR-12 Spaced repetition (1, 3, 7 days) | Core (team choice) | Stretch | Build | Exactly as proposed. |
+| FR-11 My Plan (study planner) | Core | MVP | Build (changed, T-15) | Changed after lecturer feedback (13 Nov 2026): the app shows analytics and suggests what to focus on, and the student plans their own study, with no app-set due dates. Replaces the Overdue, Today and next-7-days revision list. |
+| FR-12 Spaced repetition (1, 3, 7 days) | Core (team choice) | Stretch | Dropped (T-15) | Replaced by My Plan after lecturer feedback (13 Nov 2026): the app does not tell students when to study. Wrong quiz answers become mistakes the student can re-answer whenever they choose. |
 | FR-13–16 Instructor Course Spaces, joining, topic mapping, class analytics | Advanced | Stretch | Defer | Kept in the design and report as future work; the database leaves room for them. |
 | FR-17 AI short-answer feedback and human review | Advanced | Stretch | Defer | Future work; the 30-response comparison is deferred with it. |
 | FR-18 AI-generated labels | Core | Requirement | Build | A label on every generated item. |
@@ -112,7 +112,7 @@ The assessment table does not define what "80% project completion" is measured a
 
 ## Key decisions
 
-- **Product scope:** scored MCQs; self-rated recall and typed short-answer cards; mandatory topic confirmation; multi-topic quizzes with one topic per MCQ; latest-ten-distinct-question mastery; simple 1/3/7-day revision.
+- **Product scope:** scored MCQs; self-rated recall and typed short-answer cards; mandatory topic confirmation; multi-topic quizzes with one topic per MCQ; latest-ten-distinct-question mastery; My Plan (suggestions from the student's analytics plus their own plan, no app-set due dates) and reviewing mistakes.
 - **Advanced scope:** instructor features (FR-13–16) and AI grading/human-review (FR-17) remain deferred design work; the original Project 15 brief names instructor roles and analytics, so request lecturer confirmation of any assessed-scope reduction.
 - **Backend:** Next.js, Better Auth, Neon/Drizzle/pgvector, Private Blob and QStash are *proposed integrations*; only the initial app deployment is completed. Enforce privacy and job concurrency in code/database, not merely provider settings.
 - **AI:** reached through the Vercel AI Gateway (T-02b), not a direct Google connection; structured output and citations require validation; 768-D embedding vectors using `gemini-embedding-001` require manual normalisation; confirm token limits and usable gateway credit before implementing ingestion.

@@ -5,18 +5,18 @@ type SpaceTabKey = "overview" | "materials" | "quizzes" | "analytics";
 
 /**
  * Study Space contextual navigation (Figma node 14:273), shared between
- * Overview and Materials (T-09a plan step 2). Overview, Materials and
- * Quizzes (T-12a) are real links; Flashcards and Progress stay disabled
- * rather than linking to a 404, the same pattern T-04b used for unbuilt
- * sidebar items — each later task (Flashcards, Progress: T-15a) enables
- * its own tab.
+ * Overview and Materials (T-09a plan step 2). Overview, Materials, Quizzes
+ * (T-12a) and Analytics (T-15; the old "Progress" tab, renamed after
+ * lecturer feedback) are real links; Flashcards stays disabled rather than
+ * linking to a 404, the same pattern T-04b used for unbuilt sidebar items —
+ * the flashcards task enables its own tab.
  */
 const TABS: ReadonlyArray<{ key: SpaceTabKey; label: string } | { key: null; label: string }> = [
   { key: "overview", label: "Overview" },
   { key: "materials", label: "Materials" },
   { key: "quizzes", label: "Quizzes" },
   { key: null, label: "Flashcards" },
-  { key: null, label: "Progress" },
+  { key: "analytics", label: "Analytics" },
 ];
 
 export function SpaceOverviewTabs({ spaceId, active }: { spaceId: string; active: SpaceTabKey }) {

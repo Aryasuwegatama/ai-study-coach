@@ -1,8 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Verifies T-14: attempts and server scoring, mastery and revision, end to
- * end through the route handlers against the dev database. Quizzes are
- * seeded directly (T-11b's check covers generation).
+ * Verifies T-14 and T-15: attempts and server scoring, mastery, and the
+ * mistakes list (no revision schedule), end to end through the route
+ * handlers against the dev database. Quizzes are seeded directly (T-11b's
+ * check covers generation).
  *
  * Run with: pnpm run check:attempts
  */
@@ -29,7 +30,7 @@ import {
 } from "../src/server/db/schema";
 import { normalizePrompt } from "../src/features/quizzes/quizzes-schemas";
 import { masteryFrom, type SpaceProgress, type TopicMasteryDetail } from "../src/features/progress/progress-schemas";
-import { nextSchedule, type ReviewResult, type RevisionListResponse, type RevisionSessionItem } from "../src/features/revision/revision-schemas";
+import { MISTAKES_SESSION_SIZE, type CheckResult as MistakeCheckResult, type MistakesResponse } from "../src/features/revision/revision-schemas";
 import type { AttemptResponse } from "../src/features/attempts/attempts-schemas";
 import type { SetListItemResponse } from "../src/features/quizzes/quizzes-schemas";
 import { POST as startRoute } from "../src/app/api/sets/[id]/attempts/route";
@@ -39,9 +40,8 @@ import { POST as submitRoute } from "../src/app/api/attempts/[id]/submit/route";
 import { GET as allProgressRoute } from "../src/app/api/progress/route";
 import { GET as spaceProgressRoute } from "../src/app/api/spaces/[spaceId]/progress/route";
 import { GET as masteryRoute } from "../src/app/api/topics/[id]/mastery/route";
-import { GET as revisionRoute } from "../src/app/api/revision/route";
-import { POST as sessionRoute } from "../src/app/api/revision/session/route";
-import { POST as reviewRoute } from "../src/app/api/revision/items/[id]/review/route";
+import { GET as mistakesRoute } from "../src/app/api/revision/mistakes/route";
+import { POST as checkRoute } from "../src/app/api/revision/items/[id]/check/route";
 import { DELETE as deleteSetRoute } from "../src/app/api/sets/[id]/route";
 import { GET as setsListRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 
@@ -78,8 +78,6 @@ async function main() {
   check("Mastery: 5 with 2 correct = 40%, weak", m(5, 2).status === "weak" && m(5, 2).percent === 40);
   check("Mastery: 6 of 10 = 60%, on track (60 is not weak)", m(10, 6).status === "on_track" && m(10, 6).percent === 60);
   check("Mastery: 5 of 9 = 56%, weak", m(9, 5).status === "weak");
-  const s1 = nextSchedule(0, true), s2 = nextSchedule(s1.streak, true), s3 = nextSchedule(s2.streak, true), f = nextSchedule(s3.streak, false);
-  check("Revision schedule: 1 → 3 → 7 → 7, failure resets to 1 and streak 0", [s1, s2, s3, f].map((s) => s.intervalDays).join() === "3,7,7,1" && f.streak === 0);
 
   const test = (await buildTestAuth().$context).test;
   const stamp = Date.now();
@@ -105,7 +103,7 @@ async function main() {
       .select({ reviews: count() })
       .from(revisionItems)
       .where(inArray(revisionItems.studentId, sessions.map((s) => s.userId)));
-    check("Deleting a user deletes their attempts and revision items (no FK blocks it)", left === 0 && reviews === 0);
+    check("Deleting a user deletes their attempts and mistakes (no FK blocks it)", left === 0 && reviews === 0);
   }
 
   for (const r of results) console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.name}${r.ok || !r.message ? "" : ` — ${r.message}`}`);
@@ -244,11 +242,10 @@ async function e2e(a: Session, b: Session) {
   check("Submit: someone else's attempt → 404", res.status === 404);
 
   const reviews = await db.select().from(revisionItems).where(eq(revisionItems.studentId, a.userId));
-  const [{ tomorrow }] = (await db.execute<{ tomorrow: string }>(sql`select ((now() at time zone 'UTC')::date + 1)::text as tomorrow`)).rows;
   check(
-    "Revision: each wrong answer creates one review item due tomorrow (student's local day)",
-    reviews.length === 3 && reviews.every((x) => x.dueDate === tomorrow && x.intervalDays === 1 && wrongItems.includes(x.itemId)),
-    `${reviews.length} ${reviews[0]?.dueDate} vs ${tomorrow}`,
+    "Mistakes: each wrong answer creates exactly one open mistake (3 wrong → 3 rows, all open, no dates)",
+    reviews.length === 3 && reviews.every((x) => x.clearedAt === null && wrongItems.includes(x.itemId)) && new Set(reviews.map((x) => x.itemId)).size === 3,
+    `${reviews.length}`,
   );
 
   // --- Mastery ----------------------------------------------------------------------------------
@@ -257,12 +254,17 @@ async function e2e(a: Session, b: Session) {
   const joins = () => progress.topics.find((t) => t.topicId === t1.id)!;
   const indexes = () => progress.topics.find((t) => t.topicId === t2.id)!;
   check("Mastery: Joins 3 of 6 = 50%, weak, listed first", joins().status === "weak" && joins().percent === 50 && progress.topics[0].topicId === t1.id);
+  check(
+    "TopicProgress: Joins has a Ready material and 3 open mistakes; Indexes has a Ready material and none",
+    joins().hasReadyMaterial === true && joins().mistakes === 3 && indexes().hasReadyMaterial === true && indexes().mistakes === 0,
+    `${joins().hasReadyMaterial} ${joins().mistakes}`,
+  );
   check("Mastery: Indexes 4 questions = insufficient, 1 more needed", indexes().status === "insufficient" && indexes().needed === 1 && indexes().percent === null);
   res = await spaceProgressRoute(req(`/api/spaces/${space.id}/progress`, b), p({ spaceId: space.id }));
   check("Space progress: someone else's space → 404", res.status === 404);
   res = await allProgressRoute(req(`/api/progress`, a));
   const all = ((await res.json()) as { spaces: SpaceProgress[] }).spaces;
-  check("My Progress: lists the student's spaces", all.length === 1 && all[0].spaceId === space.id);
+  check("My Analytics: lists the student's spaces", all.length === 1 && all[0].spaceId === space.id);
 
   // Retake: Joins all right, Indexes left unanswered → latest answer per question counts, unanswered skipped.
   res = await startRoute(req(`/api/sets/${set.id}/attempts`, a, "POST"), p({ id: set.id }));
@@ -275,7 +277,12 @@ async function e2e(a: Session, b: Session) {
   progress = await progressOf();
   check("Mastery after retake: Joins 6 of 6 = 100%, on track (only latest answers count)", joins().status === "on_track" && joins().percent === 100 && joins().counted === 6);
   check("Mastery after retake: unanswered Indexes questions don't count", indexes().counted === 4);
-  check("Revision: wrong answers already scheduled are not duplicated", (await db.select({ n: count() }).from(revisionItems).where(eq(revisionItems.studentId, a.userId)))[0].n === 3);
+  const afterRetake = await db.select().from(revisionItems).where(eq(revisionItems.studentId, a.userId));
+  check(
+    "Mistakes: right answers in a retake clear the three open mistakes (no duplicate rows)",
+    afterRetake.length === 3 && afterRetake.every((x) => x.clearedAt !== null) && (await progressOf()).topics.find((t) => t.topicId === t1.id)!.mistakes === 0,
+    `${afterRetake.length}`,
+  );
 
   // --- Gap 1 (T-12b): the Quiz Library's list fields ----------------------------------
   const listForSpace = async (session: Session) =>
@@ -328,6 +335,11 @@ async function e2e(a: Session, b: Session) {
     detail.mastery.counted === 10 && detail.mastery.correct === 4 && detail.mastery.status === "weak" && detail.questions.length === 10,
     `${detail.mastery?.counted} ${detail.mastery?.correct}`,
   );
+  check(
+    "Topic detail: carries its space, a Ready material and its open mistakes (T-15)",
+    detail.spaceId === space.id && detail.hasReadyMaterial === true && detail.mistakes === 6,
+    `${detail.spaceId === space.id} ${detail.hasReadyMaterial} ${detail.mistakes}`,
+  );
   res = await masteryRoute(req(`/api/topics/${t1.id}/mastery`, b), p({ id: t1.id }));
   check("Topic mastery: someone else's topic → 404", res.status === 404);
   await db.update(learningItems).set({ status: "removed" }).where(eq(learningItems.id, second.items[0].id));
@@ -335,66 +347,172 @@ async function e2e(a: Session, b: Session) {
   const afterRemove = (await res.json()) as TopicMasteryDetail;
   check("Mastery: a removed question no longer counts", afterRemove.questions.every((q) => q.itemId !== second.items[0].id) && afterRemove.mastery.counted === 10);
 
-  // --- Revision --------------------------------------------------------------------------------
-  const target = reviews[0];
-  const list = async () => (await (await revisionRoute(req(`/api/revision`, a))).json()) as RevisionListResponse;
-  let listed = await list();
-  check("My Revision: tomorrow's items are in the next 7 days, none due today", listed.upcoming.length >= 3 && listed.dueToday.length === 0 && listed.overdue.length === 0);
-  let session = ((await (await sessionRoute(req(`/api/revision/session`, a, "POST", {}))).json()) as { items: RevisionSessionItem[] }).items;
-  const notDueCount = session.length;
-  const reviewBody = (key: string, right: boolean) => {
-    const item = [...byId.values(), ...secondById.values()].find((i) => i.id === target.itemId)!;
-    return { requestKey: key, selectedIndex: right ? item.correctIndex! : (item.correctIndex! + 1) % 4 };
+  // --- Mistakes (T-15) --------------------------------------------------------------------
+  const masteryOnly = async () =>
+    JSON.stringify((await progressOf()).topics.map(({ topicId, status, counted, correct, percent, needed }) => ({ topicId, status, counted, correct, percent, needed })));
+  const mistakesOf = async (query: string, s: Session | null = a) => {
+    const r = await mistakesRoute(req(`/api/revision/mistakes?${query}`, s));
+    return { status: r.status, json: (await r.json()) as MistakesResponse & { error?: { code?: string } } };
   };
-  res = await reviewRoute(req(`/api/revision/items/${target.id}/review`, a, "POST", reviewBody(`key-early-${stamp}`, true)), p({ id: target.id }));
-  check("Review: not due yet → 409 REVISION_NOT_DUE; session has no not-yet-due items", res.status === 409 && (await errorCode(res)) === "REVISION_NOT_DUE" && notDueCount === 0);
+  const allItems = [...byId.values(), ...secondById.values()];
+  const mistakeItem = async (revisionId: string) => {
+    const [row] = await db.select().from(revisionItems).where(eq(revisionItems.id, revisionId));
+    return { row, item: allItems.find((i) => i.id === row.itemId)! };
+  };
 
-  const makeDue = (days: number) => db.update(revisionItems).set({ dueDate: sql`(now() at time zone 'UTC')::date - ${days}::int` }).where(eq(revisionItems.id, target.id));
-  await makeDue(0);
-  await db.update(revisionItems).set({ dueDate: sql`(now() at time zone 'UTC')::date - 2` }).where(eq(revisionItems.id, reviews[1].id));
-  listed = await list();
-  check("My Revision: Overdue and Today groups by local date", listed.dueToday.some((i) => i.id === target.id) && listed.overdue.some((i) => i.id === reviews[1].id));
-  session = ((await (await sessionRoute(req(`/api/revision/session`, a, "POST", { spaceId: space.id }))).json()) as { items: RevisionSessionItem[] }).items;
-  check("Session: due items with 4 options and no answers", session.length === 2 && session.every((i) => i.options.length === 4) && noAnswers(session));
-  res = await sessionRoute(req(`/api/revision/session`, b, "POST", { spaceId: space.id }));
-  check("Session: someone else's space → 404", res.status === 404);
+  // Indexes gets a third quiz with one wrong answer, made older than every Joins mistake, so "weak topics first" is visible.
+  const third = await seedSet(space.id, chunkIds, Array(5).fill(t2.id));
+  const thirdById = new Map(third.items.map((i) => [i.id, i]));
+  res = await startRoute(req(`/api/sets/${third.set.id}/attempts`, a, "POST"), p({ id: third.set.id }));
+  const ta = ((await res.json()) as { attempt: AttemptResponse }).attempt;
+  let indexesWrong = "";
+  for (const [i, q] of ta.questions!.entries()) {
+    const item = thirdById.get(q.itemId)!;
+    const correct = q.options.indexOf(item.options![item.correctIndex!]);
+    if (i === 0) indexesWrong = q.itemId;
+    await answerRoute(req(`/api/attempts/${ta.id}/answers`, a, "PATCH", { itemId: q.itemId, selectedIndex: i === 0 ? (correct + 1) % 4 : correct }), p({ id: ta.id }));
+  }
+  await submitRoute(req(`/api/attempts/${ta.id}/submit`, a, "POST"), p({ id: ta.id }));
+  await db.update(revisionItems).set({ createdAt: sql`now() - interval '2 days'` }).where(and(eq(revisionItems.studentId, a.userId), eq(revisionItems.itemId, indexesWrong)));
+  progress = await progressOf();
+  check("Mistakes: Indexes is now on track (8 of 9) with 1 open mistake — a topic can be on track and still have a mistake", indexes().status === "on_track" && indexes().mistakes === 1, `${indexes().status} ${indexes().mistakes}`);
 
-  const masteryBefore = JSON.stringify((await progressOf()).topics);
-  const review = async (key: string, right: boolean, s = a) =>
-    reviewRoute(req(`/api/revision/items/${target.id}/review`, s, "POST", reviewBody(key, right)), p({ id: target.id }));
-  res = await review(`key-1-${stamp}`, true);
-  const first = ((await res.json()) as { result: ReviewResult }).result;
-  const [{ plus3 }] = (await db.execute<{ plus3: string }>(sql`select ((now() at time zone 'UTC')::date + 3)::text as plus3`)).rows;
-  check("Review: first success → next review in 3 days", first.outcome === "correct" && first.intervalDays === 3 && first.nextDueDate === plus3, JSON.stringify(first));
-  res = await review(`key-1-${stamp}`, false);
-  const dup = ((await res.json()) as { result: ReviewResult }).result;
-  const events = await db.select({ n: count() }).from(revisionEvents).where(eq(revisionEvents.revisionItemId, target.id));
-  check("Review: the same request key returns the first result and moves the schedule once", dup.outcome === "correct" && dup.nextDueDate === plus3 && events[0].n === 1);
-  await makeDue(0);
-  const secondReview = ((await (await review(`key-2-${stamp}`, true)).json()) as { result: ReviewResult }).result;
-  await makeDue(0);
-  const thirdReview = ((await (await review(`key-3-${stamp}`, true)).json()) as { result: ReviewResult }).result;
-  await makeDue(0);
-  const failReview = ((await (await review(`key-4-${stamp}`, false)).json()) as { result: ReviewResult }).result;
-  const afterFail = (await db.select().from(revisionItems).where(eq(revisionItems.id, target.id)))[0];
-  check("Review: then 7, capped at 7", secondReview.intervalDays === 7 && thirdReview.intervalDays === 7);
-  check("Review: a wrong answer resets to 1 day and streak 0, and shows the correct answer", failReview.outcome === "incorrect" && failReview.intervalDays === 1 && afterFail.streak === 0 && failReview.explanation !== null);
-  res = await review(`key-b-${stamp}`, true, b);
-  check("Review: someone else's item → 404 REVISION_ITEM_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "REVISION_ITEM_NOT_FOUND");
-  check("Revision never changes mastery", JSON.stringify((await progressOf()).topics) === masteryBefore);
+  let bySpace = await mistakesOf(`spaceId=${space.id}`);
+  // Joins: the 6 wrong answers of the second quiz, minus the one removed above; Indexes: 1.
+  check("Mistakes by space: open mistakes only, 6 in all (5 Joins + 1 Indexes), total counts them all", bySpace.status === 200 && bySpace.json.items.length === 6 && bySpace.json.total === 6, `${bySpace.json.items?.length}/${bySpace.json.total}`);
+  check("Mistakes by space: weak topics first — Joins before the older Indexes mistake", bySpace.json.items[5]?.topicId === t2.id && bySpace.json.items.slice(0, 5).every((i) => i.topicId === t1.id));
+  check("Mistakes by space: questions come with 4 options and no answers or explanations", bySpace.json.items.every((i) => i.options.length === 4 && i.topicName.length > 0) && noAnswers(bySpace.json));
+  const byTopic = await mistakesOf(`topicId=${t2.id}`);
+  check("Mistakes by topic: only that topic's open mistakes", byTopic.status === 200 && byTopic.json.items.length === 1 && byTopic.json.items[0].topicId === t2.id && byTopic.json.total === 1);
 
-  // Removed questions and deleted materials leave revision; past results stay with "Source removed".
-  await db.update(learningItems).set({ status: "removed" }).where(eq(learningItems.id, reviews[1].itemId));
-  listed = await list();
-  check("Revision: a removed question leaves My Revision", ![...listed.overdue, ...listed.dueToday, ...listed.upcoming].some((i) => i.id === reviews[1].id));
+  for (const [name, query] of [
+    ["neither parameter", ""],
+    ["both parameters", `topicId=${t1.id}&spaceId=${space.id}`],
+    ["a malformed topicId", "topicId=nope"],
+    ["a malformed spaceId", "spaceId=nope"],
+    ["an empty topicId", "topicId="],
+  ] as const) {
+    const r = await mistakesOf(query);
+    check(`Mistakes: ${name} → 400 VALIDATION_ERROR`, r.status === 400 && r.json.error?.code === "VALIDATION_ERROR", `${r.status}`);
+  }
+  const foreignTopic = await mistakesOf(`topicId=${t1.id}`, b);
+  check("Mistakes: someone else's topic → 404 TOPIC_NOT_FOUND", foreignTopic.status === 404 && foreignTopic.json.error?.code === "TOPIC_NOT_FOUND");
+  const foreignSpace = await mistakesOf(`spaceId=${space.id}`, b);
+  check("Mistakes: someone else's space → 404 SPACE_NOT_FOUND", foreignSpace.status === 404 && foreignSpace.json.error?.code === "SPACE_NOT_FOUND");
+  res = await mistakesRoute(req(`/api/revision/mistakes?spaceId=${space.id}`, null));
+  check("Mistakes: signed out → 401", res.status === 401);
+
+  // Checking a mistake.
+  const firstOpen = bySpace.json.items[0];
+  const target = await mistakeItem(firstOpen.id);
+  const rightIndex = target.item.correctIndex!;
+  const wrongIndex = (rightIndex + 1) % 4;
+  const checkItem = (id: string, key: string, selectedIndex: number, s: Session = a) =>
+    checkRoute(req(`/api/revision/items/${id}/check`, s, "POST", { requestKey: key, selectedIndex }), p({ id }));
+  const masteryBefore = await masteryOnly();
+  const joinsMistakes = () => progressOf().then((pr) => pr.topics.find((t) => t.topicId === t1.id)!.mistakes);
+  const beforeCount = await joinsMistakes();
+
+  res = await checkItem(firstOpen.id, `key-wrong-${stamp}`, wrongIndex);
+  const wrongResult = ((await res.json()) as { result: MistakeCheckResult }).result;
+  bySpace = await mistakesOf(`spaceId=${space.id}`);
+  check(
+    "Check: a wrong answer → incorrect with the correct answer and explanation; the mistake stays open",
+    res.status === 200 &&
+      wrongResult.outcome === "incorrect" &&
+      wrongResult.correctIndex === rightIndex &&
+      wrongResult.explanation === target.item.explanation &&
+      wrongResult.cleared === false &&
+      bySpace.json.items.some((i) => i.id === firstOpen.id) &&
+      (await joinsMistakes()) === beforeCount,
+    JSON.stringify(wrongResult),
+  );
+  res = await checkItem(firstOpen.id, `key-right-${stamp}`, rightIndex);
+  const rightResult = ((await res.json()) as { result: MistakeCheckResult }).result;
+  bySpace = await mistakesOf(`spaceId=${space.id}`);
+  check(
+    "Check: a correct answer clears it — gone from the list, the topic's mistakes down by exactly one",
+    rightResult.outcome === "correct" && rightResult.cleared === true && !bySpace.json.items.some((i) => i.id === firstOpen.id) && bySpace.json.total === 5 && (await joinsMistakes()) === beforeCount - 1,
+    JSON.stringify(rightResult),
+  );
+  res = await checkItem(firstOpen.id, `key-right-${stamp}`, wrongIndex);
+  const replay = ((await res.json()) as { result: MistakeCheckResult }).result;
+  const events = await db.select({ n: count() }).from(revisionEvents).where(eq(revisionEvents.revisionItemId, firstOpen.id));
+  check("Check: the same request key returns the first result and records one event", replay.outcome === "correct" && replay.cleared === true && events[0].n === 2, `${replay.outcome} events=${events[0].n}`);
+  res = await checkItem(firstOpen.id, `key-after-${stamp}`, wrongIndex);
+  const afterCleared = ((await res.json()) as { result: MistakeCheckResult }).result;
+  const stillCleared = (await mistakeItem(firstOpen.id)).row.clearedAt !== null;
+  check("Check: a check on an already-cleared mistake is recorded but never reopens it", res.status === 200 && afterCleared.outcome === "incorrect" && afterCleared.cleared === true && stillCleared);
+  res = await checkItem(firstOpen.id, `key-b-${stamp}`, rightIndex, b);
+  check("Check: someone else's item → 404 REVISION_ITEM_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "REVISION_ITEM_NOT_FOUND");
+  res = await checkItem("nope", `key-nope-${stamp}`, 0);
+  check("Check: a malformed id → 404 REVISION_ITEM_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "REVISION_ITEM_NOT_FOUND");
+  res = await checkRoute(req(`/api/revision/items/${firstOpen.id}/check`, a, "POST", { requestKey: "short", selectedIndex: 9 }), p({ id: firstOpen.id }));
+  check("Check: an invalid body → 400 VALIDATION_ERROR", res.status === 400 && (await errorCode(res)) === "VALIDATION_ERROR");
+  check("Checks never change mastery (progress before and after identical)", (await masteryOnly()) === masteryBefore);
+
+  // A later quiz answer reopens or clears. X was cleared by the check above; Y and Z are open.
+  // Retake: X wrong (reopens), Y right (clears), Z wrong again (no duplicate).
+  const rowsBefore = await db.select().from(revisionItems).where(eq(revisionItems.studentId, a.userId));
+  const openNow = bySpace.json.items.filter((i) => i.topicId === t1.id);
+  const [yMistake, zMistake] = await Promise.all([mistakeItem(openNow[0].id), mistakeItem(openNow[1].id)]);
+  res = await startRoute(req(`/api/sets/${second.set.id}/attempts`, a, "POST"), p({ id: second.set.id }));
+  const retake2 = ((await res.json()) as { attempt: AttemptResponse }).attempt;
+  const plan: Record<string, boolean> = { [target.item.id]: false, [yMistake.item.id]: true, [zMistake.item.id]: false };
+  for (const q of retake2.questions!) {
+    if (!(q.itemId in plan)) continue;
+    const item = secondById.get(q.itemId)!;
+    const correct = q.options.indexOf(item.options![item.correctIndex!]);
+    await answerRoute(req(`/api/attempts/${retake2.id}/answers`, a, "PATCH", { itemId: q.itemId, selectedIndex: plan[q.itemId] ? correct : (correct + 1) % 4 }), p({ id: retake2.id }));
+  }
+  await submitRoute(req(`/api/attempts/${retake2.id}/submit`, a, "POST"), p({ id: retake2.id }));
+  const rowFor = (itemId: string) => db.select().from(revisionItems).where(and(eq(revisionItems.studentId, a.userId), eq(revisionItems.itemId, itemId)));
+  const [x, y, z] = await Promise.all([rowFor(target.item.id), rowFor(yMistake.item.id), rowFor(zMistake.item.id)]);
+  check("Mistakes: a later wrong quiz answer reopens a cleared mistake", x.length === 1 && x[0].clearedAt === null);
+  check("Mistakes: a later correct quiz answer clears an open one", y.length === 1 && y[0].clearedAt !== null);
+  check(
+    "Mistakes: the same wrong answer again doesn't duplicate the open mistake",
+    z.length === 1 && z[0].clearedAt === null && (await db.select().from(revisionItems).where(eq(revisionItems.studentId, a.userId))).length === rowsBefore.length,
+  );
+
+  // More than 20 open mistakes: the list shows 20, the total counts them all, weak topics first.
+  // Open before: Joins 4 (X reopened, Z and two others; Y cleared) + Indexes 1 = 5; the new quiz adds 22 wrong Joins answers.
+  const bulk = await seedSet(space.id, chunkIds, Array(22).fill(t1.id));
+  const bulkById = new Map(bulk.items.map((i) => [i.id, i]));
+  res = await startRoute(req(`/api/sets/${bulk.set.id}/attempts`, a, "POST"), p({ id: bulk.set.id }));
+  const ba = ((await res.json()) as { attempt: AttemptResponse }).attempt;
+  for (const q of ba.questions!) {
+    const item = bulkById.get(q.itemId)!;
+    await answerRoute(req(`/api/attempts/${ba.id}/answers`, a, "PATCH", { itemId: q.itemId, selectedIndex: (q.options.indexOf(item.options![item.correctIndex!]) + 1) % 4 }), p({ id: ba.id }));
+  }
+  await submitRoute(req(`/api/attempts/${ba.id}/submit`, a, "POST"), p({ id: ba.id }));
+  bySpace = await mistakesOf(`spaceId=${space.id}`);
+  const totalBefore = bySpace.json.total;
+  check(
+    `Mistakes: at most ${MISTAKES_SESSION_SIZE} in a session, total counts every open mistake (27), weak Joins first`,
+    bySpace.json.items.length === MISTAKES_SESSION_SIZE && totalBefore === 27 && bySpace.json.items.every((i) => i.topicId === t1.id),
+    `${bySpace.json.items.length}/${totalBefore}`,
+  );
+
+  // Removed questions and deleted materials leave the list and the counts; past results stay with "Source removed".
+  const joinsBefore = await joinsMistakes();
+  await db.update(learningItems).set({ status: "removed" }).where(eq(learningItems.id, zMistake.item.id));
+  bySpace = await mistakesOf(`spaceId=${space.id}`);
+  check("Mistakes: a removed question leaves the list and the topic's count", bySpace.json.total === totalBefore - 1 && (await joinsMistakes()) === joinsBefore - 1, `${bySpace.json.total}`);
   await db.delete(materials).where(eq(materials.id, materialId));
-  listed = await list();
-  check("Revision: questions whose material was deleted leave My Revision", listed.overdue.length + listed.dueToday.length + listed.upcoming.length === 0);
+  bySpace = await mistakesOf(`spaceId=${space.id}`);
+  progress = await progressOf();
+  check("Mistakes: questions whose material was deleted leave the list and every count", bySpace.json.total === 0 && progress.topics.every((t) => t.mistakes === 0), `${bySpace.json.total}`);
+  check(
+    "TopicProgress: a topic whose material was deleted has hasReadyMaterial false but still appears with its history",
+    progress.topics.length === 2 && progress.topics.every((t) => t.hasReadyMaterial === false) && joins().counted === 10 && indexes().counted === 9,
+    `${progress.topics.length} ${joins().counted} ${indexes().counted}`,
+  );
   res = await attemptRoute(req(`/api/attempts/${started.id}`, a), p({ id: started.id }));
   const past = ((await res.json()) as { attempt: AttemptResponse }).attempt;
   check("Past results still open with no sources (\"Source removed\") and the same score", res.status === 200 && past.result?.score === 7 && past.result.questions.every((q) => q.sources.length === 0));
   const [{ kept }] = await db.select({ kept: count() }).from(attempts).where(and(eq(attempts.studentId, a.userId), eq(attempts.status, "submitted")));
-  check("Submitted attempts are kept", kept === 3);
+  check("Submitted attempts are kept", kept === 6, `${kept}`);
 
   // --- Deleting a quiz (#35): a quiz with submitted results is the student's record ---------
   const del = (id: string, s = a) => deleteSetRoute(req(`/api/sets/${id}`, s, "DELETE"), p({ id }));

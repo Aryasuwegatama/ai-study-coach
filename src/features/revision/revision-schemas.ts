@@ -1,70 +1,60 @@
 import { z } from "zod";
 
 /**
- * My Revision contract (T-14; PRD Section 2 "Revision"; Section 4,
- * tables 12–13). Dates are `YYYY-MM-DD` in the student's local calendar.
+ * Review mistakes contract (T-15, replacing the T-14 revision schedule after
+ * lecturer feedback on 13 November 2026: no schedule, no scheduled
+ * re-attempts; PRD Section 2 "My Plan and reviewing mistakes", Section 4
+ * tables 12–13). The `revision_items` table is the student's list of
+ * mistakes: one row per student per question, created when a quiz answer is
+ * wrong.
  *
  * Routes:
- * - `GET /api/revision` → `RevisionListResponse`: Overdue, Today and the
- *   next 7 days, weak topics first within each group.
- * - `POST /api/revision/session` `{ spaceId? }` → `{ items:
- *   RevisionSessionItem[] }`: up to 20 due items, weak topics first, no
- *   answers.
- * - `POST /api/revision/items/:id/review` `ReviewRequest` → `ReviewResult`.
- *   MCQs are checked on the server: right = Got it, wrong = Again. The same
- *   `requestKey` returns the first result without moving the schedule
- *   again. An item that isn't due yet → 409 `REVISION_NOT_DUE`.
- * - Missing, malformed or someone else's item: 404 `REVISION_ITEM_NOT_FOUND`.
+ * - `GET /api/revision/mistakes?topicId=` or `?spaceId=` → `MistakesResponse`:
+ *   open mistakes, weak topics first, then oldest first, at most 20, with
+ *   `total` counting every open mistake in that scope. Exactly one
+ *   parameter; neither, both or a malformed one → 400 `VALIDATION_ERROR`.
+ *   Someone else's topic → 404 `TOPIC_NOT_FOUND`; space → 404
+ *   `SPACE_NOT_FOUND`. No correct index and no explanation.
+ * - `POST /api/revision/items/:id/check` `CheckRequest` → `{ result:
+ *   CheckResult }`. Checked on the server. Correct → the mistake is cleared;
+ *   wrong → it stays open. The same `requestKey` returns the first result
+ *   and records no second event. Missing, malformed, someone else's or no
+ *   longer eligible → 404 `REVISION_ITEM_NOT_FOUND`.
  *
- * Schedule: created due tomorrow (1 day); first success → 3 days; second
- * and later → 7; any failure → 1 day and the streak resets. Revision never
- * changes mastery. Removed questions and ones whose material was deleted
- * leave revision.
+ * A later wrong quiz answer to the same question reopens a cleared mistake;
+ * a later correct quiz answer clears an open one. Checks never touch
+ * `attempt_items`, so they can never change mastery.
  */
-export const REVISION_SESSION_SIZE = 20;
-export const UPCOMING_DAYS = 7;
+export const MISTAKES_SESSION_SIZE = 20;
 
 export const REVISION_API_ERRORS = {
-  REVISION_ITEM_NOT_FOUND: { status: 404, message: "Review item not found." },
-  REVISION_NOT_DUE: { status: 409, message: "This item isn't due yet." },
+  REVISION_ITEM_NOT_FOUND: { status: 404, message: "Mistake not found." },
 } as const;
 export type RevisionApiErrorCode = keyof typeof REVISION_API_ERRORS;
 
-export const startSessionSchema = z.object({ spaceId: z.uuid("Choose a valid Study Space.").optional() });
+/** Exactly one of `topicId` and `spaceId`. */
+export const mistakesQuerySchema = z
+  .object({
+    topicId: z.uuid("Choose a valid topic.").optional(),
+    spaceId: z.uuid("Choose a valid Study Space.").optional(),
+  })
+  .refine((q) => (q.topicId === undefined) !== (q.spaceId === undefined), { message: "Send exactly one of topicId and spaceId." });
+export type MistakesQuery = z.infer<typeof mistakesQuerySchema>;
 
-export const reviewSchema = z.object({
+export const checkSchema = z.object({
   requestKey: z.string().min(8).max(100),
-  /** Index into the options as sent by the session. */
+  /** Index into the options as sent by the list. */
   selectedIndex: z.number().int().min(0).max(3),
 });
-export type ReviewRequest = z.infer<typeof reviewSchema>;
+export type CheckRequest = z.infer<typeof checkSchema>;
 
-export type RevisionListItem = {
-  id: string;
-  itemId: string;
-  spaceId: string;
-  spaceName: string;
-  topicId: string;
-  topicName: string;
-  prompt: string;
-  dueDate: string;
-  intervalDays: number;
-  weakTopic: boolean;
-};
-export type RevisionListResponse = { today: string; overdue: RevisionListItem[]; dueToday: RevisionListItem[]; upcoming: RevisionListItem[] };
+export type MistakeQuestion = { id: string; topicId: string; topicName: string; prompt: string; options: string[] };
+export type MistakesResponse = { items: MistakeQuestion[]; total: number };
 
-export type RevisionSessionItem = { id: string; kind: "mcq"; topicId: string; topicName: string; prompt: string; options: string[] };
-
-export type ReviewResult = {
+export type CheckResult = {
   outcome: "correct" | "incorrect";
   correctIndex: number;
   explanation: string | null;
-  intervalDays: number;
-  nextDueDate: string;
+  /** True when the mistake is no longer open after this check. */
+  cleared: boolean;
 };
-
-/** The schedule rule, kept pure so it can be checked at its boundaries. */
-export function nextSchedule(streak: number, success: boolean): { streak: number; intervalDays: number } {
-  if (!success) return { streak: 0, intervalDays: 1 };
-  return { streak: streak + 1, intervalDays: streak === 0 ? 3 : 7 };
-}

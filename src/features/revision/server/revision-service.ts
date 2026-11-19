@@ -1,22 +1,21 @@
-import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
-import { localDate } from "@/lib/time-zone";
 import { db } from "@/server/db/db-client";
+import { eligibleMistake, openMistake } from "@/server/db/mistake-filter";
 import { learningItems, revisionEvents, revisionItems, studySpaces, topics } from "@/server/db/schema";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { weakTopicIds } from "@/features/progress/server";
+import { requireTopic } from "@/features/topics/server";
 import {
+  MISTAKES_SESSION_SIZE,
   REVISION_API_ERRORS,
-  REVISION_SESSION_SIZE,
-  UPCOMING_DAYS,
-  nextSchedule,
-  type ReviewRequest,
-  type ReviewResult,
+  type CheckRequest,
+  type CheckResult,
+  type MistakeQuestion,
+  type MistakesQuery,
+  type MistakesResponse,
   type RevisionApiErrorCode,
-  type RevisionListItem,
-  type RevisionListResponse,
-  type RevisionSessionItem,
 } from "../revision-schemas";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,109 +25,71 @@ export function revisionError(code: RevisionApiErrorCode): ApiError {
   return new ApiError(code, message, status);
 }
 
-/** Still eligible: the student's, in a live space, question active and still sourced. */
-const eligible = (studentId: string) =>
-  and(
-    eq(revisionItems.studentId, studentId),
-    eq(studySpaces.ownerId, studentId),
-    isNull(studySpaces.deletedAt),
-    eq(learningItems.status, "active"),
-    sql`exists (select 1 from item_sources s where s.item_id = ${revisionItems.itemId})`,
-  );
-
-function dueRows(user: SessionUser, until: ReturnType<typeof localDate>, spaceId?: string) {
-  return db
-    .select({ r: revisionItems, li: learningItems, topicName: topics.name, spaceName: studySpaces.name })
+/** Open, eligible mistakes in a topic or a Study Space, weak topics first, then oldest first. */
+export async function listMistakes(user: SessionUser, query: MistakesQuery): Promise<MistakesResponse> {
+  // Ownership first: someone else's topic or space is a 404, never an empty list.
+  const scope = query.topicId
+    ? eq(revisionItems.topicId, (await requireTopic(query.topicId, user)).id)
+    : eq(revisionItems.spaceId, (await requireSpace(query.spaceId!, user)).id);
+  const rows = await db
+    .select({ id: revisionItems.id, topicId: revisionItems.topicId, topicName: topics.name, prompt: learningItems.prompt, options: learningItems.options })
     .from(revisionItems)
     .innerJoin(learningItems, eq(learningItems.id, revisionItems.itemId))
     .innerJoin(topics, eq(topics.id, revisionItems.topicId))
     .innerJoin(studySpaces, eq(studySpaces.id, revisionItems.spaceId))
-    .where(and(eligible(user.id), lte(revisionItems.dueDate, until), spaceId ? eq(revisionItems.spaceId, spaceId) : undefined))
-    .orderBy(asc(revisionItems.dueDate), asc(revisionItems.createdAt));
+    .where(and(openMistake(user.id), scope))
+    .orderBy(asc(revisionItems.createdAt), asc(revisionItems.id));
+  const weak = await weakTopicIds(user.id, rows.map((r) => r.topicId));
+  // The query's oldest-first order is kept within each group (stable sort).
+  const items: MistakeQuestion[] = rows
+    .sort((a, b) => Number(weak.has(b.topicId)) - Number(weak.has(a.topicId)))
+    .slice(0, MISTAKES_SESSION_SIZE)
+    .map((r) => ({ id: r.id, topicId: r.topicId, topicName: r.topicName, prompt: r.prompt, options: r.options ?? [] }));
+  return { items, total: rows.length };
 }
 
-async function today(user: SessionUser): Promise<string> {
-  const [{ d }] = await db.execute<{ d: string }>(sql`select ${localDate(user.timeZone)}::text as d`).then((r) => r.rows);
-  return d;
-}
-
-export async function listRevision(user: SessionUser): Promise<RevisionListResponse> {
-  const now = await today(user);
-  const rows = await dueRows(user, localDate(user.timeZone, UPCOMING_DAYS));
-  const weak = await weakTopicIds(user.id, rows.map((r) => r.r.topicId));
-  const items: RevisionListItem[] = rows.map(({ r, li, topicName, spaceName }) => ({
-    id: r.id,
-    itemId: r.itemId,
-    spaceId: r.spaceId,
-    spaceName,
-    topicId: r.topicId,
-    topicName,
-    prompt: li.prompt,
-    dueDate: r.dueDate,
-    intervalDays: r.intervalDays,
-    weakTopic: weak.has(r.topicId),
-  }));
-  // Weak topics first within each group; the query's due-date order is kept otherwise (stable sort).
-  const group = (keep: (d: string) => boolean) => items.filter((i) => keep(i.dueDate)).sort((a, b) => Number(b.weakTopic) - Number(a.weakTopic));
-  return { today: now, overdue: group((d) => d < now), dueToday: group((d) => d === now), upcoming: group((d) => d > now) };
-}
-
-export async function startSession(user: SessionUser, spaceId?: string): Promise<RevisionSessionItem[]> {
-  if (spaceId) await requireSpace(spaceId, user);
-  const rows = await dueRows(user, localDate(user.timeZone), spaceId);
-  const weak = await weakTopicIds(user.id, rows.map((r) => r.r.topicId));
-  return rows
-    .sort((a, b) => Number(weak.has(b.r.topicId)) - Number(weak.has(a.r.topicId)))
-    .slice(0, REVISION_SESSION_SIZE)
-    .map(({ r, li, topicName }) => ({ id: r.id, kind: "mcq", topicId: r.topicId, topicName, prompt: li.prompt, options: li.options ?? [] }));
-}
-
-/** Locks the item, then the request key (a double click gets the first result), then the due check. */
-export async function reviewItem(user: SessionUser, revisionItemId: string, input: ReviewRequest): Promise<ReviewResult> {
+/**
+ * Locks the mistake, then looks for the request key (a double click gets the
+ * first result), then checks the answer. A correct check clears the mistake;
+ * a wrong one leaves it open. Nothing here touches `attempt_items`.
+ */
+export async function checkMistake(user: SessionUser, revisionItemId: string, input: CheckRequest): Promise<CheckResult> {
   if (!UUID.test(revisionItemId)) throw revisionError("REVISION_ITEM_NOT_FOUND");
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select({ r: revisionItems, li: learningItems })
       .from(revisionItems)
       .innerJoin(learningItems, eq(learningItems.id, revisionItems.itemId))
+      .innerJoin(topics, eq(topics.id, revisionItems.topicId))
       .innerJoin(studySpaces, eq(studySpaces.id, revisionItems.spaceId))
-      .where(and(eq(revisionItems.id, revisionItemId), eligible(user.id)))
+      .where(and(eq(revisionItems.id, revisionItemId), eligibleMistake(user.id)))
       .for("update", { of: revisionItems });
     if (!row) throw revisionError("REVISION_ITEM_NOT_FOUND");
-    const result = (outcome: string, intervalDays: number, nextDueDate: string): ReviewResult => ({
-      outcome: outcome as ReviewResult["outcome"],
+    const result = (outcome: CheckResult["outcome"], cleared: boolean): CheckResult => ({
+      outcome,
       correctIndex: row.li.correctIndex!,
       explanation: row.li.explanation,
-      intervalDays,
-      nextDueDate,
+      cleared,
     });
 
     const [previous] = await tx
       .select()
       .from(revisionEvents)
       .where(and(eq(revisionEvents.revisionItemId, row.r.id), eq(revisionEvents.requestKey, input.requestKey)));
-    if (previous) return result(previous.outcome, previous.intervalAfter, previous.dueDateAfter);
+    if (previous) return result(previous.outcome === "correct" ? "correct" : "incorrect", previous.outcome === "correct" || row.r.clearedAt !== null);
 
-    const [{ due }] = (await tx.execute<{ due: boolean }>(sql`select ${row.r.dueDate}::date <= ${localDate(user.timeZone)} as due`)).rows;
-    if (!due) throw revisionError("REVISION_NOT_DUE");
-
-    const success = input.selectedIndex === row.li.correctIndex;
-    const next = nextSchedule(row.r.streak, success);
-    const [updated] = await tx
+    const correct = input.selectedIndex === row.li.correctIndex;
+    // A correct check clears an open mistake; a check on an already-cleared one is recorded but never reopens it.
+    await tx
       .update(revisionItems)
-      .set({ streak: next.streak, intervalDays: next.intervalDays, dueDate: localDate(user.timeZone, next.intervalDays), lastReviewedAt: new Date() })
-      .where(eq(revisionItems.id, row.r.id))
-      .returning({ dueDate: revisionItems.dueDate });
-    const outcome = success ? "correct" : "incorrect";
+      .set({ lastReviewedAt: new Date(), ...(correct && !row.r.clearedAt ? { clearedAt: sql`now()` } : {}) })
+      .where(eq(revisionItems.id, row.r.id));
     await tx.insert(revisionEvents).values({
       revisionItemId: row.r.id,
-      outcome,
+      outcome: correct ? "correct" : "incorrect",
       requestKey: input.requestKey,
       selectedIndex: input.selectedIndex,
-      intervalBefore: row.r.intervalDays,
-      intervalAfter: next.intervalDays,
-      dueDateAfter: updated.dueDate,
     });
-    return result(outcome, next.intervalDays, updated.dueDate);
+    return result(correct ? "correct" : "incorrect", correct || row.r.clearedAt !== null);
   });
 }

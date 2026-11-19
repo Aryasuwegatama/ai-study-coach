@@ -1,8 +1,5 @@
 /**
- * "Welcome" row (Figma node 80:6946, "Welcome"). The student's own first
- * name; T-05 adds real Study Spaces below, so the "EXAMPLE DATA" badge
- * that used to sit here moved onto the three sections that are still
- * fixtures (Learning Snapshot, Continue Studying, Upcoming Revisions).
+ * "Welcome" row (Figma node 80:6946, "Welcome"): the student's own first name.
  */
 export function DashboardWelcomeHeader({ firstName }: { firstName: string }) {
   return (
