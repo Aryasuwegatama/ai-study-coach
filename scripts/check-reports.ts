@@ -2,7 +2,7 @@
 /**
  * Verifies T-12b's Report issue feature: ownership, validation, the
  * one-report-per-student-per-question rule, "Remove from my practice"
- * (generation, mastery and revision already filter on `status =
+ * (generation, mastery and mistakes already filter on `status =
  * 'active'`) and the `SET_NO_ACTIVE_QUESTIONS` guard, end to end through
  * the route handlers against the dev database.
  *
@@ -19,7 +19,7 @@ import { normalizePrompt } from "../src/features/quizzes/quizzes-schemas";
 import { masteryFrom } from "../src/features/progress/progress-schemas";
 import type { TopicMasteryDetail } from "../src/features/progress/progress-schemas";
 import type { AttemptResponse } from "../src/features/attempts/attempts-schemas";
-import type { RevisionListResponse } from "../src/features/revision/revision-schemas";
+import type { MistakesResponse } from "../src/features/revision/revision-schemas";
 import type { ReportResponse } from "../src/features/reports/reports-schemas";
 import { POST as startRoute } from "../src/app/api/sets/[id]/attempts/route";
 import { GET as attemptRoute } from "../src/app/api/attempts/[id]/route";
@@ -27,7 +27,7 @@ import { PATCH as answerRoute } from "../src/app/api/attempts/[id]/answers/route
 import { POST as submitRoute } from "../src/app/api/attempts/[id]/submit/route";
 import { POST as reportRoute } from "../src/app/api/items/[id]/report/route";
 import { GET as masteryRoute } from "../src/app/api/topics/[id]/mastery/route";
-import { GET as revisionRoute } from "../src/app/api/revision/route";
+import { GET as mistakesRoute } from "../src/app/api/revision/mistakes/route";
 
 type CheckResult = { name: string; ok: boolean; message: string };
 const results: CheckResult[] = [];
@@ -165,7 +165,7 @@ async function e2e(a: Session, b: Session) {
     past.result?.score === 2 && past.result.questions.find((q) => q.itemId === wrongItemId)?.report?.reason === "incorrect_answer",
   );
 
-  // --- Mastery and revision: already filtered by status = 'active' ----------------
+  // --- Mastery and mistakes: already filtered by status = 'active' ----------------
   res = await masteryRoute(req(`/api/topics/${topic.id}/mastery`, a), p({ id: topic.id }));
   const detail = (await res.json()) as TopicMasteryDetail;
   check(
@@ -173,12 +173,9 @@ async function e2e(a: Session, b: Session) {
     detail.questions.every((q) => q.itemId !== wrongItemId) && detail.mastery.counted === 2,
     `${detail.mastery.counted}`,
   );
-  res = await revisionRoute(req(`/api/revision`, a));
-  const revision = (await res.json()) as RevisionListResponse;
-  check(
-    "Revision: the removed question's review item left My Revision",
-    ![...revision.overdue, ...revision.dueToday, ...revision.upcoming].some((i) => i.itemId === wrongItemId),
-  );
+  res = await mistakesRoute(req(`/api/revision/mistakes?topicId=${topic.id}`, a));
+  const mistakes = (await res.json()) as MistakesResponse;
+  check("Mistakes: the removed question's mistake left the review list and its count", res.status === 200 && mistakes.items.length === 0 && mistakes.total === 0, `${mistakes.total}`);
 
   // --- Generation/new attempts exclude the removed item ----------------------------
   res = await startRoute(req(`/api/sets/${set.id}/attempts`, a, "POST"), p({ id: set.id }));

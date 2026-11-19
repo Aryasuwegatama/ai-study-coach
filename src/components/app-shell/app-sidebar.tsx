@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { History, LayoutDashboard, TrendingUp } from "lucide-react";
+import { CalendarCheck, LayoutDashboard, TrendingUp } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
 import {
   Sidebar,
@@ -58,17 +58,15 @@ export function AppSidebar({
             {studySpacesNav}
 
             <SidebarMenuItem>
-              <SidebarMenuButton disabled aria-disabled="true" tooltip="My Progress">
-                <TrendingUp />
-                <span>My Progress</span>
-              </SidebarMenuButton>
+              <Suspense fallback={<AnalyticsNavButtonFallback />}>
+                <AnalyticsNavButton />
+              </Suspense>
             </SidebarMenuItem>
 
             <SidebarMenuItem>
-              <SidebarMenuButton disabled aria-disabled="true" tooltip="My Revision">
-                <History />
-                <span>My Revision</span>
-              </SidebarMenuButton>
+              <Suspense fallback={<PlanNavButtonFallback />}>
+                <PlanNavButton />
+              </Suspense>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
@@ -98,6 +96,45 @@ function DashboardNavButtonFallback() {
     <SidebarMenuButton tooltip="Dashboard" render={<Link href="/dashboard" />}>
       <LayoutDashboard />
       <span>Dashboard</span>
+    </SidebarMenuButton>
+  );
+}
+
+function AnalyticsNavButton() {
+  const pathname = usePathname();
+  return (
+    <SidebarMenuButton isActive={pathname === "/analytics"} tooltip="My Analytics" render={<Link href="/analytics" />}>
+      <TrendingUp />
+      <span>My Analytics</span>
+    </SidebarMenuButton>
+  );
+}
+
+function AnalyticsNavButtonFallback() {
+  return (
+    <SidebarMenuButton tooltip="My Analytics" render={<Link href="/analytics" />}>
+      <TrendingUp />
+      <span>My Analytics</span>
+    </SidebarMenuButton>
+  );
+}
+
+function PlanNavButton() {
+  const pathname = usePathname();
+  // Active on /plan and on /plan/review, which is part of My Plan.
+  return (
+    <SidebarMenuButton isActive={pathname === "/plan" || pathname.startsWith("/plan/")} tooltip="My Plan" render={<Link href="/plan" />}>
+      <CalendarCheck />
+      <span>My Plan</span>
+    </SidebarMenuButton>
+  );
+}
+
+function PlanNavButtonFallback() {
+  return (
+    <SidebarMenuButton tooltip="My Plan" render={<Link href="/plan" />}>
+      <CalendarCheck />
+      <span>My Plan</span>
     </SidebarMenuButton>
   );
 }

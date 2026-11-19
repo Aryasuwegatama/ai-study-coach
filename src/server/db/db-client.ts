@@ -10,7 +10,7 @@ import * as schema from "./schema";
  * Uses `pg` against the pooled `DATABASE_URL`, which keeps one TCP
  * connection per request/invocation on Vercel's Node.js runtime (not Edge)
  * and gives full, ordinary transaction support — required for quiz
- * submission and revision scheduling (PRD Section 4).
+ * submission and scoring (PRD Section 4).
  *
  * Construction is lazy: nothing reads `serverEnv()` or opens a pool until a
  * query actually runs, so merely importing this module (e.g. because

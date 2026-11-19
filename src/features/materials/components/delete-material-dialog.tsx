@@ -65,7 +65,7 @@ export function DeleteMaterialDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete &quot;{material?.originalName}&quot;?</AlertDialogTitle>
           <AlertDialogDescription>
-            This removes the file from this space and from future quizzes, cards and revision. Past quiz
+            This removes the file from this space and from future quizzes, cards and mistake reviews. Past quiz
             results stay.
           </AlertDialogDescription>
         </AlertDialogHeader>

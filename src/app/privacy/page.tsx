@@ -64,8 +64,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-base font-semibold text-foreground">What we collect</h2>
             <p>
               Your name, email address and profile picture from your Google account; the
-              study materials you upload; your quiz, flashcard and revision results; and
-              your time zone (so &ldquo;due today&rdquo; matches your day).
+              study materials you upload; your quiz and flashcard results, your mistakes to
+              review and your study plan; and your time zone (so dates show in your day).
             </p>
           </section>
 
