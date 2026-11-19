@@ -31,6 +31,7 @@ import { normalizePrompt } from "../src/features/quizzes/quizzes-schemas";
 import { masteryFrom, type SpaceProgress, type TopicMasteryDetail } from "../src/features/progress/progress-schemas";
 import { nextSchedule, type ReviewResult, type RevisionListResponse, type RevisionSessionItem } from "../src/features/revision/revision-schemas";
 import type { AttemptResponse } from "../src/features/attempts/attempts-schemas";
+import type { SetListItemResponse } from "../src/features/quizzes/quizzes-schemas";
 import { POST as startRoute } from "../src/app/api/sets/[id]/attempts/route";
 import { GET as attemptRoute } from "../src/app/api/attempts/[id]/route";
 import { PATCH as answerRoute } from "../src/app/api/attempts/[id]/answers/route";
@@ -42,6 +43,7 @@ import { GET as revisionRoute } from "../src/app/api/revision/route";
 import { POST as sessionRoute } from "../src/app/api/revision/session/route";
 import { POST as reviewRoute } from "../src/app/api/revision/items/[id]/review/route";
 import { DELETE as deleteSetRoute } from "../src/app/api/sets/[id]/route";
+import { GET as setsListRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 
 type CheckResult = { name: string; ok: boolean; message: string };
 const results: CheckResult[] = [];
@@ -164,6 +166,10 @@ async function e2e(a: Session, b: Session) {
   let res = await startRoute(req(`/api/sets/${set.id}/attempts`, a, "POST"), p({ id: set.id }));
   const started = ((await res.json()) as { attempt: AttemptResponse }).attempt;
   check("Start: 201 with 10 questions and no answers, explanations or sources", res.status === 201 && started.questions?.length === 10 && noAnswers(started));
+  check(
+    "Start: every question carries its topic's current name while in progress (T-12b, gap 4)",
+    started.questions!.every((q) => q.topicName === (q.topicId === t1.id ? t1.name : t2.name)),
+  );
   res = await startRoute(req(`/api/sets/${set.id}/attempts`, a, "POST"), p({ id: set.id }));
   const resumed = ((await res.json()) as { attempt: AttemptResponse }).attempt;
   check("Start again: 200 resumes the same in-progress attempt", res.status === 200 && resumed.id === started.id);
@@ -270,6 +276,39 @@ async function e2e(a: Session, b: Session) {
   check("Mastery after retake: Joins 6 of 6 = 100%, on track (only latest answers count)", joins().status === "on_track" && joins().percent === 100 && joins().counted === 6);
   check("Mastery after retake: unanswered Indexes questions don't count", indexes().counted === 4);
   check("Revision: wrong answers already scheduled are not duplicated", (await db.select({ n: count() }).from(revisionItems).where(eq(revisionItems.studentId, a.userId)))[0].n === 3);
+
+  // --- Gap 1 (T-12b): the Quiz Library's list fields ----------------------------------
+  const listForSpace = async (session: Session) =>
+    ((await (await setsListRoute(req(`/api/spaces/${space.id}/sets?kind=quiz`, session), p({ spaceId: space.id }))).json()) as { sets: SetListItemResponse[] }).sets;
+  let setsList = await listForSpace(a);
+  let listedSet = setsList.find((s) => s.id === set.id)!;
+  check(
+    "List: after a submitted retake, hasResults is true, latestAttempt is that result, activeCount counts every published item",
+    listedSet.hasResults === true &&
+      listedSet.latestAttempt.status === "submitted" &&
+      listedSet.latestAttempt.attemptId === retake.id &&
+      listedSet.activeCount === 10,
+    JSON.stringify(listedSet.latestAttempt),
+  );
+
+  // Retake again, but Save & exit (never submit): hasResults must stay true from the earlier submitted attempt, and Delete must still refuse.
+  res = await startRoute(req(`/api/sets/${set.id}/attempts`, a, "POST"), p({ id: set.id }));
+  const secondRetake = ((await res.json()) as { attempt: AttemptResponse }).attempt;
+  check("Second retake: a fresh in-progress attempt", res.status === 201 && secondRetake.id !== retake.id);
+  await answerRoute(req(`/api/attempts/${secondRetake.id}/answers`, a, "PATCH", { itemId: secondRetake.questions![0].itemId, selectedIndex: 0 }), p({ id: secondRetake.id }));
+  setsList = await listForSpace(a);
+  listedSet = setsList.find((s) => s.id === set.id)!;
+  check(
+    "List after Retake + Save & exit: hasResults stays true; latestAttempt is the new in-progress attempt with its answered count",
+    listedSet.hasResults === true &&
+      listedSet.latestAttempt.status === "in_progress" &&
+      listedSet.latestAttempt.attemptId === secondRetake.id &&
+      listedSet.latestAttempt.answeredCount === 1 &&
+      listedSet.latestAttempt.totalCount === 10,
+    JSON.stringify(listedSet.latestAttempt),
+  );
+  res = await deleteSetRoute(req(`/api/sets/${set.id}`, a, "DELETE"), p({ id: set.id }));
+  check("Delete after Retake + Save & exit still refuses: 409 SET_HAS_RESULTS", res.status === 409 && (await errorCode(res)) === "SET_HAS_RESULTS");
 
   // Newest 10 only: a second quiz with 6 more Joins questions, all wrong.
   const second = await seedSet(space.id, chunkIds, Array(6).fill(t1.id));

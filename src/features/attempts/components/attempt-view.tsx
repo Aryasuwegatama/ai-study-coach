@@ -7,7 +7,8 @@ import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { QuizzesClientError, type ExampleAttemptResponse, type QuizzesClient } from "@/features/quizzes/client/quizzes-client";
+import { QuizzesClientError, type QuizzesClient } from "@/features/quizzes/client/quizzes-client";
+import type { AttemptResponse } from "../attempts-schemas";
 import { AttemptQuestionCard } from "./attempt-question-card";
 import { AttemptQuestionNav } from "./attempt-question-nav";
 import { SubmitConfirmationDialog } from "./submit-confirmation-dialog";
@@ -30,7 +31,7 @@ const AUTOSAVE_LABEL: Record<AutosaveStatus, string> = {
  */
 export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId: string; client: QuizzesClient }) {
   const router = useRouter();
-  const [attempt, setAttempt] = useState<ExampleAttemptResponse | null>(null);
+  const [attempt, setAttempt] = useState<AttemptResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
@@ -64,8 +65,9 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
 
   const questions = useMemo(() => attempt?.questions ?? [], [attempt]);
   const current = questions[currentIndex];
+  // Numbered by display order (1…N), not `position`, which the server counts from 0.
   const unansweredPositions = useMemo(
-    () => questions.filter((question) => question.selectedIndex === null).map((question) => question.position),
+    () => questions.flatMap((question, index) => (question.selectedIndex === null ? [index + 1] : [])),
     [questions],
   );
 
@@ -236,9 +238,6 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
         <h2 className="text-xl font-semibold text-foreground">
           Question {currentIndex + 1} of {questions.length}
         </h2>
-        <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
-          EXAMPLE DATA
-        </span>
       </div>
 
       <AttemptQuestionNav questions={questions} currentIndex={currentIndex} onSelect={goTo} />

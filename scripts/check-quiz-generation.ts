@@ -216,7 +216,7 @@ async function e2e(a: Session, b: Session) {
   const calls = await db.select().from(aiCalls).where(eq(aiCalls.jobId, job.id));
   check(
     "ai_calls: query embedding, write and answer check logged with prompt versions",
-    calls.some((c) => c.purpose === "embed_query") && calls.some((c) => c.purpose === "write_questions" && c.promptVersion === "quiz-v1") && calls.some((c) => c.purpose === "check_answers" && c.promptVersion === "check-v1"),
+    calls.some((c) => c.purpose === "embed_query") && calls.some((c) => c.purpose === "write_questions" && c.promptVersion === "quiz-v2") && calls.some((c) => c.purpose === "check_answers" && c.promptVersion === "check-v1"),
   );
 
   res = await getRoute(req(`/api/sets/${created.id}`, a), p({ id: created.id }));

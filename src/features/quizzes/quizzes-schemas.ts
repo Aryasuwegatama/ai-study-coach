@@ -15,8 +15,11 @@ import { z } from "zod";
  *   3. topics ≤ question count (else 400 `TOO_MANY_TOPICS`);
  *   4. fewer than `DAILY_GENERATION_LIMIT` generations since local midnight
  *      in the student's time zone (else 429 `DAILY_LIMIT_REACHED`).
- * - `GET /api/spaces/:spaceId/sets?kind=quiz` → `{ sets: SetResponse[] }`,
- *   newest first.
+ * - `GET /api/spaces/:spaceId/sets?kind=quiz` → `{ sets: SetListItemResponse[] }`,
+ *   newest first (T-12b: `latestAttempt`, `hasResults` and `activeCount`
+ *   added to each set, computed in one query for the whole list — not one
+ *   per quiz). Only this route returns the extra fields; `POST …/sets` and
+ *   `GET /api/sets/:id` keep returning plain `SetResponse`.
  * - `GET /api/sets/:id` → `SetDetailResponse`. Items never include the
  *   correct option, explanation or sources (answers only come back from a
  *   submitted attempt, T-14).
@@ -114,6 +117,30 @@ export type QuizItemPublic = {
 
 export type SetDetailResponse = { set: SetResponse; items: QuizItemPublic[] };
 
+/** The student's newest attempt on a quiz (T-12b, gap 1): `none`, in
+ * progress or submitted. Needed by the library to decide between Start,
+ * Resume and View results/Retake. */
+export type LatestAttemptSummary =
+  | { status: "none" }
+  | { status: "in_progress"; attemptId: string; answeredCount: number; totalCount: number }
+  | { status: "submitted"; attemptId: string; score: number; total: number; percent: number };
+
+/**
+ * `GET /api/spaces/:spaceId/sets`'s per-quiz list fields (T-12b, gap 1).
+ * `hasResults` is separate from `latestAttempt` because a retake makes the
+ * latest attempt "in progress" while an earlier submitted attempt still
+ * exists, and that earlier one is what blocks Delete (`SET_HAS_RESULTS`,
+ * checked against every attempt row by `quizzes-service.ts`).
+ * `activeCount` is the quiz's `active` (not reported-and-removed)
+ * question count, used by the library to show "every question removed"
+ * instead of Start/Retake (`SET_NO_ACTIVE_QUESTIONS`).
+ */
+export type SetListItemResponse = SetResponse & {
+  latestAttempt: LatestAttemptSummary;
+  hasResults: boolean;
+  activeCount: number;
+};
+
 /** Lower case, punctuation and extra spaces removed (the duplicate-question check). */
 export function normalizePrompt(prompt: string): string {
   return prompt
@@ -121,6 +148,21 @@ export function normalizePrompt(prompt: string): string {
     .replace(/[^\p{L}\p{N}\s]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** An option label the AI sometimes writes despite the prompt: "A ", "A. ", "A) ", "(A) ", "A: ", "A - ". */
+const OPTION_LABEL = /^\s*\(?([A-D])(?:[.):-]\s*|\s+)/i;
+
+/**
+ * Removes AI-written option labels before a question is saved, since the
+ * app shuffles options and labels them A–D by position itself (T-12b).
+ * Only strips when the four options carry A, B, C and D exactly once
+ * each, so real text like four options all starting "A table …" stays.
+ */
+export function stripOptionLabels(options: string[]): string[] {
+  const letters = options.map((o) => OPTION_LABEL.exec(o)?.[1]?.toUpperCase());
+  if (options.length !== 4 || [...new Set(letters)].sort().join("") !== "ABCD") return options;
+  return options.map((o) => o.replace(OPTION_LABEL, "").trim() || o);
 }
 
 /** Spread `count` questions as evenly as possible over topics; earlier topics take the remainder. */

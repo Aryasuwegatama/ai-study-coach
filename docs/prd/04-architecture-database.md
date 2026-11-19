@@ -198,12 +198,14 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
 - Deleting a material in Review topics deletes its draft topics; confirmed topics stay. A topic is deleted only together with its last material, and only if no quiz or flashcard item was ever generated for it and no quiz lists it; otherwise it stays (confirmed or archived) with its history (Arya, 2026-11-19, T-09c).
 - Topics left without any linked material, because they have history, stay confirmed and keep it. The Overview lists them separately as "Topics from deleted materials" (`?materials=unlinked`, T-09c). Confirming a material later relinks topics with the same name.
+- `TopicResponse.materialIds` (T-12b, gap 2): every linked material, from `material_topics`, on every `GET /api/spaces/:spaceId/topics` response. Lets the quiz setup screen join materials to their own confirmed topics client-side instead of a dedicated endpoint.
 
 **Quiz contract notes (T-11a).** The source of truth is `src/features/quizzes/quizzes-schemas.ts`.
 - `POST /api/spaces/:spaceId/sets` accepts `kind: "quiz"` only for now (decks are a later task). It checks, in order: Ready materials in this space, confirmed topics of those materials, topics ≤ questions, then the daily limit (429 `DAILY_LIMIT_REACHED`).
 - `GET /api/sets/:id` never returns the correct option, explanation or sources.
 - `DELETE /api/sets/:id` (updated #35, Arya 2026-11-14): 409 `SET_HAS_RESULTS` when the quiz has a submitted attempt; otherwise 204, and an in-progress attempt goes with it. The service locks the quiz row, then its attempt rows, before checking. A concurrent submit either finishes first (delete refused) or finds its attempt gone (404 `ATTEMPT_NOT_FOUND`); a first attempt being created at that moment finishes first and is counted, and a start that arrives after waits, then gets 404 `SET_NOT_FOUND` (Codex review on #37).
 - The database rejects an MCQ without exactly four options and a 0–3 correct index, and any item or source that crosses Study Spaces. Deleting a material removes its source links, so past results show "Source removed".
+- `GET /api/spaces/:spaceId/sets?kind=quiz` → `SetListItemResponse[]` (T-12b, gap 1): adds `latestAttempt`, `hasResults` and `activeCount` per quiz, computed in three queries for the whole list (sets, attempts, item counts), never one per quiz. `POST …/sets` and `GET /api/sets/:id` are unchanged.
 
 **Quiz generation notes (T-11b).**
 - `generate_quiz` job steps: `retrieve` → `write:k` (one per group of at most 40 sources) → `top_up:k` → `publish`. `jobs.payload` holds the plan as ids and counts only.
@@ -211,6 +213,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - Questions are saved on the `generating` set as they pass; `publish` marks the set `ready` with at least 5, or deletes them and marks it `failed` (`TOO_FEW_QUESTIONS`). A set deleted mid-generation stops its job (`SET_GONE`).
 - The daily limit counts `generate_quiz`/`generate_deck` jobs since local midnight in the student's `time_zone` (UTC when unset or unknown).
 - Try again on a failed quiz creates a new set (ponytail: no in-place retry). Rejected questions are logged to the server console only.
+- Options are saved as plain text (T-12b, prompt `quiz-v2`): the prompt asks for no letter labels, and `stripOptionLabels()` removes them before the checks when the AI still writes them, but only when the four options carry A, B, C and D once each. The screens label options A–D by displayed position, so a shuffled retake still reads A–D. A question removed by a report is not replaced; the quiz card shows "N questions removed after a report".
 
 **Attempts, mastery and revision notes (T-14).** The sources of truth are `src/features/attempts/attempts-schemas.ts`, `src/features/progress/progress-schemas.ts` and `src/features/revision/revision-schemas.ts`.
 - `attempt_items.option_order[d]` is the stored option shown at position `d`; `selected_index` stores the original index. The browser always sends and receives displayed indexes.
@@ -218,6 +221,13 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 - Mastery is `countedAnswers()` in `features/progress`, reused for revision's "weak first". "Weak" compares the exact ratio (60% is on track).
 - Revision dates are computed in SQL from the student's `time_zone` (UTC when unset). `revision_events` is unique on `(revision_item_id, request_key)`, so a key only ever returns that student's own event. A review is only accepted once the item is due (409 `REVISION_NOT_DUE`), but a repeated key returns its first result before that check.
 - Questions that are removed, or whose material was deleted (no `item_sources` left), leave My Revision and are not added to it; submitted attempts stay and show "Source removed". Decks/cards (`again`/`got_it`) are not implemented yet.
+- `AttemptQuestion.topicName` (T-12b, gap 4): the topic's current name, passed through while an attempt is still in progress (results already had it). `QuestionResult` inherits it instead of redeclaring it.
+- `POST /api/sets/:id/attempts` on a `ready` quiz with no `active` items left (every one removed by a report) → 409 `SET_NO_ACTIVE_QUESTIONS` (T-12b), not `SET_NOT_READY` — a `ready` quiz always published at least `MIN_PUBLISHED_QUESTIONS`, so none left active means every one was removed, not that generation isn't done.
+
+**Reports contract notes (T-12b).** The source of truth is `src/features/reports/reports-schemas.ts`.
+- `POST /api/items/:id/report` → 201 `{ report }`. One report per student per question (unique `(reporter_id, item_id)`), never edited or withdrawn in Core — no PATCH or DELETE. Missing, malformed or another student's item → 404 `ITEM_NOT_FOUND`; a second report on the same question → 409 `ITEM_ALREADY_REPORTED`.
+- "Remove from my practice" sets the reported item's `learning_items.status` to `removed`, in the same transaction as the insert. Generation, attempts, mastery and revision already filter on `status = 'active'`, so nothing else changes; past submitted results keep their stored score.
+- `QuestionResult.report` (`{ reason, removedFromPractice } | null`): this student's own report on that question, read back on the Results answer review after a reload.
 
 **Error format:** `{ "error": { "code": "DAILY_LIMIT_REACHED", "message": "Daily limit reached, try again tomorrow." } }`. Codes are stable so the UI and tests can rely on them.
 

@@ -7,6 +7,7 @@ import {
   attemptItems,
   attempts,
   chunks,
+  contentReports,
   itemSources,
   learningItems,
   materials,
@@ -81,7 +82,10 @@ export async function startAttempt(user: SessionUser, setId: string): Promise<{ 
     .select({ id: learningItems.id })
     .from(learningItems)
     .where(and(eq(learningItems.setId, set.id), eq(learningItems.status, "active")));
-  if (!items.length) throw attemptError("SET_NOT_READY");
+  // A `ready` quiz always published at least `MIN_PUBLISHED_QUESTIONS`, so
+  // none left active here means every one was removed by a report, not
+  // that the quiz itself isn't ready yet (T-12b).
+  if (!items.length) throw attemptError("SET_NO_ACTIVE_QUESTIONS");
 
   try {
     const attempt = await db.transaction(async (tx) => {
@@ -208,10 +212,11 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
     .where(eq(attemptItems.attemptId, attempt.id))
     .orderBy(asc(attemptItems.position));
 
-  const questions: AttemptQuestion[] = rows.map(({ item, li }) => ({
+  const questions: AttemptQuestion[] = rows.map(({ item, li, topicName }) => ({
     itemId: item.itemId,
     position: item.position,
     topicId: li.topicId,
+    topicName,
     prompt: li.prompt,
     options: item.optionOrder.map((o) => (li.options ?? [])[o]),
     selectedIndex: item.selectedIndex === null ? null : item.optionOrder.indexOf(item.selectedIndex),
@@ -234,6 +239,14 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
         .where(inArray(itemSources.itemId, rows.map((r) => r.item.itemId)))
     : [];
 
+  const reportRows = rows.length
+    ? await db
+        .select({ itemId: contentReports.itemId, reason: contentReports.reason, removedFromPractice: contentReports.removedFromPractice })
+        .from(contentReports)
+        .where(and(eq(contentReports.reporterId, attempt.studentId), inArray(contentReports.itemId, rows.map((r) => r.item.itemId))))
+    : [];
+  const reportByItemId = new Map(reportRows.map((r) => [r.itemId, { reason: r.reason, removedFromPractice: r.removedFromPractice }]));
+
   const topicScores = new Map<string, AttemptResult["topics"][number]>();
   const results = rows.map(({ item, li, topicName }, i) => {
     const isCorrect = item.isCorrect === true;
@@ -243,7 +256,6 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
     topicScores.set(li.topicId, t);
     return {
       ...questions[i],
-      topicName,
       correctIndex: item.optionOrder.indexOf(li.correctIndex!),
       isCorrect,
       explanation: li.explanation,
@@ -256,6 +268,7 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
           excerpt: s.chunk.content.slice(0, 600),
         })),
       aiGenerated: true as const,
+      report: reportByItemId.get(item.itemId) ?? null,
     };
   });
   const score = attempt.score ?? 0;

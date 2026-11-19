@@ -13,3 +13,4 @@ export * from "./topics";
 export * from "./ai-calls";
 export * from "./study-sets";
 export * from "./attempts";
+export * from "./content-reports";

@@ -85,9 +85,6 @@ export function ResultsView({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold text-foreground">Results</h2>
-        <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
-          EXAMPLE DATA
-        </span>
       </div>
 
       <Card className="rounded-[20px] p-6">
@@ -107,7 +104,7 @@ export function ResultsView({
 
       <ResultsTopicScores topics={result.topics} />
 
-      <AnswerReviewList questions={result.questions} />
+      <AnswerReviewList questions={result.questions} client={client} />
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="outline" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes`} />}>

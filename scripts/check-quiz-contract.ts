@@ -14,7 +14,7 @@ import { eq } from "drizzle-orm";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
 import { chunks, itemSources, learningItems, materials, studySets, studySpaces, topics } from "../src/server/db/schema";
-import { createQuizSchema, normalizePrompt, spreadQuestions } from "../src/features/quizzes/quizzes-schemas";
+import { createQuizSchema, normalizePrompt, spreadQuestions, stripOptionLabels } from "../src/features/quizzes/quizzes-schemas";
 
 const results: { name: string; ok: boolean; message: string }[] = [];
 const check = (name: string, ok: boolean, message = "") => results.push({ name, ok, message });
@@ -41,6 +41,15 @@ async function main() {
   check("Spread: 10 over 3 topics is 4,3,3", spreadQuestions(10, 3).join(",") === "4,3,3");
   check("Spread: 5 over 5 topics is 1 each", spreadQuestions(5, 5).join(",") === "1,1,1,1,1");
   check("Normalised prompt ignores case and punctuation", normalizePrompt("What is a PRIMARY key?") === normalizePrompt("what is a primary  key"));
+  const labelled = ["C To eliminate the need for keys", "A To increase data redundancy", "D To always require more tables", "B To reduce data repetition and anomalies"];
+  check(
+    "Option labels: AI-written A–D labels (any order) are stripped",
+    stripOptionLabels(labelled).join("|") === "To eliminate the need for keys|To increase data redundancy|To always require more tables|To reduce data repetition and anomalies",
+  );
+  check("Option labels: 'A.', '(B)', 'C)' and 'D:' styles are stripped too", stripOptionLabels(["A. one", "(B) two", "C) three", "D: four"]).join("|") === "one|two|three|four");
+  const natural = ["A table where every column is atomic.", "A table with a unique key.", "A table with transitive dependencies.", "A table designed to minimise storage."];
+  check("Option labels: real text that only starts with 'A ' is left alone", stripOptionLabels(natural).join("|") === natural.join("|"));
+  check("Option labels: only three labelled options are left alone", stripOptionLabels(["A one", "B two", "C three", "four"]).join("|") === "A one|B two|C three|four");
 
   const test = (await buildTestAuth().$context).test;
   const user = await test.saveUser(test.createUser({ email: `check-quiz-contract-${Date.now()}@example.com`, name: "Quiz contract", role: "student" }));

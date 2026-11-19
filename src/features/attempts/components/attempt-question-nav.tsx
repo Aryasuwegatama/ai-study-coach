@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/class-names";
-import type { AttemptQuestionWithTopicName } from "@/features/quizzes/fixtures/quizzes-sample-types";
+import type { AttemptQuestion } from "../attempts-schemas";
 
 /** The question navigator, 1…N (issue #46). Wraps at phone width (375px
  * acceptance criterion) rather than scrolling sideways. */
@@ -10,7 +10,7 @@ export function AttemptQuestionNav({
   currentIndex,
   onSelect,
 }: {
-  questions: AttemptQuestionWithTopicName[];
+  questions: AttemptQuestion[];
   currentIndex: number;
   onSelect: (index: number) => void;
 }) {

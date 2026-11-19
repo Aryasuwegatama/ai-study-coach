@@ -16,6 +16,30 @@ export function MaterialsOverviewCard({ spaceId, materials }: { spaceId: string;
   const preview = materials.slice(0, PREVIEW_COUNT);
   const remaining = materials.length - preview.length;
 
+  // A space can reach the populated layout with 0 materials (T-12b: a
+  // topic with quiz history keeps the Overview out of the Welcome card
+  // even after its last material is deleted), so this card needs its own
+  // empty line and upload link rather than an empty list with nothing
+  // underneath it.
+  if (materials.length === 0) {
+    return (
+      <Card className="rounded-[20px] p-6">
+        <CardContent className="flex flex-col gap-4 p-0">
+          <h2 className="text-lg font-semibold text-foreground">Materials · 0</h2>
+          <p className="text-sm text-muted-foreground">No materials yet.</p>
+          <Button
+            type="button"
+            className="w-fit rounded-full"
+            nativeButton={false}
+            render={<Link href={`/spaces/${spaceId}/materials?upload=1`} />}
+          >
+            Upload material
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="rounded-[20px] p-6">
       <CardContent className="flex flex-col gap-4 p-0">

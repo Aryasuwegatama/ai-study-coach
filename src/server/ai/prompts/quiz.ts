@@ -4,7 +4,7 @@ import { z } from "zod";
  * Write MCQs from labelled sources (PRD Section 3, Pipeline B step 3), and
  * the separate answer check (step 5). Bump a version when its prompt changes.
  */
-export const PROMPT_VERSION = "quiz-v1";
+export const PROMPT_VERSION = "quiz-v2";
 export const CHECK_PROMPT_VERSION = "check-v1";
 
 export const writtenQuestionsSchema = z.object({
@@ -25,7 +25,7 @@ export type WrittenQuestion = z.infer<typeof writtenQuestionsSchema>["questions"
 export const WRITE_SYSTEM = `You write multiple-choice questions for a student, using only the sources given.
 For each topic, write exactly the number of questions asked. Each question has:
 - question: one clear question;
-- options: four different answers, exactly one of them correct;
+- options: four different answers, exactly one of them correct, each as plain answer text with no letter or number label (not "A. ..." or "1) ..."), because the app shuffles and labels them itself;
 - correctOption: the index (0-3) of the correct option;
 - explanation: why the correct option is right, from the sources;
 - topic: the topic label, such as "T1";

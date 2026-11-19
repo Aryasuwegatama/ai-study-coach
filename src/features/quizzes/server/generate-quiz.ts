@@ -16,6 +16,7 @@ import {
   MIN_PUBLISHED_QUESTIONS,
   normalizePrompt,
   spreadQuestions,
+  stripOptionLabels,
   type SetFailureCode,
 } from "../quizzes-schemas";
 
@@ -311,7 +312,9 @@ async function writeGroup(job: Job, set: StudySet, k: number, topUp: boolean): P
     const sourceLabels = new Map(sources.map((s) => [s.label, s]));
     const left = new Map(need);
     const candidates: { q: quizPrompt.WrittenQuestion; topicId: string; chunkIds: string[] }[] = [];
-    for (const q of written.questions) {
+    for (const raw of written.questions) {
+      // Before the checks, so the answer check and the saved item both see clean option text.
+      const q = { ...raw, options: stripOptionLabels(raw.options) };
       const problem = codeCheck(q, new Set(topicLabels.keys()), new Set(sourceLabels.keys()), seen);
       const topicId = topicLabels.get(q.topic);
       if (problem || !topicId) {
