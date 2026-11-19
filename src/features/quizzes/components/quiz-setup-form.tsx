@@ -26,6 +26,7 @@ function isQuestionCount(value: number): value is QuestionCount {
  * than a dedicated endpoint. Not part of the `QuizzesClient` contract. */
 type SetupTopic = { id: string; name: string };
 type SetupMaterial = { id: string; name: string; ready: boolean; topics: SetupTopic[] };
+type Selection = { materialIds: Set<string>; topicIds: Set<string> };
 
 function loadErrorMessage(err: unknown): string {
   if (err instanceof MaterialsClientError || err instanceof TopicsClientError) return err.message;
@@ -48,7 +49,7 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
 
   const [materials, setMaterials] = useState<SetupMaterial[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedTopicIds, setSelectedTopicIds] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<Selection>({ materialIds: new Set(), topicIds: new Set() });
   const [count, setCount] = useState<QuestionCount>(10);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -73,24 +74,29 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
           topics: topicRows.filter((topic) => topic.materialIds.includes(material.id)).map((topic) => ({ id: topic.id, name: topic.name })),
         }));
         setMaterials(list);
+        const ready = list.filter((m) => m.ready);
 
         if (retryParam) {
           try {
             const detail = await client.getSet(retryParam);
             if (ignore) return;
-            setSelectedTopicIds(new Set(detail.set.topicIds));
+            // The quiz's own materials, not every material its topics touch.
+            setSelection({ materialIds: new Set(detail.set.materialIds), topicIds: new Set(detail.set.topicIds) });
             if (isQuestionCount(detail.set.requestedCount)) setCount(detail.set.requestedCount);
             return;
           } catch {
             // Falls through to the default selection below if the quiz can't be read.
           }
         } else if (topicParam) {
-          setSelectedTopicIds(new Set([topicParam]));
+          const withTopic = ready.filter((m) => m.topics.some((t) => t.id === topicParam));
+          setSelection({ materialIds: new Set(withTopic.map((m) => m.id)), topicIds: new Set([topicParam]) });
           return;
         }
 
-        const allTopicIds = list.filter((m) => m.ready).flatMap((m) => m.topics.map((t) => t.id));
-        setSelectedTopicIds(new Set(allTopicIds));
+        setSelection({
+          materialIds: new Set(ready.map((m) => m.id)),
+          topicIds: new Set(ready.flatMap((m) => m.topics.map((t) => t.id))),
+        });
       } catch (err) {
         if (ignore) return;
         setLoadError(loadErrorMessage(err));
@@ -116,34 +122,62 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
   const readyMaterials = useMemo(() => materials?.filter((m) => m.ready) ?? [], [materials]);
   const notReadyMaterials = useMemo(() => materials?.filter((m) => !m.ready) ?? [], [materials]);
 
+  // Materials and topics are tracked separately (Codex review on #50): a
+  // confirmed topic can belong to several materials, and ticking it under
+  // one must not select the others. The request still sends one list of
+  // each, so a ticked topic is shown ticked under every selected material
+  // it belongs to.
+  function topicChecked(material: SetupMaterial, topicId: string): boolean {
+    return selection.materialIds.has(material.id) && selection.topicIds.has(topicId);
+  }
+
   function materialChecked(material: SetupMaterial): boolean {
-    return material.topics.length > 0 && material.topics.every((topic) => selectedTopicIds.has(topic.id));
+    return material.topics.length > 0 && material.topics.every((topic) => topicChecked(material, topic.id));
   }
 
   function toggleMaterial(material: SetupMaterial, checked: boolean) {
-    setSelectedTopicIds((prev) => {
-      const next = new Set(prev);
-      for (const topic of material.topics) {
-        if (checked) next.add(topic.id);
-        else next.delete(topic.id);
+    setSelection((prev) => {
+      const materialIds = new Set(prev.materialIds);
+      const topicIds = new Set(prev.topicIds);
+      if (checked) {
+        materialIds.add(material.id);
+        for (const topic of material.topics) topicIds.add(topic.id);
+      } else {
+        materialIds.delete(material.id);
+        // Keep a topic another selected material still offers.
+        const keptElsewhere = new Set(
+          readyMaterials.filter((m) => materialIds.has(m.id)).flatMap((m) => m.topics.map((t) => t.id)),
+        );
+        for (const topic of material.topics) if (!keptElsewhere.has(topic.id)) topicIds.delete(topic.id);
       }
-      return next;
+      return { materialIds, topicIds };
     });
   }
 
-  function toggleTopic(topicId: string, checked: boolean) {
-    setSelectedTopicIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(topicId);
-      else next.delete(topicId);
-      return next;
+  function toggleTopic(material: SetupMaterial, topicId: string, checked: boolean) {
+    setSelection((prev) => {
+      const materialIds = new Set(prev.materialIds);
+      const topicIds = new Set(prev.topicIds);
+      if (checked) {
+        topicIds.add(topicId);
+        materialIds.add(material.id);
+      } else {
+        topicIds.delete(topicId);
+        if (!material.topics.some((t) => topicIds.has(t.id))) materialIds.delete(material.id);
+      }
+      return { materialIds, topicIds };
     });
   }
 
-  const selectedMaterialIds = readyMaterials
-    .filter((material) => material.topics.some((topic) => selectedTopicIds.has(topic.id)))
-    .map((material) => material.id);
-  const selectedTopicCount = selectedTopicIds.size;
+  // What gets sent: selected Ready materials with at least one ticked
+  // topic, and only topics those materials offer.
+  const sentMaterials = readyMaterials.filter(
+    (m) => selection.materialIds.has(m.id) && m.topics.some((t) => selection.topicIds.has(t.id)),
+  );
+  const selectedMaterialIds = sentMaterials.map((m) => m.id);
+  const offered = new Set(sentMaterials.flatMap((m) => m.topics.map((t) => t.id)));
+  const selectedTopicIds = [...selection.topicIds].filter((id) => offered.has(id));
+  const selectedTopicCount = selectedTopicIds.length;
   const tooManyTopics = selectedTopicCount > count;
   const canGenerate = selectedMaterialIds.length > 0 && selectedTopicCount > 0 && !tooManyTopics && !submitting;
 
@@ -161,7 +195,7 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
       const request: CreateQuizRequest = {
         kind: "quiz",
         materialIds: selectedMaterialIds,
-        topicIds: [...selectedTopicIds],
+        topicIds: selectedTopicIds,
         count,
       };
       await client.createQuiz(request);
@@ -234,8 +268,8 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
                   <li key={topic.id}>
                     <label className="flex items-center gap-2 text-sm text-foreground">
                       <Checkbox
-                        checked={selectedTopicIds.has(topic.id)}
-                        onCheckedChange={(checked) => toggleTopic(topic.id, checked)}
+                        checked={topicChecked(material, topic.id)}
+                        onCheckedChange={(checked) => toggleTopic(material, topic.id, checked)}
                       />
                       {topic.name}
                     </label>

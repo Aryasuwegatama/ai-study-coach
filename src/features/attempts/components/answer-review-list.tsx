@@ -17,20 +17,22 @@ import { ReportIssueDialog } from "./report-issue-dialog";
  * after a reload) shows "Reported" instead of the button.
  */
 export function AnswerReviewList({ questions, client }: { questions: QuestionResult[]; client: QuizzesClient }) {
-  const [reports, setReports] = useState<Record<string, ItemReport | null>>(() =>
-    Object.fromEntries(questions.map((question) => [question.itemId, question.report])),
-  );
+  // Only reports made during this visit. The server's `question.report`
+  // wins otherwise: Cache Components keeps this list mounted across
+  // navigations, so state seeded once from props would go stale when the
+  // results are fetched again (Codex review on #50).
+  const [newReports, setNewReports] = useState<Record<string, ItemReport>>({});
   const [reportTarget, setReportTarget] = useState<QuestionResult | null>(null);
 
   function handleReported(itemId: string, report: ItemReport) {
-    setReports((prev) => ({ ...prev, [itemId]: report }));
+    setNewReports((prev) => ({ ...prev, [itemId]: report }));
   }
 
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-lg font-semibold text-foreground">Review answers</h3>
       {questions.map((question, questionIndex) => {
-        const report = reports[question.itemId] ?? null;
+        const report = newReports[question.itemId] ?? question.report;
         return (
         <Card key={question.itemId} className="rounded-[20px] p-5">
           <CardContent className="flex flex-col gap-3 p-0">
