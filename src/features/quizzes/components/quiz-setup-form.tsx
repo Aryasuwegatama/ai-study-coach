@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,17 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
       ignore = true;
     };
   }, [client, retryParam, topicParam]);
+
+  // Next 16 keeps this page alive, hidden, after "Generate quiz" navigates
+  // to the library (`preserving-ui-state.md`), so coming back would show
+  // a stuck "Generating…" button. Reset the submit state when it's hidden;
+  // the load effect above re-applies the selection on return.
+  useLayoutEffect(() => {
+    return () => {
+      setSubmitting(false);
+      setSubmitError(null);
+    };
+  }, []);
 
   const readyMaterials = useMemo(() => materials?.filter((m) => m.status === "ready") ?? [], [materials]);
   const notReadyMaterials = useMemo(() => materials?.filter((m) => m.status !== "ready") ?? [], [materials]);

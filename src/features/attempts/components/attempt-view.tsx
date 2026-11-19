@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,11 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
   const [submitOpen, setSubmitOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [exiting, setExiting] = useState(false);
+  const [pendingSaves, setPendingSaves] = useState(0);
+  // Save & exit: "waiting" while queued saves finish; "failed" when one
+  // couldn't be saved, which turns the button into "Exit without saving"
+  // so the student is never stuck on this page.
+  const [exitState, setExitState] = useState<"idle" | "waiting" | "failed">("idle");
 
   useEffect(() => {
     let ignore = false;
@@ -72,6 +76,28 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const failedItemIds = useRef(new Set<string>());
 
+  // Next 16 (Cache Components) hides this page with React `<Activity>`
+  // when the student navigates away, instead of unmounting it, and shows
+  // the same instance again on return — e.g. Retake after a submit comes
+  // back to this URL with the submit dialog still open and spinning. The
+  // cleanup runs when the page is hidden (`preserving-ui-state.md`) and
+  // resets everything that belongs to that visit; on return, the effect
+  // above runs again and loads a fresh `startOrResumeAttempt`.
+  useLayoutEffect(() => {
+    const failed = failedItemIds.current;
+    return () => {
+      setAttempt(null);
+      setLoadError(null);
+      setCurrentIndex(0);
+      setAutosaveStatus("idle");
+      setSubmitOpen(false);
+      setSubmitting(false);
+      setSubmitError(null);
+      setExitState("idle");
+      failed.clear();
+    };
+  }, []);
+
   async function saveWithRetry(attemptId: string, itemId: string, selectedIndex: number | null): Promise<boolean> {
     for (let tryCount = 0; tryCount < 2; tryCount++) {
       setAutosaveStatus(tryCount > 0 ? "retrying" : "saving");
@@ -89,6 +115,7 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
     if (!attempt) return;
     const attemptId = attempt.id;
     setAutosaveStatus("saving");
+    setPendingSaves((count) => count + 1);
     // The save's response isn't applied to `attempt`: the local selections
     // are already up to date (optimistic), and a response could predate a
     // newer selection that's still waiting in the queue.
@@ -96,7 +123,11 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
       const saved = await saveWithRetry(attemptId, itemId, selectedIndex);
       if (saved) failedItemIds.current.delete(itemId);
       else failedItemIds.current.add(itemId);
-      setAutosaveStatus(failedItemIds.current.size > 0 ? "error" : "saved");
+      const hasFailures = failedItemIds.current.size > 0;
+      setAutosaveStatus(hasFailures ? "error" : "saved");
+      // Choosing a failed answer again and saving it clears "Exit without saving".
+      if (!hasFailures) setExitState((state) => (state === "failed" ? "idle" : state));
+      setPendingSaves((count) => count - 1);
     });
   }
 
@@ -126,14 +157,30 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
     setCurrentIndex(Math.min(Math.max(index, 0), questions.length - 1));
   }
 
-  async function handleSaveAndExit() {
-    setExiting(true);
-    if (await flushSaves()) {
-      router.push(`/spaces/${spaceId}/quizzes`);
+  const quizzesHref = `/spaces/${spaceId}/quizzes`;
+
+  /**
+   * Save & exit is a plain link. With nothing to wait for (every answer
+   * already saved), or after a failed save ("Exit without saving"), the
+   * link just navigates. Only while a save is still running does it hold
+   * the navigation, wait for the queue, and then go — resetting the label
+   * first, so "Saving…" covers the save itself, never the page load.
+   */
+  async function handleSaveAndExit(event: MouseEvent<HTMLElement>) {
+    if (exitState === "failed") return;
+    if (exitState === "waiting") {
+      event.preventDefault();
       return;
     }
-    // `autosaveStatus` is already "error", which tells the student why.
-    setExiting(false);
+    if (pendingSaves === 0 && failedItemIds.current.size === 0) return;
+    event.preventDefault();
+    setExitState("waiting");
+    if (await flushSaves()) {
+      setExitState("idle");
+      router.push(quizzesHref);
+      return;
+    }
+    setExitState("failed");
   }
 
   async function handleSubmit() {
@@ -222,8 +269,15 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" className="rounded-full" disabled={exiting} onClick={() => void handleSaveAndExit()}>
-            {exiting ? "Saving…" : "Save & exit"}
+          <Button
+            variant="outline"
+            className="rounded-full"
+            aria-disabled={exitState === "waiting"}
+            nativeButton={false}
+            render={<Link href={quizzesHref} />}
+            onClick={(event) => void handleSaveAndExit(event)}
+          >
+            {exitState === "waiting" ? "Saving…" : exitState === "failed" ? "Exit without saving" : "Save & exit"}
           </Button>
           <Button type="button" className="rounded-full" onClick={() => setSubmitOpen(true)}>
             Submit
