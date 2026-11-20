@@ -356,6 +356,30 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   res = await deleteSetRoute(req(`/api/sets/${main.set.id}`, a, "DELETE"), p({ id: main.set.id }));
   check("Delete: a deck whose material was deleted can still be deleted (204), its sessions go", res.status === 204 && (await db.select({ n: count() }).from(deckSessions).where(eq(deckSessions.setId, main.set.id)))[0].n === 0);
 
+  // Rated cards whose material is then deleted stop counting as rated everywhere "N of M rated" is shown:
+  // rate both cards of material A, delete A, and the 2 unrated cards of material B are "0 of 2", not "2 of 2".
+  const [splitMatA] = await db.insert(materials).values({ id: randomUUID(), spaceId: space.id, originalName: "a.pdf", blobPath: `check/a-${stamp}.pdf`, status: "ready" }).returning();
+  const [splitMatB] = await db.insert(materials).values({ id: randomUUID(), spaceId: space.id, originalName: "b.pdf", blobPath: `check/b-${stamp}.pdf`, status: "ready" }).returning();
+  const [splitChunkA] = await db.insert(chunks).values({ materialId: splitMatA.id, spaceId: space.id, chunkIndex: 0, content: "A text.", pageStart: 1, pageEnd: 1 }).returning();
+  const [splitChunkB] = await db.insert(chunks).values({ materialId: splitMatB.id, spaceId: space.id, chunkIndex: 0, content: "B text.", pageStart: 1, pageEnd: 1 }).returning();
+  const split = await seedDeck(space.id, "Split deck", [splitChunkA, splitChunkA, splitChunkB, splitChunkB].map((c) => ({ kind: "recall" as const, chunkId: c.id, topicId: tKeys.id })));
+  const ss = await sessionOf(await start(a, split.set.id));
+  await rate(a, split.items[0].id, { sessionId: ss.id, rating: "got_it" });
+  await rate(a, split.items[1].id, { sessionId: ss.id, rating: "again" });
+  await db.delete(materials).where(eq(materials.id, splitMatA.id));
+  const splitListed = (await list(a)).find((d) => d.id === split.set.id)!;
+  check(
+    "Deleted material after rating: the library shows 0 of 2 rated (ratings of removed cards don't count)",
+    splitListed.latestSession.status === "in_progress" && splitListed.latestSession.ratedCount === 0 && splitListed.latestSession.totalCount === 2,
+    JSON.stringify(splitListed.latestSession),
+  );
+  const splitSuggestion = (await (await suggestionsRoute(req(`/api/plan/suggestions`, a))).json() as { suggestions: Suggestion[] }).suggestions.find((s) => s.key === `unfinished_deck:${split.set.id}`);
+  check("Deleted material after rating: the suggestion says 0 of 2 rated", splitSuggestion?.detail === "Resume Split deck, 0 of 2 rated", splitSuggestion?.detail);
+  const splitResume = (await getDashboardSummary(userA)).resume;
+  check("Deleted material after rating: the dashboard Resume card says 0 of 2", splitResume?.kind === "deck" && splitResume.title === "Split deck" && splitResume.rated === 0 && splitResume.total === 2, JSON.stringify(splitResume));
+  await deleteSetRoute(req(`/api/sets/${split.set.id}`, a, "DELETE"), p({ id: split.set.id }));
+  await db.delete(materials).where(eq(materials.id, splitMatB.id));
+
   // --- My Plan and the dashboard -----------------------------------------------------------------------
   const [mat3] = await db.insert(materials).values({ id: randomUUID(), spaceId: space.id, originalName: "later.pdf", blobPath: `check/later-${stamp}.pdf`, status: "ready" }).returning();
   const [c3] = await db.insert(chunks).values({ materialId: mat3.id, spaceId: space.id, chunkIndex: 0, content: "Later text.", pageStart: 1, pageEnd: 1 }).returning();

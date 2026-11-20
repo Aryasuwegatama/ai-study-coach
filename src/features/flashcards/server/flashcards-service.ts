@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
 import { chunks, deckSessions, itemSources, learningItems, materials, studySets, studySpaces, topics } from "@/server/db/schema";
@@ -94,8 +94,8 @@ export async function listDecks(user: SessionUser, spaceId: string): Promise<Dec
   const latestBySet = new Map<string, SessionRow>();
   for (const s of sessions) if (!latestBySet.has(s.setId)) latestBySet.set(s.setId, s);
 
-  const counts = await db
-    .select({ setId: learningItems.setId, n: count() })
+  const cards = await db
+    .select({ setId: learningItems.setId, id: learningItems.id })
     .from(learningItems)
     .where(
       and(
@@ -104,24 +104,23 @@ export async function listDecks(user: SessionUser, spaceId: string): Promise<Dec
         inArray(learningItems.kind, CARD_KINDS),
         exists(db.select({ one: sql`1` }).from(itemSources).where(eq(itemSources.itemId, learningItems.id))),
       ),
-    )
-    .groupBy(learningItems.setId);
-  const practisableBySet = new Map(counts.map((c) => [c.setId, c.n]));
+    );
+  const practisableBySet = new Map<string, string[]>();
+  for (const c of cards) practisableBySet.set(c.setId, [...(practisableBySet.get(c.setId) ?? []), c.id]);
 
   return rows.map((row) => {
-    const practisableCount = practisableBySet.get(row.id) ?? 0;
+    const cardIds = practisableBySet.get(row.id) ?? [];
+    const practisableCount = cardIds.length;
     const latest = latestBySet.get(row.id);
     let latestSession: LatestSessionSummary = { status: "none" };
     if (latest) {
-      const values = Object.values(latest.ratings);
       if (latest.status === "in_progress") {
-        latestSession = {
-          status: "in_progress",
-          sessionId: latest.id,
-          ratedCount: Math.min(values.length, practisableCount),
-          totalCount: practisableCount,
-        };
+        // Only ratings of cards still in the deck count: a card whose material was deleted drops out.
+        const { ratedCount, totalCount } = tally(latest.ratings, cardIds);
+        latestSession = { status: "in_progress", sessionId: latest.id, ratedCount, totalCount };
       } else {
+        // A finished session's result is a record of that session, so it keeps every rating.
+        const values = Object.values(latest.ratings);
         const gotIt = values.filter((r) => r === "got_it").length;
         latestSession = { status: "completed", sessionId: latest.id, gotIt, again: values.length - gotIt, total: values.length };
       }

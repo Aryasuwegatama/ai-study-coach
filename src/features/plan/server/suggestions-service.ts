@@ -62,7 +62,7 @@ export async function getUnfinishedDecks(user: SessionUser): Promise<UnfinishedD
       title: studySets.title,
       spaceId: deckSessions.spaceId,
       spaceName: studySpaces.name,
-      ratings: deckSessions.ratings,
+      rated: sql<number>`(select count(*) from (${practisableCards}) c where (${deckSessions.ratings} ->> c.id::text) is not null)::int`,
       total: sql<number>`(select count(*) from (${practisableCards}) c)::int`,
       updatedAt: deckSessions.updatedAt,
     })
@@ -81,7 +81,7 @@ export async function getUnfinishedDecks(user: SessionUser): Promise<UnfinishedD
       title: r.title,
       spaceId: r.spaceId,
       spaceName: r.spaceName,
-      rated: Math.min(Object.keys(r.ratings).length, r.total),
+      rated: r.rated,
       total: r.total,
       href: `/spaces/${r.spaceId}/flashcards/${r.setId}`,
       lastActivityAt: r.updatedAt.toISOString(),
