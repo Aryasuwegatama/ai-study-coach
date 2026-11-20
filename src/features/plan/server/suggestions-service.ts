@@ -1,9 +1,9 @@
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/db-client";
-import { attemptItems, attempts, materials, planItems, studySets, studySpaces } from "@/server/db/schema";
+import { attemptItems, attempts, deckSessions, itemSources, learningItems, materials, planItems, studySets, studySpaces } from "@/server/db/schema";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { getAllProgress, type SpaceProgress } from "@/features/progress/server";
-import { PLAN_TITLE_MAX, SUGGESTION_KINDS, type Suggestion, type SuggestionKind, type UnfinishedQuiz } from "../plan-schemas";
+import { PLAN_TITLE_MAX, SUGGESTION_KINDS, type Suggestion, type SuggestionKind, type UnfinishedDeck, type UnfinishedQuiz } from "../plan-schemas";
 
 const clip = (text: string) => (text.length <= PLAN_TITLE_MAX ? text : `${text.slice(0, PLAN_TITLE_MAX - 1)}…`);
 const questions = (n: number) => `${n} question${n === 1 ? "" : "s"}`;
@@ -21,6 +21,7 @@ export async function getUnfinishedQuizzes(user: SessionUser): Promise<Unfinishe
       spaceName: studySpaces.name,
       total: attempts.total,
       answered,
+      lastActivity,
     })
     .from(attempts)
     .innerJoin(studySets, eq(studySets.id, attempts.setId))
@@ -29,32 +30,89 @@ export async function getUnfinishedQuizzes(user: SessionUser): Promise<Unfinishe
     .where(and(eq(attempts.studentId, user.id), eq(attempts.status, "in_progress"), eq(studySpaces.ownerId, user.id), isNull(studySpaces.deletedAt)))
     .groupBy(attempts.id, studySets.title, studySpaces.name)
     .orderBy(desc(lastActivity));
-  return rows.map((r) => ({ ...r, href: `/spaces/${r.spaceId}/quizzes/${r.setId}` }));
+  return rows.map(({ lastActivity: at, ...r }) => ({
+    ...r,
+    kind: "quiz" as const,
+    href: `/spaces/${r.spaceId}/quizzes/${r.setId}`,
+    lastActivityAt: new Date(at as string | Date).toISOString(),
+  }));
+}
+
+/**
+ * Decks the student started practising and hasn't finished, in live spaces,
+ * most recently touched first. "N of M rated" counts the ratings of cards that
+ * can still be practised (a card whose material was deleted is out of both).
+ */
+export async function getUnfinishedDecks(user: SessionUser): Promise<UnfinishedDeck[]> {
+  const practisableCards = db
+    .select({ id: learningItems.id })
+    .from(learningItems)
+    .where(
+      and(
+        eq(learningItems.setId, deckSessions.setId),
+        eq(learningItems.status, "active"),
+        inArray(learningItems.kind, ["recall", "short_answer"]),
+        exists(db.select({ one: sql`1` }).from(itemSources).where(eq(itemSources.itemId, learningItems.id))),
+      ),
+    );
+  const rows = await db
+    .select({
+      sessionId: deckSessions.id,
+      setId: deckSessions.setId,
+      title: studySets.title,
+      spaceId: deckSessions.spaceId,
+      spaceName: studySpaces.name,
+      ratings: deckSessions.ratings,
+      total: sql<number>`(select count(*) from (${practisableCards}) c)::int`,
+      updatedAt: deckSessions.updatedAt,
+    })
+    .from(deckSessions)
+    .innerJoin(studySets, eq(studySets.id, deckSessions.setId))
+    .innerJoin(studySpaces, eq(studySpaces.id, deckSessions.spaceId))
+    .where(and(eq(deckSessions.studentId, user.id), eq(deckSessions.status, "in_progress"), eq(studySpaces.ownerId, user.id), isNull(studySpaces.deletedAt)))
+    .orderBy(desc(deckSessions.updatedAt));
+  return rows
+    // A deck whose cards are all gone can only be deleted: nothing to resume.
+    .filter((r) => r.total > 0)
+    .map((r) => ({
+      kind: "deck" as const,
+      sessionId: r.sessionId,
+      setId: r.setId,
+      title: r.title,
+      spaceId: r.spaceId,
+      spaceName: r.spaceName,
+      rated: Math.min(Object.keys(r.ratings).length, r.total),
+      total: r.total,
+      href: `/spaces/${r.spaceId}/flashcards/${r.setId}`,
+      lastActivityAt: r.updatedAt.toISOString(),
+    }));
 }
 
 /**
  * The ranked suggestions (PRD Section 2 "My Plan and reviewing mistakes"),
  * built from the student's analytics. Kinds, in this order: a weak topic;
- * mistakes to review; not enough evidence; an unfinished quiz; a topic not
- * tested yet; a material waiting for topic review. Within a kind: weak by
- * lowest percent, mistakes by most, not enough evidence by fewest needed,
- * unfinished quiz by most recent, the rest by name.
+ * mistakes to review; not enough evidence; an unfinished quiz; an unfinished
+ * flashcard deck; a topic not tested yet; a material waiting for topic
+ * review. Within a kind: weak by lowest percent, mistakes by most, not enough
+ * evidence by fewest needed, unfinished quiz or deck by most recent, the rest
+ * by name.
  *
  * Weak, not-enough-evidence and not-tested suggestions only cover topics with
  * a Ready material (they lead to Practise); a topic from a deleted material
  * only ever gives "mistakes to review". Suggestions are advice, not a
  * schedule: nothing here is mandatory and nothing carries a date.
  *
- * `progress` and `unfinished` can be passed in by a caller that already has
- * them (the dashboard), so nothing is read twice.
+ * `progress`, `unfinished` and `unfinishedDecks` can be passed in by a caller
+ * that already has them (the dashboard), so nothing is read twice.
  */
 export async function getSuggestions(
   user: SessionUser,
-  options: { progress?: SpaceProgress[]; unfinished?: UnfinishedQuiz[] } = {},
+  options: { progress?: SpaceProgress[]; unfinished?: UnfinishedQuiz[]; unfinishedDecks?: UnfinishedDeck[] } = {},
 ): Promise<Suggestion[]> {
-  const [progress, unfinished, reviewMaterials, openPlan] = await Promise.all([
+  const [progress, unfinished, unfinishedDecks, reviewMaterials, openPlan] = await Promise.all([
     options.progress ?? getAllProgress(user),
     options.unfinished ?? getUnfinishedQuizzes(user),
+    options.unfinishedDecks ?? getUnfinishedDecks(user),
     db
       .select({ id: materials.id, name: materials.originalName, spaceId: materials.spaceId, spaceName: studySpaces.name })
       .from(materials)
@@ -128,6 +186,19 @@ export async function getSuggestions(
       actionLabel: "Resume quiz",
       href: quiz.href,
       plan: { kind: "resume_quiz", setId: quiz.setId },
+    }),
+  );
+
+  unfinishedDecks.forEach((deck, position) =>
+    add("unfinished_deck", [position], {
+      key: `unfinished_deck:${deck.setId}`,
+      spaceId: deck.spaceId,
+      spaceName: deck.spaceName,
+      title: clip(`Resume ${deck.title}`),
+      detail: `Resume ${deck.title}, ${deck.rated} of ${deck.total} rated`,
+      actionLabel: "Resume practice",
+      href: deck.href,
+      plan: { kind: "practise_deck", setId: deck.setId },
     }),
   );
 

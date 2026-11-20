@@ -1,21 +1,19 @@
 import Link from "next/link";
 import { cn } from "@/lib/class-names";
 
-type SpaceTabKey = "overview" | "materials" | "quizzes" | "analytics";
+type SpaceTabKey = "overview" | "materials" | "quizzes" | "flashcards" | "analytics";
 
 /**
  * Study Space contextual navigation (Figma node 14:273), shared between
  * Overview and Materials (T-09a plan step 2). Overview, Materials, Quizzes
- * (T-12a) and Analytics (T-15; the old "Progress" tab, renamed after
- * lecturer feedback) are real links; Flashcards stays disabled rather than
- * linking to a 404, the same pattern T-04b used for unbuilt sidebar items —
- * the flashcards task enables its own tab.
+ * (T-12a), Flashcards (T-18) and Analytics (T-15; the old "Progress" tab,
+ * renamed after lecturer feedback) are real links.
  */
-const TABS: ReadonlyArray<{ key: SpaceTabKey; label: string } | { key: null; label: string }> = [
+const TABS: ReadonlyArray<{ key: SpaceTabKey; label: string }> = [
   { key: "overview", label: "Overview" },
   { key: "materials", label: "Materials" },
   { key: "quizzes", label: "Quizzes" },
-  { key: null, label: "Flashcards" },
+  { key: "flashcards", label: "Flashcards" },
   { key: "analytics", label: "Analytics" },
 ];
 
@@ -27,22 +25,6 @@ export function SpaceOverviewTabs({ spaceId, active }: { spaceId: string; active
       className="flex items-center gap-1 overflow-x-auto border-b border-border"
     >
       {TABS.map((tab) => {
-        if (tab.key === null) {
-          return (
-            <button
-              key={tab.label}
-              type="button"
-              role="tab"
-              aria-selected={false}
-              disabled
-              aria-disabled="true"
-              className="shrink-0 px-3 py-2 text-sm font-medium text-muted-foreground disabled:pointer-events-none disabled:opacity-50"
-            >
-              {tab.label}
-            </button>
-          );
-        }
-
         const isActive = tab.key === active;
         return (
           <Link

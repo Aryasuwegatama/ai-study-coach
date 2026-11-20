@@ -73,7 +73,13 @@ These are the rules the team builds and tests against; each bullet is meant to b
 - Recall card: front prompt → flip → short answer.
 - Short-answer card: front question with a typing box → flip → model answer plus 2–4 key points. What the student typed is shown beside it, never marked and not saved.
 - After flipping, the student rates **Again** or **Got it**, then **Next**. Each rating saves when the student presses Next, so leaving mid-deck keeps progress ("Paused practice").
-- Cards carry an **AI-generated** label and **View source**. Ratings never affect mastery.
+- Cards carry an **AI-generated** label and **View source**. Ratings never affect mastery and schedule nothing: no due dates, no "review again in N days", no "overdue".
+- **Setup** (T-18): the materials and topics are chosen as for quizzes (Ready materials, their confirmed topics start ticked); card style and a count of 1–20 are added. More topics than cards → "Select fewer topics or increase the number of cards, so every topic gets at least one." A deck publishes with any number of passing cards ("12 of 15 generated"); zero passing cards means it failed ("No good cards could be written from these sources. Try again or choose more topics.") and **Try again** prefills the same materials, topics, style and count.
+- **Practice** (T-18): "Card N of M"; Space flips the card (in a short-answer typing box a space is just a space); choosing Again or Got it only selects, and **Next** saves it. Leaving with a chosen but unsaved rating asks "Leave without saving this rating?". Cards are always shown in their published order. Resume opens the first card not yet rated.
+- **Completion** (T-18): "Got it N · Again N" and one line, "Ratings are just for you: they don't change your mastery or schedule anything." **Practise again** practises the whole deck as a new session; **Back to flashcards** returns to the library. There is no "only the cards marked Again" mode yet.
+- **Deleting a deck** (T-18) is always allowed: ratings are not mastery evidence, unlike quiz results. An unfinished practice goes with it, and the confirmation says so.
+- **Cards whose material was deleted** (no source left) leave practice, as deleting a material removes it from all future cards. A deck left with no such cards shows "This deck's material was deleted" and can only be deleted.
+- **Not in this task:** Report issue on cards (the Reports rules above are written for quiz questions), notifications, AI grading of typed answers (deferred) and a "flashcards reviewed" figure in Analytics.
 
 ### Mastery and progress
 
@@ -94,13 +100,13 @@ These are the rules the team builds and tests against; each bullet is meant to b
 
 - The app sets no days, shows nothing as "overdue", sends no reminders and schedules no re-attempts. Everything here is advice or the student's own choice.
 - **My Plan** (`/plan`) opens with one line: "Suggestions come from your quiz results. You decide what to study and when." It has two parts.
-- **Suggested for you** is a ranked list built from the analytics, in this order: (1) a weak topic ("SQL basics is weak (50% of the latest 8). Practise it."); (2) mistakes to review ("4 questions you got wrong in Normalisation"); (3) not enough evidence ("Answer 3 more questions on Encryption to get a score"); (4) an unfinished quiz ("Resume Database concepts check, 4 of 10 answered"); (5) a topic not tested yet; (6) a material waiting for topic review. Within a kind: weak by lowest percentage, mistakes by most, not enough evidence by fewest answers needed, an unfinished quiz by most recent, the rest by name. Weak, not-enough-evidence and not-tested suggestions cover only topics with a Ready material (they lead to Practise); a topic from a deleted material only produces "mistakes to review". Each suggestion has its action (Practise this topic, Review mistakes, Resume quiz, Review topics) and **Add to my plan**; once added it shows "In my plan". The top 8 show, with "Show all" when there are more. Nothing is mandatory.
+- **Suggested for you** is a ranked list built from the analytics, in this order: (1) a weak topic ("SQL basics is weak (50% of the latest 8). Practise it."); (2) mistakes to review ("4 questions you got wrong in Normalisation"); (3) not enough evidence ("Answer 3 more questions on Encryption to get a score"); (4) an unfinished quiz ("Resume Database concepts check, 4 of 10 answered"); (5) an unfinished flashcard deck ("Resume Normalisation cards, 6 of 15 rated"); (6) a topic not tested yet; (7) a material waiting for topic review. Within a kind: weak by lowest percentage, mistakes by most, not enough evidence by fewest answers needed, an unfinished quiz or deck by most recent, the rest by name. Weak, not-enough-evidence and not-tested suggestions cover only topics with a Ready material (they lead to Practise); a topic from a deleted material only produces "mistakes to review". Each suggestion has its action (Practise this topic, Review mistakes, Resume quiz, Resume practice, Review topics) and **Add to my plan**; once added it shows "In my plan". The top 8 show, with "Show all" when there are more. Nothing is mandatory.
 - **My plan** is the student's own list. Adding a suggestion creates an item with its title and link; **Add your own** creates a free-text item (1–120 characters), optionally tied to one of the student's Study Spaces. At most 100 items can be open at once.
     - Each item can have an optional day the student picks themselves ("Planned for"); with no day it is "Anytime". Open items sort by planned day, then Anytime. A planned day in the past is shown as a plain date: no red, no "overdue". The app never compares it with today.
     - An item can be marked done (it moves to a collapsed "Done" list, with Undo), edited (title and day) or removed (after a confirmation).
     - Empty state: "Your plan is empty. Add a suggestion or write your own."
     - The server builds each item's link from its kind and target, so a request can't plant a link. If the target is deleted the item keeps its title and loses its link. Items in a deleted Study Space are never shown.
-    - How flashcards and card ratings enter My Plan is left to the flashcards task.
+    - Flashcards enter My Plan only as an **unfinished deck** (T-18): the suggestion "Resume Normalisation cards, 6 of 15 rated" (action **Resume practice**), and a plan item that links to the deck. Ratings themselves create no suggestions and no plan items.
 - **Review mistakes** (`/plan/review?topicId=…` or `?spaceId=…`) starts from a topic's "Review mistakes (N)", a space's Analytics, or a My Plan suggestion.
     - A **mistake** is a question the student answered wrong in a submitted quiz, that is still active (not removed through Report issue) and still sourced (its material not deleted), on a confirmed topic. A session takes up to **20**, weak topics first, then oldest first.
     - Each question shows the 4 options. The student picks one and presses **Check**; the server checks it and the screen shows right or wrong, the correct answer and the explanation, then **Next**. Progress reads "Question 2 of 5" with a bar.
@@ -113,7 +119,7 @@ These are the rules the team builds and tests against; each bullet is meant to b
 ### Dashboard
 
 - **Learning Snapshot:** four numbers, no dates: Active study spaces; Quizzes completed (submitted attempts); Weak topics (across all spaces, linking to My Analytics); Mistakes to review (linking to My Plan). No overall accuracy or average.
-- **Resume quiz:** the student's most recent unfinished quiz ("Database concepts check · Database Systems · 4 of 10 answered"), hidden when there is none. (Flashcards do not exist yet, so there is no "Resume flashcards".)
+- **Resume card:** the student's most recently touched unfinished quiz or flashcard deck, whichever was touched last ("Database concepts check · Database Systems · 4 of 10 answered", or "Normalisation cards · Database Systems · 6 of 15 rated"), hidden when there is none.
 - **Suggested for you:** the top 3 suggestions with their actions, and **Open My Plan**. Empty: "No suggestions yet. Take a quiz to get some."
 
 ### Reports
@@ -173,7 +179,7 @@ Most of the Figma design is built as designed. Six screen groups change (plus on
 - Topics need student confirmation before generation; exact-name matches link to the existing topic.
 - Quizzes are MCQ only, built from chosen materials and topics, with each question tagged to one topic; "Practise this topic" pre-selects one topic.
 - Partial quizzes publish with at least 5 valid questions; retakes shuffle question and option order.
-- Flashcard decks hold Recall and Short-answer cards; ratings (Again or Got it) are self-assessment only: they never affect mastery and schedule nothing. How cards enter My Plan is decided with the flashcards task.
+- Flashcard decks hold Recall and Short-answer cards; ratings (Again or Got it) are self-assessment only: they never affect mastery and schedule nothing. Cards enter My Plan only as an unfinished-deck suggestion and plan item (T-18).
 - Mastery uses quiz answers only: latest 10 distinct questions; fewer than 5 is insufficient evidence; below 60% is weak.
 - **My Plan replaces scheduled revision** (lecturer feedback, 13 Nov 2026): the app shows analytics and suggestions, and students plan their own study; no app-set due dates, no overdue, no reminders. Wrong quiz answers become mistakes the student can re-answer in Review mistakes whenever they choose (up to 20 per session, checked on the server); reviewing mistakes never changes mastery.
 - Limits: 20 generations per student per day; 10 MB, 200 pages and 240,000 characters per file; 20 materials per space; no duplicate files.

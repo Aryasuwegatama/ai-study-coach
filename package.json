@@ -19,6 +19,7 @@
     "check:quiz-contract": "tsx scripts/check-quiz-contract.ts",
     "check:quiz-generation": "tsx scripts/check-quiz-generation.ts",
     "check:attempts": "tsx scripts/check-attempts.ts",
+    "check:flashcards": "tsx scripts/check-flashcards.ts",
     "check:plan": "tsx scripts/check-plan.ts",
     "check:reports": "tsx scripts/check-reports.ts",
     "check:materials-contract": "tsx scripts/check-materials-contract.ts",

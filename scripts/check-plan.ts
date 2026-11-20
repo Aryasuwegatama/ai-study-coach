@@ -173,7 +173,8 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   const getSuggestions = async (s: Session) => ((await (await suggestionsRoute(req(`/api/plan/suggestions`, s))).json()) as { suggestions: Suggestion[] }).suggestions;
   let suggestions = await getSuggestions(a);
   const kinds = suggestions.map((s) => s.kind);
-  const order = SUGGESTION_KINDS.slice();
+  // Flashcard decks (T-18) have no session in this fixture; `check-flashcards` covers "unfinished_deck".
+  const order = SUGGESTION_KINDS.filter((k) => k !== "unfinished_deck");
   check(
     "Suggestions: every kind appears, in ranking order (weak, mistakes, not enough evidence, unfinished quiz, not tested, topic review)",
     kinds.join() === ["weak_topic", "mistakes", "mistakes", "not_enough_evidence", "unfinished_quiz", "not_tested", "topic_review"].join() && order.every((k) => kinds.includes(k)),
@@ -391,16 +392,16 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   );
   check(
     "Dashboard summary: the latest unfinished quiz and the top 3 suggestions",
-    summary.resumeQuiz?.title === "Database concepts check" && summary.resumeQuiz.answered === 2 && summary.resumeQuiz.total === 4 && summary.resumeQuiz.href === `/spaces/${space.id}/quizzes/${quiz3.set.id}` && summary.suggestions.length === 3 && summary.suggestions[0].kind === "weak_topic",
+    summary.resume?.kind === "quiz" && summary.resume.title === "Database concepts check" && summary.resume.answered === 2 && summary.resume.total === 4 && summary.resume.href === `/spaces/${space.id}/quizzes/${quiz3.set.id}` && summary.suggestions.length === 3 && summary.suggestions[0].kind === "weak_topic",
   );
   const keys = Object.keys(summary).sort().join();
   check(
     "Dashboard summary: no average, accuracy or percentage across topics (and no dates)",
-    keys === "activeSpaces,openMistakes,quizzesCompleted,resumeQuiz,suggestions,weakTopics" && !/average|accuracy|overall/i.test(JSON.stringify(summary)),
+    keys === "activeSpaces,openMistakes,quizzesCompleted,resume,suggestions,weakTopics" && !/average|accuracy|overall/i.test(JSON.stringify(summary)),
     keys,
   );
   const empty = await getDashboardSummary({ ...userA, id: b.userId });
-  check("Dashboard summary: a new student gets zeros, no quiz to resume and no suggestions", empty.activeSpaces === 0 && empty.quizzesCompleted === 0 && empty.weakTopics === 0 && empty.openMistakes === 0 && empty.resumeQuiz === null && empty.suggestions.length === 0);
+  check("Dashboard summary: a new student gets zeros, no quiz to resume and no suggestions", empty.activeSpaces === 0 && empty.quizzesCompleted === 0 && empty.weakTopics === 0 && empty.openMistakes === 0 && empty.resume === null && empty.suggestions.length === 0);
 
   // --- The limit -------------------------------------------------------------------------------------------------
   await db.insert(planItems).values(Array.from({ length: MAX_OPEN_PLAN_ITEMS }, (_, i) => ({ studentId: b.userId, kind: "own", title: `Filler ${i}` })));

@@ -107,6 +107,11 @@ export const learningItems = pgTable(
       "learning_items_mcq_shape",
       sql`${table.kind} <> 'mcq' or (jsonb_array_length(${table.options}) = 4 and ${table.correctIndex} between 0 and 3)`,
     ),
+    // A card always has its back; a short-answer card also has 2–4 key points (T-18).
+    check(
+      "learning_items_card_shape",
+      sql`${table.kind} = 'mcq' or (${table.answerText} is not null and (${table.kind} <> 'short_answer' or coalesce(jsonb_array_length(${table.keyPoints}), 0) between 2 and 4))`,
+    ),
     check("learning_items_difficulty_valid", sql`${table.difficulty} is null or ${table.difficulty} in ('easy', 'medium', 'hard')`),
   ],
 );
