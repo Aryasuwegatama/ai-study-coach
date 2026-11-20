@@ -14,7 +14,7 @@ import { eq } from "drizzle-orm";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
 import { chunks, itemSources, learningItems, materials, studySets, studySpaces, topics } from "../src/server/db/schema";
-import { createQuizSchema, normalizePrompt, spreadQuestions, stripOptionLabels } from "../src/features/quizzes/quizzes-schemas";
+import { createQuizSchema, createSetSchema, normalizePrompt, spreadQuestions, stripOptionLabels } from "../src/features/quizzes/quizzes-schemas";
 
 const results: { name: string; ok: boolean; message: string }[] = [];
 const check = (name: string, ok: boolean, message = "") => results.push({ name, ok, message });
@@ -33,7 +33,20 @@ async function main() {
   const ok = createQuizSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id(), id()], count: 10, ownerId: "x" });
   check("Valid request parses; stray ownerId is stripped", ok.success && !("ownerId" in ok.data));
   check("Count must be 5, 10, 15 or 20", !createQuizSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 7 }).success);
-  check("Decks are not accepted yet", !createQuizSchema.safeParse({ kind: "deck", materialIds: [id()], topicIds: [id()], count: 5 }).success);
+  // Decks (T-18): the request is a union on `kind`.
+  const deck = (over: Record<string, unknown> = {}) => ({ kind: "deck", materialIds: [id()], topicIds: [id()], cardStyle: "recall", count: 5, ...over });
+  check(
+    "Deck: every card style at counts 1 and 20 parses",
+    (["recall", "short_answer", "mix"] as const).every((cardStyle) => [1, 20].every((count) => createSetSchema.safeParse(deck({ cardStyle, count })).success)),
+  );
+  check("Deck: count 0, 21, 2.5 or missing is invalid", [0, 21, 2.5, undefined].every((count) => !createSetSchema.safeParse(deck({ count })).success));
+  check("Deck: a missing or unknown card style is invalid", !createSetSchema.safeParse(deck({ cardStyle: undefined })).success && !createSetSchema.safeParse(deck({ cardStyle: "essay" })).success);
+  check("Quiz: a deck-style count (7) is invalid through the union too", !createSetSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 7 }).success);
+  check("Quiz: a card style on a quiz request is stripped, count rules unchanged", (() => {
+    const r = createSetSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 5, cardStyle: "recall" });
+    return r.success && !("cardStyle" in r.data);
+  })());
+  check("An unknown kind is invalid", !createSetSchema.safeParse({ kind: "exam", materialIds: [id()], topicIds: [id()], count: 5 }).success);
   check("No materials is invalid", !createQuizSchema.safeParse({ kind: "quiz", materialIds: [], topicIds: [id()], count: 5 }).success);
   const same = id();
   const deduped = createQuizSchema.safeParse({ kind: "quiz", materialIds: [same, same.toUpperCase()], topicIds: [id()], count: 5 });
@@ -97,6 +110,15 @@ async function main() {
     check("Source in the same space inserts", !(await rejects(db.insert(itemSources).values({ spaceId: s1.id, itemId: good.id, chunkId: c1.id }))));
     check("Source chunk from another space is rejected", await rejects(db.insert(itemSources).values({ spaceId: s1.id, itemId: good.id, chunkId: c2.id })));
     check("Mislabelled source space is rejected", await rejects(db.insert(itemSources).values({ spaceId: s2.id, itemId: good.id, chunkId: c2.id })));
+
+    // Cards (T-18): a recall card needs its back; a short-answer card also needs 2–4 key points.
+    const card = (over: Partial<typeof learningItems.$inferInsert>) => item({ options: null, correctIndex: null, ...over });
+    check("A recall card with its back inserts", !(await rejects(card({ position: 10, kind: "recall", prompt: "Define key", answerText: "A unique identifier", normalizedPrompt: "define key" }))));
+    check("A recall card without a back is rejected by the database", await rejects(card({ position: 11, kind: "recall", normalizedPrompt: "r2" })));
+    const short = (position: number, keyPoints: string[] | null) =>
+      card({ position, kind: "short_answer", answerText: "Model answer", keyPoints, normalizedPrompt: `s${position}` });
+    check("A short-answer card with 2 and with 4 key points inserts", !(await rejects(short(12, ["a", "b"]))) && !(await rejects(short(13, ["a", "b", "c", "d"]))));
+    check("A short-answer card with 1 key point, 5 key points or none is rejected", (await rejects(short(14, ["a"]))) && (await rejects(short(15, ["a", "b", "c", "d", "e"]))) && (await rejects(short(16, null))));
 
     await db.delete(materials).where(eq(materials.id, m1.id));
     const left = await db.select().from(itemSources).where(eq(itemSources.itemId, good.id));

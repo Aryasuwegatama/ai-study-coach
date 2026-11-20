@@ -41,6 +41,10 @@ import { z } from "zod";
 
 export const QUESTION_COUNTS = [5, 10, 15, 20] as const;
 export const MIN_PUBLISHED_QUESTIONS = 5;
+export const CARD_COUNT_MIN = 1;
+export const CARD_COUNT_MAX = 20;
+export const CARD_STYLES = ["recall", "short_answer", "mix"] as const;
+export type CardStyle = (typeof CARD_STYLES)[number];
 export const DAILY_GENERATION_LIMIT = 20;
 export const MAX_ACTIVE_GENERATIONS = 2;
 export const MAX_CHUNKS_PER_TOPIC = 8;
@@ -65,9 +69,13 @@ export const QUIZ_API_ERRORS = {
 } as const;
 export type QuizApiErrorCode = keyof typeof QUIZ_API_ERRORS;
 
+/** `TOO_MANY_TOPICS` for a deck names cards, not questions (PRD Section 2 "Flashcards"). */
+export const TOO_MANY_TOPICS_DECK_MESSAGE = "Select fewer topics or increase the number of cards, so every topic gets at least one.";
+
 /** Stored on a `failed` set and shown next to Try again. */
 export const SET_FAILURE_REASONS = {
   TOO_FEW_QUESTIONS: "Not enough good questions could be written from these sources. Try again or choose more topics.",
+  NO_CARDS: "No good cards could be written from these sources. Try again or choose more topics.",
   AI_UNUSABLE_ANSWER: "The AI returned an unusable answer; please try again",
   GENERATION_FAILED: "Generation failed. Try again.",
 } as const;
@@ -80,20 +88,43 @@ const uuidList = (label: string) =>
     .max(50)
     .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))]);
 
-export const createQuizSchema = z.object({
-  kind: z.literal("quiz", { error: "Only quizzes can be generated for now." }),
+const materialAndTopicIds = {
   materialIds: uuidList("materials"),
   topicIds: uuidList("topics"),
+};
+
+export const createQuizSchema = z.object({
+  kind: z.literal("quiz"),
+  ...materialAndTopicIds,
   count: z.union(QUESTION_COUNTS.map((n) => z.literal(n)) as unknown as [z.ZodLiteral<5>, z.ZodLiteral<10>, z.ZodLiteral<15>, z.ZodLiteral<20>], {
     error: "Choose 5, 10, 15 or 20 questions.",
   }),
 });
 export type CreateQuizRequest = z.infer<typeof createQuizSchema>;
 
+export const createDeckSchema = z.object({
+  kind: z.literal("deck"),
+  ...materialAndTopicIds,
+  cardStyle: z.enum(CARD_STYLES, { error: "Choose Recall, Short answer or Mix." }),
+  count: z
+    .number({ error: `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.` })
+    .int(`Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`)
+    .min(CARD_COUNT_MIN, `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`)
+    .max(CARD_COUNT_MAX, `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`),
+});
+export type CreateDeckRequest = z.infer<typeof createDeckSchema>;
+
+export const createSetSchema = z.discriminatedUnion("kind", [createQuizSchema, createDeckSchema], {
+  error: "Choose whether to generate a quiz or a deck of flashcards.",
+});
+export type CreateSetRequest = z.infer<typeof createSetSchema>;
+
 export type SetResponse = {
   id: string;
   kind: "quiz" | "deck";
   title: string;
+  /** Decks only (null for a quiz). */
+  cardStyle: CardStyle | null;
   status: SetStatus;
   requestedCount: number;
   /** "8 of 10 generated" when lower than `requestedCount`. */

@@ -35,7 +35,7 @@ export const PLAN_API_ERRORS = {
 } as const;
 export type PlanApiErrorCode = keyof typeof PLAN_API_ERRORS;
 
-export const PLAN_KINDS = ["own", "practise_topic", "review_mistakes", "resume_quiz", "review_topics"] as const;
+export const PLAN_KINDS = ["own", "practise_topic", "review_mistakes", "resume_quiz", "review_topics", "practise_deck"] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
 /** Which one id each non-own kind points at. */
@@ -43,6 +43,7 @@ export const PLAN_TARGET_FIELD = {
   practise_topic: "topicId",
   review_mistakes: "topicId",
   resume_quiz: "setId",
+  practise_deck: "setId",
   review_topics: "materialId",
 } as const satisfies Record<Exclude<PlanKind, "own">, "topicId" | "setId" | "materialId">;
 
@@ -61,7 +62,7 @@ export const createPlanItemSchema = z
     /** `own` only: the Study Space the item belongs to (optional). */
     spaceId: z.uuid("Choose a valid Study Space.").optional(),
     topicId: z.uuid("Choose a valid topic.").optional(),
-    setId: z.uuid("Choose a valid quiz.").optional(),
+    setId: z.uuid("Choose a valid quiz or deck.").optional(),
     materialId: z.uuid("Choose a valid material.").optional(),
   })
   .superRefine((value, ctx) => {
@@ -107,7 +108,7 @@ export type PlanItemResponse = {
 };
 
 /** Suggestions in ranking order (PRD Section 2). */
-export const SUGGESTION_KINDS = ["weak_topic", "mistakes", "not_enough_evidence", "unfinished_quiz", "not_tested", "topic_review"] as const;
+export const SUGGESTION_KINDS = ["weak_topic", "mistakes", "not_enough_evidence", "unfinished_quiz", "unfinished_deck", "not_tested", "topic_review"] as const;
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 
 /** Exactly the body "Add to my plan" posts, apart from the `title`. */
@@ -128,8 +129,9 @@ export type Suggestion = {
   inPlan: boolean;
 };
 
-/** A quiz the student started and hasn't submitted (the dashboard's "Resume quiz"). */
+/** A quiz the student started and hasn't submitted (the dashboard's Resume card). */
 export type UnfinishedQuiz = {
+  kind: "quiz";
   attemptId: string;
   setId: string;
   title: string;
@@ -138,4 +140,20 @@ export type UnfinishedQuiz = {
   answered: number;
   total: number;
   href: string;
+  /** Last answer (or the start): the dashboard shows whichever of a quiz and a deck was touched last. */
+  lastActivityAt: string;
+};
+
+/** A flashcard deck the student started practising and hasn't finished (T-18). Ratings schedule nothing. */
+export type UnfinishedDeck = {
+  kind: "deck";
+  sessionId: string;
+  setId: string;
+  title: string;
+  spaceId: string;
+  spaceName: string;
+  rated: number;
+  total: number;
+  href: string;
+  lastActivityAt: string;
 };

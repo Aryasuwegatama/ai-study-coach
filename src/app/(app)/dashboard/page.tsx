@@ -11,7 +11,7 @@ import { SpacesCardGrid } from "@/features/spaces/components/spaces-card-grid";
 import { SpacesCardGridSkeleton } from "@/features/spaces/components/spaces-card-grid-skeleton";
 import { getDashboardSummary } from "@/features/dashboard/server/dashboard-service";
 import { DashboardLearningSnapshot } from "@/features/dashboard/components/dashboard-learning-snapshot";
-import { DashboardResumeQuiz } from "@/features/dashboard/components/dashboard-resume-quiz";
+import { DashboardResume } from "@/features/dashboard/components/dashboard-resume";
 import { DashboardSuggestedForYou } from "@/features/dashboard/components/dashboard-suggested-for-you";
 import { DashboardWelcomeHeader } from "@/features/dashboard/components/dashboard-welcome-header";
 import { DashboardWelcomeHeaderSkeleton } from "./dashboard-welcome-header-skeleton";
@@ -22,7 +22,7 @@ type DashboardPageProps = {
 
 /**
  * The Dashboard (T-04b; Figma node 80:6946). T-05 made "My Study Spaces"
- * real; T-15 makes the rest real: Learning Snapshot, Resume quiz (was
+ * real; T-15 makes the rest real: Learning Snapshot, Resume card, a quiz or a deck (was
  * Continue Studying) and Suggested for you (was Upcoming Revisions).
  */
 export default function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -35,7 +35,7 @@ export default function DashboardPage({ searchParams }: DashboardPageProps) {
         <DashboardSnapshotSection />
       </Suspense>
       <Suspense fallback={null}>
-        <DashboardResumeQuizSection />
+        <DashboardResumeSection />
       </Suspense>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -88,8 +88,8 @@ async function DashboardSnapshotSection() {
   return <DashboardLearningSnapshot summary={await loadSummary()} />;
 }
 
-async function DashboardResumeQuizSection() {
-  return <DashboardResumeQuiz quiz={(await loadSummary()).resumeQuiz} />;
+async function DashboardResumeSection() {
+  return <DashboardResume resume={(await loadSummary()).resume} />;
 }
 
 async function DashboardSuggestedSection() {

@@ -42,7 +42,7 @@ export const planItems = pgTable(
   },
   (table) => [
     index("plan_items_student_id_idx").on(table.studentId),
-    check("plan_items_kind_valid", sql`${table.kind} in ('own', 'practise_topic', 'review_mistakes', 'resume_quiz', 'review_topics')`),
+    check("plan_items_kind_valid", sql`${table.kind} in ('own', 'practise_topic', 'review_mistakes', 'resume_quiz', 'review_topics', 'practise_deck')`),
     check("plan_items_title_length", sql`char_length(${table.title}) between 1 and 120`),
   ],
 );

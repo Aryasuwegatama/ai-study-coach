@@ -2,14 +2,14 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/db-client";
 import { attempts, studySpaces } from "@/server/db/schema";
 import type { SessionUser } from "@/server/auth/auth-session";
-import { getSuggestions, getUnfinishedQuizzes, type Suggestion, type UnfinishedQuiz } from "@/features/plan/server";
+import { getSuggestions, getUnfinishedDecks, getUnfinishedQuizzes, type Suggestion, type UnfinishedDeck, type UnfinishedQuiz } from "@/features/plan/server";
 import { getAllProgress } from "@/features/progress/server";
 
 export const DASHBOARD_SUGGESTIONS = 3;
 
 /**
  * What the dashboard shows (T-15; PRD Section 2 "Dashboard"): four plain
- * numbers, the latest unfinished quiz and the top suggestions. Never an
+ * numbers, the latest unfinished quiz or flashcard deck and the top suggestions. Never an
  * overall accuracy or an average across topics, and no dates.
  */
 export type DashboardSummary = {
@@ -20,14 +20,16 @@ export type DashboardSummary = {
   weakTopics: number;
   /** Open mistakes across all spaces. */
   openMistakes: number;
-  resumeQuiz: UnfinishedQuiz | null;
+  /** Whichever unfinished quiz or deck was touched last; `kind` says which. */
+  resume: UnfinishedQuiz | UnfinishedDeck | null;
   suggestions: Suggestion[];
 };
 
 export async function getDashboardSummary(user: SessionUser): Promise<DashboardSummary> {
-  const [progress, unfinished, [{ completed }]] = await Promise.all([
+  const [progress, unfinished, unfinishedDecks, [{ completed }]] = await Promise.all([
     getAllProgress(user),
     getUnfinishedQuizzes(user),
+    getUnfinishedDecks(user),
     db
       .select({ completed: count() })
       .from(attempts)
@@ -35,14 +37,17 @@ export async function getDashboardSummary(user: SessionUser): Promise<DashboardS
       .where(and(eq(attempts.studentId, user.id), eq(attempts.status, "submitted"), eq(studySpaces.ownerId, user.id), isNull(studySpaces.deletedAt))),
   ]);
   const topics = progress.flatMap((space) => space.topics);
-  const suggestions = await getSuggestions(user, { progress, unfinished });
+  const suggestions = await getSuggestions(user, { progress, unfinished, unfinishedDecks });
+  const resume = [unfinished[0], unfinishedDecks[0]]
+    .filter((x) => x !== undefined)
+    .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0];
 
   return {
     activeSpaces: progress.length,
     quizzesCompleted: completed,
     weakTopics: topics.filter((t) => t.status === "weak").length,
     openMistakes: topics.reduce((sum, t) => sum + t.mistakes, 0),
-    resumeQuiz: unfinished[0] ?? null,
+    resume: resume ?? null,
     suggestions: suggestions.slice(0, DASHBOARD_SUGGESTIONS),
   };
 }

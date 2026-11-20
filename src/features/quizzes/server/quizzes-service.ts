@@ -11,7 +11,9 @@ import {
   DAILY_GENERATION_LIMIT,
   QUIZ_API_ERRORS,
   SET_FAILURE_REASONS,
-  type CreateQuizRequest,
+  TOO_MANY_TOPICS_DECK_MESSAGE,
+  type CardStyle,
+  type CreateSetRequest,
   type LatestAttemptSummary,
   type QuizApiErrorCode,
   type SetDetailResponse,
@@ -23,9 +25,9 @@ import {
 type SetRow = typeof studySets.$inferSelect;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function quizError(code: QuizApiErrorCode): ApiError {
-  const { status, message } = QUIZ_API_ERRORS[code];
-  return new ApiError(code, message, status);
+export function quizError(code: QuizApiErrorCode, message?: string): ApiError {
+  const { status, message: defaultMessage } = QUIZ_API_ERRORS[code];
+  return new ApiError(code, message ?? defaultMessage, status);
 }
 
 export function toSetResponse(row: SetRow): SetResponse {
@@ -34,6 +36,7 @@ export function toSetResponse(row: SetRow): SetResponse {
     id: row.id,
     kind: row.kind as SetResponse["kind"],
     title: row.title,
+    cardStyle: row.cardStyle as CardStyle | null,
     status: row.status as SetResponse["status"],
     requestedCount: row.requestedCount,
     generatedCount: row.generatedCount,
@@ -58,7 +61,8 @@ export async function requireSet(setId: string, user: SessionUser): Promise<SetR
   return row.set;
 }
 
-export async function createQuiz(user: SessionUser, spaceId: string, input: CreateQuizRequest): Promise<SetResponse> {
+/** Starts a quiz or a deck of flashcards: the same checks, in the same order, then a `generate_quiz` or `generate_deck` job. */
+export async function createSet(user: SessionUser, spaceId: string, input: CreateSetRequest): Promise<SetResponse> {
   const space = await requireSpace(spaceId, user);
 
   const ready = await db
@@ -80,7 +84,9 @@ export async function createQuiz(user: SessionUser, spaceId: string, input: Crea
       ),
     );
   if (linked.length !== input.topicIds.length) throw quizError("TOPIC_NOT_IN_MATERIALS");
-  if (input.topicIds.length > input.count) throw quizError("TOO_MANY_TOPICS");
+  const isDeck = input.kind === "deck";
+  if (input.topicIds.length > input.count) throw quizError("TOO_MANY_TOPICS", isDeck ? TOO_MANY_TOPICS_DECK_MESSAGE : undefined);
+  const jobKind = isDeck ? "generate_deck" : "generate_quiz";
 
   const names = input.topicIds.map((id) => linked.find((t) => t.id === id)!.name);
   const title = names.length <= 2 ? names.join(" & ") : `${names[0]}, ${names[1]} +${names.length - 2}`;
@@ -105,8 +111,9 @@ export async function createQuiz(user: SessionUser, spaceId: string, input: Crea
       .insert(studySets)
       .values({
         spaceId: space.id,
-        kind: "quiz",
+        kind: input.kind,
         title,
+        cardStyle: input.kind === "deck" ? input.cardStyle : null,
         materialIds: input.materialIds,
         topicIds: input.topicIds,
         requestedCount: input.count,
@@ -117,10 +124,10 @@ export async function createQuiz(user: SessionUser, spaceId: string, input: Crea
       .values({
         userId: user.id,
         spaceId: space.id,
-        kind: "generate_quiz",
+        kind: jobKind,
         targetId: set.id,
         step: "retrieve",
-        idempotencyKey: `generate_quiz:${set.id}`,
+        idempotencyKey: `${jobKind}:${set.id}`,
       })
       .returning({ id: jobs.id });
     return { id: row.id, set };
@@ -235,13 +242,19 @@ export async function getSet(user: SessionUser, setId: string): Promise<SetDetai
 }
 
 /**
- * A quiz with a submitted attempt is the student's record (scores, mastery
+ * A deck can always be deleted. A quiz with a submitted attempt is the student's record (scores, mastery
  * evidence, revision items), so it can't be deleted (Arya, 2026-11-14,
  * #35). Failed, generating, never-attempted and in-progress-only quizzes
  * can. A still-running job sees the set gone at its next step and stops.
  */
 export async function deleteSet(user: SessionUser, setId: string): Promise<void> {
   const set = await requireSet(setId, user);
+  if (set.kind === "deck") {
+    // Ratings aren't mastery evidence, so a deck can always go; its practice
+    // sessions and cards go with it (foreign keys cascade).
+    await db.delete(studySets).where(eq(studySets.id, set.id));
+    return;
+  }
   await db.transaction(async (tx) => {
     // Lock the quiz row first. Creating an attempt has to key-share lock
     // it (the attempt's foreign key), so a first attempt can't be created

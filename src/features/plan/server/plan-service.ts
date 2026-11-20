@@ -39,6 +39,8 @@ export function planItemHref(kind: PlanKind, ids: Ids): string | null {
       return ids.topicId ? `/plan/review?topicId=${ids.topicId}` : null;
     case "resume_quiz":
       return ids.setId && ids.spaceId ? `/spaces/${ids.spaceId}/quizzes/${ids.setId}` : null;
+    case "practise_deck":
+      return ids.setId && ids.spaceId ? `/spaces/${ids.spaceId}/flashcards/${ids.setId}` : null;
     case "review_topics":
       return ids.materialId && ids.spaceId ? `/spaces/${ids.spaceId}/materials/${ids.materialId}/topics` : null;
     default:
@@ -112,6 +114,11 @@ async function resolveTarget(user: SessionUser, input: CreatePlanItemRequest): P
     case "resume_quiz": {
       const set = await requireSet(input.setId!, user);
       if (set.kind !== "quiz") throw quizError("SET_NOT_FOUND");
+      return { ...none, spaceId: set.spaceId, setId: set.id };
+    }
+    case "practise_deck": {
+      const set = await requireSet(input.setId!, user);
+      if (set.kind !== "deck") throw quizError("SET_NOT_FOUND");
       return { ...none, spaceId: set.spaceId, setId: set.id };
     }
     case "review_topics": {
