@@ -1,7 +1,7 @@
 # AI Study Coach
 
 AI-Powered Learning Analytics and Study Coach for Students.
-Victoria University · NIT3003 Capstone 2 · Project 15.
+Victoria University · NIT3004 Capstone 2 · Project 15.
 
 Students upload study materials, confirm AI-suggested topics, generate cited quizzes and flashcards, track topic mastery, find weak topics, review their mistakes and plan their own study from analytics and suggestions.
 
