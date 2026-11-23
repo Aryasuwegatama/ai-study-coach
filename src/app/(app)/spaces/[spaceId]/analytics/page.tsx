@@ -11,7 +11,8 @@ import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
-import { SpaceAnalyticsView, type AnalyticsView } from "@/features/analytics/components/space-analytics-view";
+import { SpaceAnalyticsView } from "@/features/analytics/components/space-analytics-view";
+import { parseAnalyticsView } from "@/features/analytics/analytics-format";
 
 // Static title, not the space's name: another student's URL must not leak a
 // name through the tab title while `requireSpace()` resolves.
@@ -59,7 +60,7 @@ async function SpaceAnalyticsContent({ params, searchParams }: SpaceAnalyticsPag
   }
 
   const [progress, activity] = await Promise.all([getSpaceProgress(user, space.id), getActivity(user, space.id)]);
-  const view: AnalyticsView = query.view === "weak" ? "weak" : "all";
+  const view = parseAnalyticsView(query.view);
 
   return (
     <>

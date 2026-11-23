@@ -58,5 +58,39 @@ export const reviewSpaceHref = (spaceId: string) => `/plan/review?spaceId=${spac
 export const spaceAnalyticsHref = (spaceId: string) => `/spaces/${spaceId}/analytics`;
 export const topicAnalyticsHref = (spaceId: string, topicId: string) => `/spaces/${spaceId}/analytics/topics/${topicId}`;
 
+/** The topic filter on both Analytics pages (`?view=`): every topic, or one status. */
+export type AnalyticsView = "all" | MasteryStatus;
+
+const VIEW_SLUGS: Record<MasteryStatus, string> = {
+  weak: "weak",
+  insufficient: "not-enough-evidence",
+  not_assessed: "not-assessed",
+  on_track: "on-track",
+};
+
+/** `?view=` to a filter; anything unknown shows every topic. */
+export function parseAnalyticsView(raw: string | string[] | undefined): AnalyticsView {
+  return STATUS_ORDER.find((status) => VIEW_SLUGS[status] === raw) ?? "all";
+}
+
+export const analyticsViewHref = (baseHref: string, view: AnalyticsView) =>
+  view === "all" ? baseHref : `${baseHref}?view=${VIEW_SLUGS[view]}`;
+
+const FOCUS_RANK: Record<MasteryStatus, number> = { weak: 0, insufficient: 1, not_assessed: 2, on_track: 3 };
+
+/**
+ * "Focus next" order, shared by both Analytics pages: Weak (lowest result
+ * first), then Not enough evidence (fewest answers still needed first), then
+ * Not assessed, then On track (closest to the 60% line first). Ties keep the
+ * API's order, since `sort` is stable.
+ */
+export function byFocus(a: Pick<TopicMastery, "status" | "percent" | "needed">, b: Pick<TopicMastery, "status" | "percent" | "needed">): number {
+  const rank = FOCUS_RANK[a.status] - FOCUS_RANK[b.status];
+  if (rank !== 0) return rank;
+  if (a.status === "insufficient") return a.needed - b.needed;
+  if (a.percent !== null && b.percent !== null) return a.percent - b.percent;
+  return 0;
+}
+
 /** Practise shows on Weak, Not enough evidence and Not assessed topics that still have a Ready material. */
 export const canPractise = (topic: { status: MasteryStatus; hasReadyMaterial: boolean }) => topic.hasReadyMaterial && topic.status !== "on_track";
