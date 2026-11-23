@@ -7,7 +7,10 @@ import { z } from "zod";
  * Routes:
  * - `GET /api/spaces/:spaceId/topics` → `{ topics: TopicResponse[] }`:
  *   confirmed topics only (PRD: topic lists show confirmed topics), A–Z.
- *   `?include=archived` adds archived ones. `?materials=linked|unlinked`
+ *   Every row carries `materialIds` (from `material_topics`; T-12b, gap
+ *   2), so the quiz setup screen can join materials to their own topics
+ *   client-side without a second endpoint. `?include=archived` adds
+ *   archived ones. `?materials=linked|unlinked`
  *   narrows to topics that do, or don't, have any `material_topics` row
  *   (T-09c, Arya 2026-11-18: a topic with no linked material — e.g. its
  *   last material was deleted — stays confirmed and keeps its history,
@@ -99,6 +102,8 @@ export type TopicResponse = {
   status: "confirmed" | "archived";
   /** `ai`: the AI suggested it (show the AI-suggested label until confirmed). */
   origin: "ai" | "manual";
+  /** Every material this topic is linked to (`material_topics`); empty for a topic left with no linked material (T-12b, gap 2). */
+  materialIds: string[];
   createdAt: string;
   updatedAt: string;
 };

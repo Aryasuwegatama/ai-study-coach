@@ -15,8 +15,11 @@ import { z } from "zod";
  *   3. topics ≤ question count (else 400 `TOO_MANY_TOPICS`);
  *   4. fewer than `DAILY_GENERATION_LIMIT` generations since local midnight
  *      in the student's time zone (else 429 `DAILY_LIMIT_REACHED`).
- * - `GET /api/spaces/:spaceId/sets?kind=quiz` → `{ sets: SetResponse[] }`,
- *   newest first.
+ * - `GET /api/spaces/:spaceId/sets?kind=quiz` → `{ sets: SetListItemResponse[] }`,
+ *   newest first (T-12b: `latestAttempt`, `hasResults` and `activeCount`
+ *   added to each set, computed in one query for the whole list — not one
+ *   per quiz). Only this route returns the extra fields; `POST …/sets` and
+ *   `GET /api/sets/:id` keep returning plain `SetResponse`.
  * - `GET /api/sets/:id` → `SetDetailResponse`. Items never include the
  *   correct option, explanation or sources (answers only come back from a
  *   submitted attempt, T-14).
@@ -38,6 +41,10 @@ import { z } from "zod";
 
 export const QUESTION_COUNTS = [5, 10, 15, 20] as const;
 export const MIN_PUBLISHED_QUESTIONS = 5;
+export const CARD_COUNT_MIN = 1;
+export const CARD_COUNT_MAX = 20;
+export const CARD_STYLES = ["recall", "short_answer", "mix"] as const;
+export type CardStyle = (typeof CARD_STYLES)[number];
 export const DAILY_GENERATION_LIMIT = 20;
 export const MAX_ACTIVE_GENERATIONS = 2;
 export const MAX_CHUNKS_PER_TOPIC = 8;
@@ -62,9 +69,13 @@ export const QUIZ_API_ERRORS = {
 } as const;
 export type QuizApiErrorCode = keyof typeof QUIZ_API_ERRORS;
 
+/** `TOO_MANY_TOPICS` for a deck names cards, not questions (PRD Section 2 "Flashcards"). */
+export const TOO_MANY_TOPICS_DECK_MESSAGE = "Select fewer topics or increase the number of cards, so every topic gets at least one.";
+
 /** Stored on a `failed` set and shown next to Try again. */
 export const SET_FAILURE_REASONS = {
   TOO_FEW_QUESTIONS: "Not enough good questions could be written from these sources. Try again or choose more topics.",
+  NO_CARDS: "No good cards could be written from these sources. Try again or choose more topics.",
   AI_UNUSABLE_ANSWER: "The AI returned an unusable answer; please try again",
   GENERATION_FAILED: "Generation failed. Try again.",
 } as const;
@@ -77,20 +88,43 @@ const uuidList = (label: string) =>
     .max(50)
     .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))]);
 
-export const createQuizSchema = z.object({
-  kind: z.literal("quiz", { error: "Only quizzes can be generated for now." }),
+const materialAndTopicIds = {
   materialIds: uuidList("materials"),
   topicIds: uuidList("topics"),
+};
+
+export const createQuizSchema = z.object({
+  kind: z.literal("quiz"),
+  ...materialAndTopicIds,
   count: z.union(QUESTION_COUNTS.map((n) => z.literal(n)) as unknown as [z.ZodLiteral<5>, z.ZodLiteral<10>, z.ZodLiteral<15>, z.ZodLiteral<20>], {
     error: "Choose 5, 10, 15 or 20 questions.",
   }),
 });
 export type CreateQuizRequest = z.infer<typeof createQuizSchema>;
 
+export const createDeckSchema = z.object({
+  kind: z.literal("deck"),
+  ...materialAndTopicIds,
+  cardStyle: z.enum(CARD_STYLES, { error: "Choose Recall, Short answer or Mix." }),
+  count: z
+    .number({ error: `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.` })
+    .int(`Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`)
+    .min(CARD_COUNT_MIN, `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`)
+    .max(CARD_COUNT_MAX, `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`),
+});
+export type CreateDeckRequest = z.infer<typeof createDeckSchema>;
+
+export const createSetSchema = z.discriminatedUnion("kind", [createQuizSchema, createDeckSchema], {
+  error: "Choose whether to generate a quiz or a deck of flashcards.",
+});
+export type CreateSetRequest = z.infer<typeof createSetSchema>;
+
 export type SetResponse = {
   id: string;
   kind: "quiz" | "deck";
   title: string;
+  /** Decks only (null for a quiz). */
+  cardStyle: CardStyle | null;
   status: SetStatus;
   requestedCount: number;
   /** "8 of 10 generated" when lower than `requestedCount`. */
@@ -114,6 +148,30 @@ export type QuizItemPublic = {
 
 export type SetDetailResponse = { set: SetResponse; items: QuizItemPublic[] };
 
+/** The student's newest attempt on a quiz (T-12b, gap 1): `none`, in
+ * progress or submitted. Needed by the library to decide between Start,
+ * Resume and View results/Retake. */
+export type LatestAttemptSummary =
+  | { status: "none" }
+  | { status: "in_progress"; attemptId: string; answeredCount: number; totalCount: number }
+  | { status: "submitted"; attemptId: string; score: number; total: number; percent: number };
+
+/**
+ * `GET /api/spaces/:spaceId/sets`'s per-quiz list fields (T-12b, gap 1).
+ * `hasResults` is separate from `latestAttempt` because a retake makes the
+ * latest attempt "in progress" while an earlier submitted attempt still
+ * exists, and that earlier one is what blocks Delete (`SET_HAS_RESULTS`,
+ * checked against every attempt row by `quizzes-service.ts`).
+ * `activeCount` is the quiz's `active` (not reported-and-removed)
+ * question count, used by the library to show "every question removed"
+ * instead of Start/Retake (`SET_NO_ACTIVE_QUESTIONS`).
+ */
+export type SetListItemResponse = SetResponse & {
+  latestAttempt: LatestAttemptSummary;
+  hasResults: boolean;
+  activeCount: number;
+};
+
 /** Lower case, punctuation and extra spaces removed (the duplicate-question check). */
 export function normalizePrompt(prompt: string): string {
   return prompt
@@ -121,6 +179,21 @@ export function normalizePrompt(prompt: string): string {
     .replace(/[^\p{L}\p{N}\s]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** An option label the AI sometimes writes despite the prompt: "A ", "A. ", "A) ", "(A) ", "A: ", "A - ". */
+const OPTION_LABEL = /^\s*\(?([A-D])(?:[.):-]\s*|\s+)/i;
+
+/**
+ * Removes AI-written option labels before a question is saved, since the
+ * app shuffles options and labels them A–D by position itself (T-12b).
+ * Only strips when the four options carry A, B, C and D exactly once
+ * each, so real text like four options all starting "A table …" stays.
+ */
+export function stripOptionLabels(options: string[]): string[] {
+  const letters = options.map((o) => OPTION_LABEL.exec(o)?.[1]?.toUpperCase());
+  if (options.length !== 4 || [...new Set(letters)].sort().join("") !== "ABCD") return options;
+  return options.map((o) => o.replace(OPTION_LABEL, "").trim() || o);
 }
 
 /** Spread `count` questions as evenly as possible over topics; earlier topics take the remainder. */

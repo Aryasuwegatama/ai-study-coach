@@ -15,9 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/spaces": "My Study Spaces",
+  "/analytics": "My Analytics",
+  "/plan": "My Plan",
+  "/plan/review": "Review mistakes",
 };
 
-const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|analytics)(?:\/.*)?$/;
+const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|flashcards|analytics)(?:\/.*)?$/;
 
 /**
  * The shared app shell's top bar (Figma node 80:6946, "Single

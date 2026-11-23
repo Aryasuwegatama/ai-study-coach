@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
-  date,
   foreignKey,
   index,
   integer,
@@ -20,8 +19,9 @@ import { learningItems, studySets } from "./study-sets";
 import { topics } from "./topics";
 
 /**
- * Quiz attempts, scoring and revision (T-14; PRD Section 4, tables 9–13).
- * Mastery is a query over these, not a table (`features/progress`).
+ * Quiz attempts, scoring and mistakes (T-14, changed in T-15; PRD Section 4,
+ * tables 9–13). Mastery is a query over these, not a table
+ * (`features/progress`).
  */
 export const attempts = pgTable(
   "attempts",
@@ -90,7 +90,13 @@ export const attemptItems = pgTable(
   ],
 );
 
-/** A question (or, later, card) scheduled for review. Dates are the student's local calendar days. */
+/**
+ * One mistake: a question the student answered wrong in a submitted quiz
+ * (T-15, replacing the T-14 revision schedule after lecturer feedback on
+ * 13 Nov 2026: no schedule). Open while `cleared_at` is null; a correct
+ * check or a later correct quiz answer clears it, a later wrong quiz answer
+ * reopens it. One row per student per question.
+ */
 export const revisionItems = pgTable(
   "revision_items",
   {
@@ -101,9 +107,7 @@ export const revisionItems = pgTable(
     spaceId: uuid("space_id").notNull(),
     itemId: uuid("item_id").notNull(),
     topicId: uuid("topic_id").notNull(),
-    dueDate: date("due_date", { mode: "string" }).notNull(),
-    intervalDays: integer("interval_days").notNull().default(1),
-    streak: integer("streak").notNull().default(0),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -119,11 +123,12 @@ export const revisionItems = pgTable(
       columns: [table.topicId, table.spaceId],
       foreignColumns: [topics.id, topics.spaceId],
     }).onDelete("cascade"),
-    index("revision_items_student_id_due_date_idx").on(table.studentId, table.dueDate),
+    // Open mistakes per student and topic (the counts and the review list).
+    index("revision_items_student_id_topic_id_open_idx").on(table.studentId, table.topicId).where(sql`${table.clearedAt} is null`),
   ],
 );
 
-/** One review. The request key makes a double click move the schedule once and return the same result. */
+/** One check of a mistake. The request key makes a double click count once and return the same result. */
 export const revisionEvents = pgTable(
   "revision_events",
   {
@@ -134,9 +139,6 @@ export const revisionEvents = pgTable(
     outcome: text("outcome").notNull(),
     requestKey: text("request_key").notNull(),
     selectedIndex: smallint("selected_index"),
-    intervalBefore: integer("interval_before").notNull(),
-    intervalAfter: integer("interval_after").notNull(),
-    dueDateAfter: date("due_date_after", { mode: "string" }).notNull(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

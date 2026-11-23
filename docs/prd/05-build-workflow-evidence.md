@@ -163,18 +163,19 @@ git push -u origin spike/T-02-ai-smoke
 | T-08b | pgvector embeddings, RAG groundwork, AI topic suggestions and confirmation-backed data persistence | **Rashid** | `feat/T-08b-embed-topics` | T-08a and T-02 completed | **Done 13 Nov** (#29) |
 | T-09a | Materials screens (library, upload, statuses) on labelled example data (issue #25, 2026-11-13: split from T-09) | **Arya** | `feat/T-09a-materials-ui` | T-05 and T-06a merged | **Done 14 Nov** (#36) |
 | T-09b | Connect Materials screens to the real API and Blob upload; remove the examples | **Arya** | `feat/T-09b-materials-integration` | T-09a, T-06b and T-02b merged (T-09b runs the app's first real AI calls) | **Done 18 Nov** (#43) |
-| T-09c | Topic review and confirm screens; populated Overview; rename, archive and restore confirmed topics | **Arya** | `feat/T-09c-topic-review-ui` | T-09b merged and T-08b's topic contract | Blocked by prerequisites |
+| T-09c | Topic review and confirm screens; populated Overview; rename, archive and restore confirmed topics | **Arya** | `feat/T-09c-topic-review-ui` | T-09b merged and T-08b's topic contract | **Done 19 Nov** (#45) |
 | T-10 | Upload, signed-worker, retry/idempotency and cross-space source tests | **Khushi** | `test/T-10-materials-jobs` | T-06b/T-08a implementation | Blocked by prerequisites |
 | T-11a | Quiz generation API contract, schema and source/topic membership rules | **Rashid** | `feat/T-11a-quiz-contract` | T-02 and accepted extraction/topic contract; can draft before T-08b completes | **Done 13 Nov** (#30) |
 | T-11b | RAG-grounded quiz generation, AI checks, source citations and atomic publication | **Rashid** | `feat/T-11b-quiz-generation` | T-11a and T-08b merged | **Done 13 Nov** (#31) |
-| T-12a | Quiz Library, setup, attempt and results screens on example data | **Arya** | `feat/T-12a-quiz-ui` | T-11a, T-11b, T-14 contracts | In progress |
-| T-12b | Connect the quiz screens to the real API; latest-attempt and topics-per-material API additions; remove the examples | **Arya** | `feat/T-12b-quiz-integration` | T-12a merged | Pending |
+| T-12a | Quiz Library, setup, attempt and results screens on example data | **Arya** | `feat/T-12a-quiz-ui` | T-11a, T-11b, T-14 contracts | **Done 19 Nov** (#48) |
+| T-12b | Connect the quiz screens to the real API; latest-attempt, topics-per-material, topic-name and Report issue API additions; Overview with 0 materials; remove the examples | **Arya** | `feat/T-12b-quiz-integration` | T-12a merged | **Done 19 Nov** (#50) |
 | T-13 | Answer-key leak, prompt-injection, source membership and forged IDs tests | **Khushi** | `test/T-13-answers-injection` | T-11b implemented | Blocked by prerequisites |
 | T-14 | Quiz attempts and server scoring; topic mastery query; revision business logic and migrations | **Rashid** | `feat/T-14-scoring-mastery-revision` | T-11b merged; agree APIs before T-12/T-15 integrations | **Done 13 Nov** (#32) |
-| T-15 | Progress, weak topics and revision session **frontend** | **Arya** | `feat/T-15-progress-revision-ui` | UI draft after T-14 contract; real integration after T-14 merge | Blocked for integration |
-| T-16 | Forged-score, quiz-item membership, duplicate-submit and revision-schedule tests | **Khushi** | `test/T-16-scoring` | T-14 implementation | Blocked by prerequisites |
+| T-15 | Analytics, My Plan and Review mistakes on the real API (lecturer feedback, 13 Nov: no revision schedule); mistakes without due dates, plan items and suggestions API; real dashboard sections. Replaces the planned T-15a/T-15b split (Arya, 20 Nov) | **Arya** | `feat/T-15-analytics-plan` | T-14 and T-12b merged | **Done 20 Nov** (#52) |
+| T-16 | Forged-score, quiz-item membership, duplicate-submit and mistakes-review (request key) tests | **Khushi** | `test/T-16-scoring` | T-14 implementation | Blocked by prerequisites |
 | T-17 | Diary and progress evidence; permitted datasets; human review rubric and tester recruitment | **Chami** | `docs/T-17-evidence` | Preparation can start T-00; repo evidence merge coordinates with T-03 docs layout | Pending |
-| T-18–T-26 | Future cards, reports, notifications, deletion, usability, security/evaluation and load tasks | To assign individually | **Create one branch per task when scoped**; do not use a combined `T-18–T-26` branch | Core flows and acceptance tests determine individual dependencies | Not yet scoped |
+| T-18 | Flashcards: deck generation (Pipeline C), Deck Library, setup, practice with Again/Got it ratings and Resume; deck suggestions in My Plan | **Arya** | `feat/T-18-flashcards` | T-11b, T-12b and T-15 merged | **Done 20 Nov** (#54) |
+| T-19–T-26 | Future reports, notifications, deletion, usability, security/evaluation and load tasks | To assign individually | **Create one branch per task when scoped**; do not use a combined `T-19–T-26` branch | Core flows and acceptance tests determine individual dependencies | Not yet scoped |
 
 **Schema ownership rule:** Arya maintains initial infra, Better Auth/auth migrations and the Study Space API/schema. Rashid owns later domain migrations (materials/chunks/sets/attempts/revision) and must coordinate composite foreign keys with Arya. This does not remove Rashid's server-side responsibilities from the original Capstone 1 proposal; it **separates initial setup from backend product features**.
 
@@ -228,9 +229,9 @@ Tests are written with each feature, not saved for the end; four kinds of tests 
 
 | Kind | Tool | What it proves | Examples |
 | --- | --- | --- | --- |
-| Unit | Vitest | Rules with numbers work at their boundaries | 4 questions = insufficient; 5 with 2 correct = 40%, weak; revision 1 → 3 → 7, reset to 1; chunk packing; daily limit |
+| Unit | Vitest | Rules with numbers work at their boundaries | 4 questions = insufficient; 5 with 2 correct = 40%, weak; a mistake cleared once per request key; chunk packing; daily limit |
 | Integration | Vitest + test database + fake AI | Routes, database and jobs work together, and ownership holds | Student B gets 404 on Student A's quiz; double submit = one result; duplicate job step does nothing; deleted material leaves search |
-| End-to-end | Playwright | The student journey works in a browser | Sign up → space → upload fixture → confirm topics → quiz → submit → progress → revision |
+| End-to-end | Playwright | The student journey works in a browser | Sign up → space → upload fixture → confirm topics → quiz → submit → analytics → My Plan → review mistakes |
 | Accessibility and load | axe, k6 | WCAG checks on 6 key screens; 20 simultaneous users with fake AI | Reports saved under `docs/evaluation/results/` |
 
 **Definition of Done** (a task counts as done only when all of these are true):

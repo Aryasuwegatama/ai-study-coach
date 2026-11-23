@@ -2,7 +2,7 @@
 
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/class-names";
-import type { AttemptQuestionWithTopicName } from "@/features/quizzes/fixtures/quizzes-sample-types";
+import { OPTION_LETTERS, type AttemptQuestion } from "../attempts-schemas";
 
 /**
  * One attempt question (issue #46; Figma node 49:18898, MCQ attempt).
@@ -17,7 +17,7 @@ export function AttemptQuestionCard({
   onSelect,
   onAdvance,
 }: {
-  question: AttemptQuestionWithTopicName;
+  question: AttemptQuestion;
   onSelect: (index: number) => void;
   onAdvance: () => void;
 }) {
@@ -47,7 +47,8 @@ export function AttemptQuestionCard({
             )}
           >
             <RadioGroupItem value={index} />
-            {option}
+            <span className="w-4 shrink-0 font-semibold text-muted-foreground">{OPTION_LETTERS[index]}</span>
+            <span className="min-w-0">{option}</span>
           </label>
         ))}
       </RadioGroup>

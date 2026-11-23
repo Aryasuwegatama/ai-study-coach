@@ -1,12 +1,12 @@
 import { randomInt } from "node:crypto";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
-import { localDate } from "@/lib/time-zone";
 import { db } from "@/server/db/db-client";
 import {
   attemptItems,
   attempts,
   chunks,
+  contentReports,
   itemSources,
   learningItems,
   materials,
@@ -81,7 +81,10 @@ export async function startAttempt(user: SessionUser, setId: string): Promise<{ 
     .select({ id: learningItems.id })
     .from(learningItems)
     .where(and(eq(learningItems.setId, set.id), eq(learningItems.status, "active")));
-  if (!items.length) throw attemptError("SET_NOT_READY");
+  // A `ready` quiz always published at least `MIN_PUBLISHED_QUESTIONS`, so
+  // none left active here means every one was removed by a report, not
+  // that the quiz itself isn't ready yet (T-12b).
+  if (!items.length) throw attemptError("SET_NO_ACTIVE_QUESTIONS");
 
   try {
     const attempt = await db.transaction(async (tx) => {
@@ -161,7 +164,8 @@ export async function submitAttempt(user: SessionUser, attemptId: string): Promi
         .where(and(eq(attemptItems.attemptId, locked.id), eq(attemptItems.itemId, r.item.itemId)));
     }
 
-    // Wrong answers enter revision, due the next local day; one per student per question.
+    // Mistakes (T-15): a wrong answer opens one, or reopens a cleared one; one row per student per
+    // question. A correct answer clears an open one (the latest answer is right).
     const wrong = rows.filter((r) => r.item.selectedIndex !== null && r.item.selectedIndex !== r.correctIndex && r.itemStatus === "active");
     const sourced = wrong.length
       ? new Set(
@@ -177,16 +181,15 @@ export async function submitAttempt(user: SessionUser, attemptId: string): Promi
     if (toReview.length) {
       await tx
         .insert(revisionItems)
-        .values(
-          toReview.map((r) => ({
-            studentId: user.id,
-            spaceId: locked.spaceId,
-            itemId: r.item.itemId,
-            topicId: r.topicId,
-            dueDate: localDate(user.timeZone, 1),
-          })),
-        )
-        .onConflictDoNothing({ target: [revisionItems.studentId, revisionItems.itemId] });
+        .values(toReview.map((r) => ({ studentId: user.id, spaceId: locked.spaceId, itemId: r.item.itemId, topicId: r.topicId })))
+        .onConflictDoUpdate({ target: [revisionItems.studentId, revisionItems.itemId], set: { clearedAt: null } });
+    }
+    const right = rows.filter((r) => r.item.selectedIndex !== null && r.item.selectedIndex === r.correctIndex);
+    if (right.length) {
+      await tx
+        .update(revisionItems)
+        .set({ clearedAt: sql`now()` })
+        .where(and(eq(revisionItems.studentId, user.id), inArray(revisionItems.itemId, right.map((r) => r.item.itemId)), isNull(revisionItems.clearedAt)));
     }
 
     const [done] = await tx
@@ -208,10 +211,11 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
     .where(eq(attemptItems.attemptId, attempt.id))
     .orderBy(asc(attemptItems.position));
 
-  const questions: AttemptQuestion[] = rows.map(({ item, li }) => ({
+  const questions: AttemptQuestion[] = rows.map(({ item, li, topicName }) => ({
     itemId: item.itemId,
     position: item.position,
     topicId: li.topicId,
+    topicName,
     prompt: li.prompt,
     options: item.optionOrder.map((o) => (li.options ?? [])[o]),
     selectedIndex: item.selectedIndex === null ? null : item.optionOrder.indexOf(item.selectedIndex),
@@ -234,6 +238,14 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
         .where(inArray(itemSources.itemId, rows.map((r) => r.item.itemId)))
     : [];
 
+  const reportRows = rows.length
+    ? await db
+        .select({ itemId: contentReports.itemId, reason: contentReports.reason, removedFromPractice: contentReports.removedFromPractice })
+        .from(contentReports)
+        .where(and(eq(contentReports.reporterId, attempt.studentId), inArray(contentReports.itemId, rows.map((r) => r.item.itemId))))
+    : [];
+  const reportByItemId = new Map(reportRows.map((r) => [r.itemId, { reason: r.reason, removedFromPractice: r.removedFromPractice }]));
+
   const topicScores = new Map<string, AttemptResult["topics"][number]>();
   const results = rows.map(({ item, li, topicName }, i) => {
     const isCorrect = item.isCorrect === true;
@@ -243,7 +255,6 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
     topicScores.set(li.topicId, t);
     return {
       ...questions[i],
-      topicName,
       correctIndex: item.optionOrder.indexOf(li.correctIndex!),
       isCorrect,
       explanation: li.explanation,
@@ -256,6 +267,7 @@ async function toAttemptResponse(attempt: AttemptRow): Promise<AttemptResponse> 
           excerpt: s.chunk.content.slice(0, 600),
         })),
       aiGenerated: true as const,
+      report: reportByItemId.get(item.itemId) ?? null,
     };
   });
   const score = attempt.score ?? 0;

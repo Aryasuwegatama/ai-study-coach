@@ -1,7 +1,8 @@
 /**
- * Mastery and progress contract (T-14; PRD Section 2 "Mastery and
- * progress"). Mastery is a query over submitted quiz answers, never a
- * table, and revision or card ratings never change it.
+ * Mastery and progress contract (T-14, extended in T-15; PRD Section 2
+ * "Mastery and progress"). Mastery is a query over submitted quiz answers,
+ * never a table, and reviewing mistakes or card ratings never change it.
+ * These routes serve the My Analytics and Study Space Analytics screens.
  *
  * Routes:
  * - `GET /api/progress` → `{ spaces: SpaceProgress[] }` (all spaces).
@@ -33,10 +34,26 @@ export type TopicMastery = {
   needed: number;
 };
 
-export type SpaceProgress = { spaceId: string; spaceName: string; topics: TopicMastery[] };
+/**
+ * What the Analytics screens need beyond mastery (T-15). `hasReadyMaterial`:
+ * the topic is linked to at least one `ready` material (false for a topic
+ * whose materials were all deleted; it drives "Practise" and the "No
+ * material" pill). `mistakes`: its open mistakes, with the same eligibility
+ * as the review list.
+ */
+export type TopicProgress = TopicMastery & { hasReadyMaterial: boolean; mistakes: number };
+
+export type SpaceProgress = { spaceId: string; spaceName: string; topics: TopicProgress[] };
 
 export type CountedQuestion = { itemId: string; setId: string; prompt: string; isCorrect: boolean; answeredAt: string };
-export type TopicMasteryDetail = { mastery: TopicMastery; questions: CountedQuestion[] };
+export type TopicMasteryDetail = {
+  mastery: TopicMastery;
+  questions: CountedQuestion[];
+  /** So the topic page can check the topic belongs to the space in its URL. */
+  spaceId: string;
+  hasReadyMaterial: boolean;
+  mistakes: number;
+};
 
 /** The status rules, kept pure so they can be checked at their boundaries. */
 export function masteryFrom(counted: number, correct: number): Pick<TopicMastery, "status" | "percent" | "needed"> {

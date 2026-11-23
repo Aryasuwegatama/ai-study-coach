@@ -1,16 +1,18 @@
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { listSpaces } from "@/features/spaces/server";
 import { SpacesCardGrid } from "@/features/spaces/components/spaces-card-grid";
 import { SpacesCardGridSkeleton } from "@/features/spaces/components/spaces-card-grid-skeleton";
-import { DashboardContinueStudying } from "@/features/dashboard/components/dashboard-continue-studying";
+import { getDashboardSummary } from "@/features/dashboard/server/dashboard-service";
 import { DashboardLearningSnapshot } from "@/features/dashboard/components/dashboard-learning-snapshot";
-import { DashboardUpcomingRevisions } from "@/features/dashboard/components/dashboard-upcoming-revisions";
+import { DashboardResume } from "@/features/dashboard/components/dashboard-resume";
+import { DashboardSuggestedForYou } from "@/features/dashboard/components/dashboard-suggested-for-you";
 import { DashboardWelcomeHeader } from "@/features/dashboard/components/dashboard-welcome-header";
 import { DashboardWelcomeHeaderSkeleton } from "./dashboard-welcome-header-skeleton";
 
@@ -19,10 +21,9 @@ type DashboardPageProps = {
 };
 
 /**
- * The Dashboard (T-04b; Figma node 80:6946). T-05 replaces the
- * "My Study Spaces" fixture with the student's real spaces; Learning
- * Snapshot, Continue Studying and Upcoming Revisions are still example
- * data until their own tasks (T-14/T-15) land.
+ * The Dashboard (T-04b; Figma node 80:6946). T-05 made "My Study Spaces"
+ * real; T-15 makes the rest real: Learning Snapshot, Resume card, a quiz or a deck (was
+ * Continue Studying) and Suggested for you (was Upcoming Revisions).
  */
 export default function DashboardPage({ searchParams }: DashboardPageProps) {
   return (
@@ -30,8 +31,12 @@ export default function DashboardPage({ searchParams }: DashboardPageProps) {
       <Suspense fallback={<DashboardWelcomeHeaderSkeleton />}>
         <DashboardWelcomeHeaderSection searchParams={searchParams} />
       </Suspense>
-      <DashboardLearningSnapshot />
-      <DashboardContinueStudying />
+      <Suspense fallback={<DashboardSectionSkeleton />}>
+        <DashboardSnapshotSection />
+      </Suspense>
+      <Suspense fallback={null}>
+        <DashboardResumeSection />
+      </Suspense>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-foreground">My Study Spaces</h2>
@@ -49,13 +54,46 @@ export default function DashboardPage({ searchParams }: DashboardPageProps) {
           <DashboardSpacesSection />
         </Suspense>
       </section>
-      <DashboardUpcomingRevisions />
-      <p className="text-xs text-muted-foreground">
-        Example data: Learning Snapshot, Continue Studying and Upcoming Revisions are
-        illustrative, not your real progress.
-      </p>
+      <Suspense fallback={<DashboardSectionSkeleton />}>
+        <DashboardSuggestedSection />
+      </Suspense>
     </div>
   );
+}
+
+/**
+ * One read of the summary per request, shared by the three sections below
+ * (`cache` de-duplicates it within a render), with the same session check as
+ * every other section on this page.
+ */
+const loadSummary = cache(async () => {
+  await connection();
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/sign-in");
+  }
+  return getDashboardSummary(user);
+});
+
+function DashboardSectionSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-28 w-full rounded-[20px]" />
+    </div>
+  );
+}
+
+async function DashboardSnapshotSection() {
+  return <DashboardLearningSnapshot summary={await loadSummary()} />;
+}
+
+async function DashboardResumeSection() {
+  return <DashboardResume resume={(await loadSummary()).resume} />;
+}
+
+async function DashboardSuggestedSection() {
+  return <DashboardSuggestedForYou suggestions={(await loadSummary()).suggestions} />;
 }
 
 /**

@@ -69,6 +69,7 @@ Decks reuse Pipeline B's retrieval, checks and top-up; only the card format and 
 - The answer check asks only "is the back (or model answer) supported by the cited sources?"
 - **Mix** asks for half recall and half short-answer cards.
 - A deck publishes with any number of passing cards, shown as "12 of 15 generated". Zero passing cards means the generation failed.
+- **Built in T-18** (`src/features/flashcards/server/generate-deck.ts`, sharing the retrieval, slot admission, step plumbing and commit of the quiz job in `quizzes/server/generation-shared.ts`). Prompt versions: `cards-v1` (writing) and `card-check-v1` (the support check), in `src/server/ai/prompts/cards.ts`. The model's answer is only checked for shape by Zod; the length and key-point limits are code checks applied to each card, so one overlong card is dropped instead of making the whole answer unusable. Mix gives every other card of the deck a recall card, starting with recall, so the deck is half and half and recall takes the odd one. Duplicate fronts are compared with other cards only (not with quiz questions).
 
 ## Rules for every AI call
 

@@ -4,6 +4,7 @@ import { db } from "@/server/db/db-client";
 import { jobs } from "@/server/db/schema";
 import { processMaterialJob } from "@/features/materials/server";
 import { generateQuizJob } from "@/features/quizzes/server";
+import { generateDeckJob } from "@/features/flashcards/server";
 import { MAX_STEP_ATTEMPTS, type StepMessage } from "./jobs-client";
 
 /**
@@ -22,6 +23,7 @@ type JobHandler = {
 const HANDLERS: Record<string, JobHandler> = {
   process_material: processMaterialJob,
   generate_quiz: generateQuizJob,
+  generate_deck: generateDeckJob,
 };
 
 /** Longer than the 300-second function limit, so a live step never loses its claim. */

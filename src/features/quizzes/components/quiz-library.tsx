@@ -12,7 +12,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { SetWithLatestAttempt } from "../fixtures/quizzes-sample-types";
+import { ATTEMPT_API_ERRORS } from "@/features/attempts/attempts-schemas";
+import type { SetListItemResponse } from "../quizzes-schemas";
 import { QuizzesEmptyState } from "./quizzes-empty-state";
 
 const ATTEMPT_LABELS = { none: "Not started", in_progress: "In progress", submitted: "Completed" } as const;
@@ -22,7 +23,7 @@ const ATTEMPT_CLASSES = {
   submitted: "bg-soft-green text-green",
 } as const;
 
-function QuizStatusPill({ quiz }: { quiz: SetWithLatestAttempt }) {
+function QuizStatusPill({ quiz }: { quiz: SetListItemResponse }) {
   if (quiz.status === "generating") {
     return (
       <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-soft-amber px-3 text-xs font-semibold text-amber">
@@ -58,8 +59,8 @@ function QuizCardActions({
   onDelete,
 }: {
   spaceId: string;
-  quiz: SetWithLatestAttempt;
-  onDelete: (quiz: SetWithLatestAttempt) => void;
+  quiz: SetListItemResponse;
+  onDelete: (quiz: SetListItemResponse) => void;
 }) {
   // A quiz can be deleted whatever its generation status (failed, still
   // generating, never attempted or only in progress); only a submitted
@@ -68,6 +69,13 @@ function QuizCardActions({
   // progress, which is why this reads `hasResults`, not `latestAttempt`.
   const canDelete = !quiz.hasResults;
   const attemptHref = `/spaces/${spaceId}/quizzes/${quiz.id}`;
+
+  // A ready quiz can still have no active questions left (every one was
+  // removed by a report): starting a new attempt would hit
+  // `SET_NO_ACTIVE_QUESTIONS`, so Start/Retake are replaced by that
+  // message. Resuming an existing in-progress attempt is unaffected — its
+  // questions were already chosen before any of them were removed.
+  const noActiveQuestions = quiz.status === "ready" && quiz.activeCount === 0 && quiz.latestAttempt.status !== "in_progress";
 
   let primary: ReactNode = null;
   if (quiz.status === "failed") {
@@ -81,6 +89,22 @@ function QuizCardActions({
       >
         Try again
       </Button>
+    );
+  } else if (noActiveQuestions) {
+    primary = (
+      <div className="flex flex-col gap-2">
+        {quiz.latestAttempt.status === "submitted" && (
+          <Button
+            type="button"
+            className="rounded-full"
+            nativeButton={false}
+            render={<Link href={`/spaces/${spaceId}/quizzes/${quiz.id}/results/${quiz.latestAttempt.attemptId}`} />}
+          >
+            View results
+          </Button>
+        )}
+        <p className="text-xs text-muted-foreground">{ATTEMPT_API_ERRORS.SET_NO_ACTIVE_QUESTIONS.message}</p>
+      </div>
     );
   } else if (quiz.status === "ready" && quiz.latestAttempt.status === "none") {
     primary = (
@@ -139,9 +163,14 @@ function QuizCard({
   onDelete,
 }: {
   spaceId: string;
-  quiz: SetWithLatestAttempt;
-  onDelete: (quiz: SetWithLatestAttempt) => void;
+  quiz: SetListItemResponse;
+  onDelete: (quiz: SetListItemResponse) => void;
 }) {
+  // `generatedCount` is what was published; the rest were removed from
+  // practice by a report, so retakes are shorter (Arya, 2026-11-19, T-12b:
+  // no replacement questions). At 0 left, the actions show their own message.
+  const removedCount = quiz.status === "ready" ? quiz.generatedCount - quiz.activeCount : 0;
+
   return (
     <Card className="flex flex-col rounded-[20px] p-5">
       <CardContent className="flex flex-1 flex-col gap-3 p-0">
@@ -154,6 +183,11 @@ function QuizCard({
           </p>
         )}
         {quiz.status === "failed" && quiz.error && <p className="text-xs text-muted-foreground">{quiz.error.message}</p>}
+        {removedCount > 0 && quiz.activeCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {removedCount} question{removedCount === 1 ? "" : "s"} removed after a report
+          </p>
+        )}
         {quiz.status === "ready" && quiz.latestAttempt.status === "in_progress" && (
           <p className="text-xs text-muted-foreground">
             {quiz.latestAttempt.answeredCount} of {quiz.latestAttempt.totalCount} answered
@@ -197,20 +231,15 @@ export function QuizLibrary({
   onDelete,
 }: {
   spaceId: string;
-  quizzes: SetWithLatestAttempt[];
+  quizzes: SetListItemResponse[];
   loading: boolean;
   actionError?: string | null;
-  onDelete: (quiz: SetWithLatestAttempt) => void;
+  onDelete: (quiz: SetListItemResponse) => void;
 }) {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold text-foreground">Quizzes · {quizzes.length}</h2>
-          <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-secondary px-3 text-xs font-semibold text-primary">
-            EXAMPLE DATA
-          </span>
-        </div>
+        <h2 className="text-xl font-semibold text-foreground">Quizzes · {quizzes.length}</h2>
         {!loading && quizzes.length > 0 && (
           <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/new`} />}>
             Generate quiz

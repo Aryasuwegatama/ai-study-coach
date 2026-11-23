@@ -17,8 +17,12 @@ import { z } from "zod";
  *   (0–3), or `null` to clear. A submitted attempt → 409 `ATTEMPT_SUBMITTED`.
  * - `POST /api/attempts/:id/submit` → 200 `AttemptResponse` with `result`.
  *   The body is ignored: the server scores. Submitting twice returns the
- *   same result. Wrong answers create review items due the next local day.
+ *   same result. A wrong answer opens a mistake (or reopens a cleared one);
+ *   a correct answer clears an open one (T-15).
  * - Missing, malformed or someone else's attempt: 404 `ATTEMPT_NOT_FOUND`.
+ * - `POST /api/sets/:id/attempts` on a ready quiz with no `active` items
+ *   left (every one was removed by a report) → 409 `SET_NO_ACTIVE_QUESTIONS`
+ *   (T-12b; PRD Section 2 "Reports").
  */
 
 export const ATTEMPT_API_ERRORS = {
@@ -26,8 +30,12 @@ export const ATTEMPT_API_ERRORS = {
   SET_NOT_READY: { status: 409, message: "This quiz isn't ready yet." },
   ATTEMPT_SUBMITTED: { status: 409, message: "This attempt was already submitted." },
   ITEM_NOT_IN_ATTEMPT: { status: 400, message: "That question isn't part of this attempt." },
+  SET_NO_ACTIVE_QUESTIONS: { status: 409, message: "Every question in this quiz was removed from your practice." },
 } as const;
 export type AttemptApiErrorCode = keyof typeof ATTEMPT_API_ERRORS;
+
+/** Labels by displayed position, so a shuffled retake still reads A–D top to bottom (T-12b). */
+export const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
 
 export const saveAnswerSchema = z.object({
   itemId: z.uuid("Choose a valid question."),
@@ -39,6 +47,8 @@ export type AttemptQuestion = {
   itemId: string;
   position: number;
   topicId: string;
+  /** The topic's current name (a rename shows the new name), matching how results already behave (T-12b). */
+  topicName: string;
   prompt: string;
   /** In this attempt's shuffled order. */
   options: string[];
@@ -48,8 +58,10 @@ export type AttemptQuestion = {
 
 export type QuestionSource = { chunkId: string; materialName: string; pages: string; excerpt: string };
 
+/** A student's report on a question, read back on the Results answer review (T-12b, PRD Section 2 "Reports"). */
+export type ItemReport = { reason: string; removedFromPractice: boolean };
+
 export type QuestionResult = AttemptQuestion & {
-  topicName: string;
   /** Displayed index of the correct option. */
   correctIndex: number;
   isCorrect: boolean;
@@ -57,6 +69,8 @@ export type QuestionResult = AttemptQuestion & {
   /** Empty when every cited material was deleted: show "Source removed". */
   sources: QuestionSource[];
   aiGenerated: true;
+  /** Null when this student hasn't reported this question. */
+  report: ItemReport | null;
 };
 
 export type AttemptResult = {

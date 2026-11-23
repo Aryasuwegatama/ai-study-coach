@@ -6,6 +6,10 @@
  * seeded directly (T-08a/b's checks cover how they get there); job steps
  * are delivered in-process by a fake publisher.
  *
+ * T-18 adds the `generate_deck` runs (recall, short answer and mix, the code
+ * and support checks, "N of M generated", NO_CARDS, thin topics, the combined
+ * daily limit, the deck list and delete); the quiz runs are unchanged.
+ *
  * Run with: pnpm run check:quiz-generation
  */
 import { config } from "dotenv";
@@ -16,13 +20,15 @@ import { randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import { db } from "../src/server/db/db-client";
-import { aiCalls, chunks, itemSources, jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "../src/server/db/schema";
+import { aiCalls, chunks, deckSessions, itemSources, jobs, learningItems, materials, materialTopics, studySets, studySpaces, topics } from "../src/server/db/schema";
 import { setPublisherForChecks, type PublishOptions, type StepMessage } from "../src/server/jobs/jobs-client";
 import { runJobStep } from "../src/server/jobs/jobs-runner";
 import { embedTexts, embeddingModelName } from "../src/server/ai/ai-embeddings";
 import { normalizeTopicName } from "../src/server/ai/prompts/topics";
+import { fakeCards, setFakeCardsForChecks, type WrittenCard } from "../src/server/ai/prompts/cards";
 import { safeTimeZone } from "../src/lib/time-zone";
 import type { SetDetailResponse, SetResponse } from "../src/features/quizzes/quizzes-schemas";
+import type { DeckListItemResponse } from "../src/features/flashcards/flashcards-schemas";
 import { GET as listRoute, POST as createRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 import { DELETE as deleteRoute, GET as getRoute } from "../src/app/api/sets/[id]/route";
 
@@ -151,7 +157,7 @@ async function e2e(a: Session, b: Session) {
   res = await create(a, { kind: "quiz", materialIds: [material], topicIds: topicIds.slice(0, 1), count: 7 });
   check("Create: a count other than 5/10/15/20 → 400", res.status === 400);
   res = await create(a, { kind: "deck", materialIds: [material], topicIds: topicIds.slice(0, 1), count: 5 });
-  check("Create: decks aren't available yet → 400", res.status === 400);
+  check("Create: a deck without a card style → 400", res.status === 400);
   res = await create(b, { kind: "quiz", materialIds: [material], topicIds: topicIds.slice(0, 1), count: 5 });
   check("Create: someone else's space → 404", res.status === 404);
   res = await createRoute(req(`/api/spaces/${space.id}/sets`, null, "POST", {}), p({ spaceId: space.id }));
@@ -216,7 +222,7 @@ async function e2e(a: Session, b: Session) {
   const calls = await db.select().from(aiCalls).where(eq(aiCalls.jobId, job.id));
   check(
     "ai_calls: query embedding, write and answer check logged with prompt versions",
-    calls.some((c) => c.purpose === "embed_query") && calls.some((c) => c.purpose === "write_questions" && c.promptVersion === "quiz-v1") && calls.some((c) => c.purpose === "check_answers" && c.promptVersion === "check-v1"),
+    calls.some((c) => c.purpose === "embed_query") && calls.some((c) => c.purpose === "write_questions" && c.promptVersion === "quiz-v2") && calls.some((c) => c.purpose === "check_answers" && c.promptVersion === "check-v1"),
   );
 
   res = await getRoute(req(`/api/sets/${created.id}`, a), p({ id: created.id }));
@@ -278,6 +284,223 @@ async function e2e(a: Session, b: Session) {
   const orphanJob = (await db.select().from(jobs).where(eq(jobs.targetId, orphan.id)))[0];
   check("Deleted mid-generation: the job stops (failed, SET_GONE)", orphanJob.status === "failed" && orphanJob.errorCode === "SET_GONE");
 
+  // === Decks (T-18) ======================================================================
+  const createDeck = (s: Session, over: Record<string, unknown>, spaceId = space.id) =>
+    create(s, { kind: "deck", materialIds: [material], topicIds: topicIds.slice(0, 1), cardStyle: "recall", count: 5, ...over }, spaceId);
+  const setOf = async (r: Response) => ((await r.json()) as { set: SetResponse }).set;
+  const itemsOf = (setId: string) => db.select().from(learningItems).where(eq(learningItems.setId, setId));
+  const queueBefore = queue.length;
+
+  res = await createDeck(a, { materialIds: [material, notReady] });
+  check("Deck create: a material that isn't ready → 400 MATERIAL_NOT_READY", res.status === 400 && (await errorCode(res)) === "MATERIAL_NOT_READY");
+  const [spaceOther] = await db.insert(studySpaces).values({ ownerId: a.userId, name: "Other space" }).returning();
+  const otherMaterial = await seedMaterial(spaceOther.id, "ready", paragraphs.slice(0, 4));
+  res = await createDeck(a, { materialIds: [otherMaterial] });
+  check("Deck create: another space's material → 400 MATERIAL_NOT_READY", res.status === 400 && (await errorCode(res)) === "MATERIAL_NOT_READY");
+  res = await createDeck(a, { materialIds: [material], topicIds: [thinTopic] });
+  check("Deck create: a topic not in the chosen materials → 400 TOPIC_NOT_IN_MATERIALS", res.status === 400 && (await errorCode(res)) === "TOPIC_NOT_IN_MATERIALS");
+  res = await createDeck(a, { topicIds: topicIds.slice(0, 3), count: 2 });
+  const tooMany = (await res.json()) as { error?: { code?: string; message?: string } };
+  check(
+    "Deck create: 3 topics for 2 cards → 400 TOO_MANY_TOPICS, message names cards",
+    res.status === 400 && tooMany.error?.code === "TOO_MANY_TOPICS" && /cards/.test(tooMany.error.message ?? "") && !/questions/.test(tooMany.error.message ?? ""),
+    tooMany.error?.message,
+  );
+  res = await create(a, { kind: "quiz", materialIds: [material], topicIds, count: 5 });
+  const quizMessage = (await res.json()) as { error?: { message?: string } };
+  check("Quiz create: the too-many-topics message still names questions", res.status === 400 && /questions/.test(quizMessage.error?.message ?? ""));
+  res = await createDeck(a, { count: 0 });
+  check("Deck create: count 0 → 400", res.status === 400);
+  res = await createDeck(b, {});
+  check("Deck create: someone else's space → 404", res.status === 404);
+  check(
+    "Deck create: rejected requests created no deck or job",
+    (await db.select({ n: count() }).from(studySets).where(and(eq(studySets.spaceId, space.id), eq(studySets.kind, "deck"))))[0].n === 0 && queue.length === queueBefore,
+  );
+
+  // Recall deck over 3 topics.
+  const deckTopics = topicIds.slice(0, 3);
+  res = await createDeck(a, { topicIds: deckTopics, cardStyle: "recall", count: 5 });
+  const recallDeck = await setOf(res);
+  check(
+    "Deck create: 202, generating, kind deck, card style recall, retrieve published on the generation flow",
+    res.status === 202 && recallDeck.status === "generating" && recallDeck.kind === "deck" && recallDeck.cardStyle === "recall" && queue.at(-1)?.message.step === "retrieve" && queue.at(-1)?.options.flow === "generation",
+  );
+  const deckJob = (await db.select().from(jobs).where(eq(jobs.targetId, recallDeck.id)))[0];
+  check("Deck job row: generate_deck, idempotency key per set", deckJob?.kind === "generate_deck" && deckJob.idempotencyKey === `generate_deck:${recallDeck.id}`);
+  await drain();
+  const recallRow = (await db.select().from(studySets).where(eq(studySets.id, recallDeck.id)))[0];
+  const recallItems = await itemsOf(recallDeck.id);
+  check(
+    "Recall deck: ready with 5 recall cards (2/2/1 over the topics)",
+    recallRow.status === "ready" && recallRow.generatedCount === 5 && recallItems.length === 5 && recallItems.every((i) => i.kind === "recall") && deckTopics.map((t) => recallItems.filter((i) => i.topicId === t).length).join("/") === "2/2/1",
+    `${recallRow.status} ${recallRow.generatedCount}`,
+  );
+  check(
+    "Recall deck: front in prompt, back in answer_text, no key points or options, version cards-v1",
+    recallItems.every((i) => i.prompt.length > 0 && (i.answerText ?? "").length > 0 && i.keyPoints === null && i.options === null && i.promptVersion === "cards-v1"),
+  );
+  const recallSources = await db.select().from(itemSources).where(inArray(itemSources.itemId, recallItems.map((i) => i.id)));
+  check("Recall deck: every card cites at least one chunk", recallItems.every((i) => recallSources.some((s) => s.itemId === i.id)));
+  const recallCalls = await db.select().from(aiCalls).where(eq(aiCalls.jobId, deckJob.id));
+  check(
+    "Deck ai_calls: write_cards (cards-v1) and check_cards (card-check-v1) logged; no quiz prompts",
+    recallCalls.some((c) => c.purpose === "write_cards" && c.promptVersion === "cards-v1") &&
+      recallCalls.some((c) => c.purpose === "check_cards" && c.promptVersion === "card-check-v1") &&
+      !recallCalls.some((c) => c.purpose === "write_questions"),
+  );
+  const recallPlan = (await db.select().from(jobs).where(eq(jobs.id, deckJob.id)))[0].payload as { groups: { topics: { count: number; recall?: number }[] }[] };
+  check("Deck plan: for a recall deck every card is a recall card", recallPlan.groups[0].topics.every((t) => t.recall === t.count));
+  res = await getRoute(req(`/api/sets/${recallDeck.id}`, a), p({ id: recallDeck.id }));
+  const deckDetail = (await res.json()) as SetDetailResponse;
+  const deckRaw = JSON.stringify(deckDetail);
+  const firstCard = [...recallItems].sort((x, y) => x.position - y.position)[0];
+  check(
+    "GET a deck: card fronts only, in order; no backs, key points or sources",
+    res.status === 200 && deckDetail.items.length === 5 && deckDetail.items[0].prompt === firstCard.prompt && !deckRaw.includes(JSON.stringify(firstCard.answerText).slice(1, -1)) && !deckRaw.includes("keyPoints") && !deckRaw.includes("answerText") && !deckRaw.includes("sources") && !deckRaw.includes("correctIndex"),
+  );
+
+  // Short-answer deck, one topic.
+  res = await createDeck(a, { cardStyle: "short_answer", count: 3 });
+  const shortDeck = await setOf(res);
+  await drain();
+  const shortItems = await itemsOf(shortDeck.id);
+  check(
+    "Short-answer deck: 3 short-answer cards, each with a model answer and 2–4 key points",
+    shortItems.length === 3 && shortItems.every((i) => i.kind === "short_answer" && (i.answerText ?? "") !== "" && Array.isArray(i.keyPoints) && i.keyPoints.length >= 2 && i.keyPoints.length <= 4),
+  );
+
+  // Mix: half and half, recall takes the odd one.
+  res = await createDeck(a, { cardStyle: "mix", count: 5 });
+  const mixOdd = await setOf(res);
+  await drain();
+  const mixOddItems = await itemsOf(mixOdd.id);
+  check("Mix of 5 (one topic): 3 recall and 2 short answer", mixOddItems.filter((i) => i.kind === "recall").length === 3 && mixOddItems.filter((i) => i.kind === "short_answer").length === 2);
+  res = await createDeck(a, { cardStyle: "mix", count: 4, topicIds: [...topicIds.slice(3, 6), topicIds[0]] });
+  const mixEven = await setOf(res);
+  await drain();
+  const mixEvenItems = await itemsOf(mixEven.id);
+  check("Mix of 4 (four topics): 2 recall and 2 short answer", mixEvenItems.length === 4 && mixEvenItems.filter((i) => i.kind === "recall").length === 2 && mixEvenItems.filter((i) => i.kind === "short_answer").length === 2);
+
+  // A thin topic (one chunk): at most 3 cards, and the deck still publishes ("3 of 5").
+  res = await createDeck(a, { materialIds: [thinMaterial], topicIds: [thinTopic], count: 5 });
+  const thinDeck = await setOf(res);
+  await drain();
+  const thinRow = (await db.select().from(studySets).where(eq(studySets.id, thinDeck.id)))[0];
+  check("Thin topic deck: capped at 3 cards and published as 3 of 5 (no minimum)", thinRow.status === "ready" && thinRow.generatedCount === 3 && thinRow.requestedCount === 5, `${thinRow.status} ${thinRow.generatedCount}`);
+
+  // Code checks, all at once, through a writer that returns flawed cards.
+  const logged: string[] = [];
+  const realInfo = console.info;
+  console.info = (...args: unknown[]) => void logged.push(args.map(String).join(" "));
+  let none: SetResponse;
+  try {
+    setFakeCardsForChecks((topicList, sourceList) => {
+      const t = topicList[0].label;
+      const s1 = sourceList[0].label;
+      const good: WrittenCard = { kind: "recall", front: "What is a good card?", back: "One that is right.", keyPoints: [], topic: t, sources: [s1] };
+      const shortCard = (keyPoints: string[], front: string): WrittenCard => ({ kind: "short_answer", front, back: "Model.", keyPoints, topic: t, sources: [s1] });
+      return {
+        cards: [
+          good,
+          { ...good, front: "x".repeat(121) },
+          { ...good, front: "Back too long?", back: "y".repeat(201) },
+          { ...good, front: "Unknown topic?", topic: "T99" },
+          { ...good, front: "Unknown source?", sources: ["S99"] },
+          { ...good, front: "No sources at all?", sources: [] },
+          { ...good, front: "WHAT is a good card" },
+          shortCard(["only one"], "One key point?"),
+          shortCard(["1", "2", "3", "4", "5"], "Five key points?"),
+          { ...good, front: "Recall with key points?", keyPoints: ["a", "b"] },
+          { ...good, front: "   ", back: "empty front" },
+        ],
+      };
+    });
+    res = await createDeck(a, { count: 10, cardStyle: "mix" });
+    const flawed = await setOf(res);
+    await drain();
+    const flawedRow = (await db.select().from(studySets).where(eq(studySets.id, flawed.id)))[0];
+    const flawedItems = await itemsOf(flawed.id);
+    check(
+      "Code checks: only the one valid card is kept; the set publishes as 1 of 10",
+      flawedRow.status === "ready" && flawedRow.generatedCount === 1 && flawedRow.requestedCount === 10 && flawedItems.length === 1 && flawedItems[0].prompt === "What is a good card?",
+      `${flawedRow.status} ${flawedRow.generatedCount} ${flawedItems.map((i) => i.prompt).join("|")}`,
+    );
+    const reasons = logged.filter((l) => l.includes("rejected by code check")).join("\n");
+    check(
+      "Code checks: lengths, key points, unknown topic and source labels and duplicate fronts are each logged as rejected",
+      ["recall card shape (front", "recall card shape (back", "unknown topic label", "unknown source label", "duplicate front", "short_answer card shape (keyPoints", "recall card shape (keyPoints"].every((r) => reasons.includes(r)),
+      reasons.slice(0, 600),
+    );
+
+    // The support check: a "no" drops the card and logs the reason.
+    logged.length = 0;
+    let first = true;
+    let droppedFront = "";
+    setFakeCardsForChecks(undefined, (candidates) => {
+      if (first) droppedFront = candidates[0].front;
+      const results = candidates.map((c, i) => ({ id: c.id, supported: !(first && i === 0), reason: "not in the sources" }));
+      first = false;
+      return { results };
+    });
+    res = await createDeck(a, { count: 4, cardStyle: "recall", topicIds: topicIds.slice(4, 6) });
+    const checked = await setOf(res);
+    await drain();
+    const checkedItems = await itemsOf(checked.id);
+    check(
+      "Support check: a card judged unsupported is dropped and logged; the top-up round fills the gap",
+      droppedFront !== "" && logged.some((l) => l.includes("rejected by answer check (not in the sources)")) && !checkedItems.some((i) => i.prompt === droppedFront) && checkedItems.length === 4,
+      `${checkedItems.length}: ${checkedItems.map((i) => i.prompt).join(" | ")}`,
+    );
+
+    // Every card rejected → failed with NO_CARDS.
+    setFakeCardsForChecks(undefined, (candidates) => ({ results: candidates.map((c) => ({ id: c.id, supported: false, reason: "no" })) }));
+    res = await createDeck(a, { count: 5 });
+    none = await setOf(res);
+    await drain();
+    const noneJob = (await db.select().from(jobs).where(eq(jobs.targetId, none.id)))[0];
+    res = await getRoute(req(`/api/sets/${none.id}`, a), p({ id: none.id }));
+    const noneDetail = (await res.json()) as SetDetailResponse;
+    check(
+      "Zero passing cards: set failed with NO_CARDS and its message, no cards kept, slot released",
+      noneDetail.set.status === "failed" && noneDetail.set.error?.code === "NO_CARDS" && /No good cards could be written/.test(noneDetail.set.error.message) && noneDetail.items.length === 0 && noneJob.status === "failed" && noneJob.errorCode === "NO_CARDS" && !noneJob.generationSlotAcquired,
+    );
+  } finally {
+    setFakeCardsForChecks(undefined);
+    console.info = realInfo;
+  }
+  check(
+    "Fake override is off again: the default fake writes valid cards",
+    fakeCards([{ label: "T1", name: "n", description: "d", recall: 1, short: 1, sourceLabels: ["S1"] }], [{ label: "S1", pages: "1", content: "some words here" }], 1).cards.length === 2,
+  );
+
+  // The lists: decks only, then quizzes only.
+  res = await listRoute(req(`/api/spaces/${space.id}/sets?kind=deck`, a), p({ spaceId: space.id }));
+  const deckList = ((await res.json()) as { sets: DeckListItemResponse[] }).sets;
+  check(
+    "List ?kind=deck: decks only, newest first, each with latestSession and practisableCount",
+    res.status === 200 && deckList.length > 0 && deckList.every((d) => d.kind === "deck" && d.latestSession.status === "none" && typeof d.practisableCount === "number") && deckList[0].createdAt >= deckList.at(-1)!.createdAt,
+  );
+  const listedRecall = deckList.find((d) => d.id === recallDeck.id)!;
+  const listedNone = deckList.find((d) => d.id === none.id)!;
+  check("List ?kind=deck: practisableCount counts active sourced cards (5 for the recall deck, 0 for the failed one)", listedRecall.practisableCount === 5 && listedNone.practisableCount === 0 && listedRecall.cardStyle === "recall");
+  res = await listRoute(req(`/api/spaces/${space.id}/sets?kind=quiz`, a), p({ spaceId: space.id }));
+  const quizList = ((await res.json()) as { sets: SetResponse[] }).sets;
+  check("List ?kind=quiz: quizzes only", quizList.length > 0 && quizList.every((s) => s.kind === "quiz" && s.cardStyle === null));
+
+  // Delete: always allowed for a deck; its sessions go with it.
+  await db.insert(deckSessions).values({ spaceId: space.id, setId: recallDeck.id, studentId: a.userId, status: "completed", finishedAt: new Date() });
+  await db.insert(deckSessions).values({ spaceId: space.id, setId: recallDeck.id, studentId: a.userId });
+  res = await deleteRoute(req(`/api/sets/${recallDeck.id}`, b, "DELETE"), p({ id: recallDeck.id }));
+  check("Delete a deck: someone else's → 404", res.status === 404);
+  res = await deleteRoute(req(`/api/sets/${recallDeck.id}`, a, "DELETE"), p({ id: recallDeck.id }));
+  check(
+    "Delete a deck with sessions: 204; cards, sources and sessions go",
+    res.status === 204 &&
+      (await db.select({ n: count() }).from(deckSessions).where(eq(deckSessions.setId, recallDeck.id)))[0].n === 0 &&
+      (await itemsOf(recallDeck.id)).length === 0,
+  );
+
   // --- Daily limit -------------------------------------------------------------------------
   const [spaceB] = await db.insert(studySpaces).values({ ownerId: b.userId, name: "Limit check" }).returning();
   const materialB = await seedMaterial(spaceB.id, "ready", paragraphs.slice(0, 6));
@@ -287,6 +510,8 @@ async function e2e(a: Session, b: Session) {
   );
   res = await create(b, { kind: "quiz", materialIds: [materialB], topicIds: [topicB], count: 5 }, spaceB.id);
   check("Daily limit: the 21st generation today → 429 DAILY_LIMIT_REACHED", res.status === 429 && (await errorCode(res)) === "DAILY_LIMIT_REACHED");
+  res = await create(b, { kind: "deck", materialIds: [materialB], topicIds: [topicB], cardStyle: "recall", count: 5 }, spaceB.id);
+  check("Daily limit: quizzes and decks share it (the 21st today is a deck) → 429", res.status === 429 && (await errorCode(res)) === "DAILY_LIMIT_REACHED");
   check(
     "Daily limit: no set was created",
     (await db.select({ n: count() }).from(studySets).where(and(eq(studySets.spaceId, spaceB.id))))[0].n === 0,
