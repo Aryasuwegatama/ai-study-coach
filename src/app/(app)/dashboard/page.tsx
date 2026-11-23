@@ -1,70 +1,42 @@
 import { Suspense, cache } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageContainer, PageHead } from "@/components/page-container";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { listSpaces } from "@/features/spaces/server";
-import { SpacesCardGrid } from "@/features/spaces/components/spaces-card-grid";
-import { SpacesCardGridSkeleton } from "@/features/spaces/components/spaces-card-grid-skeleton";
 import { getDashboardSummary } from "@/features/dashboard/server/dashboard-service";
-import { DashboardLearningSnapshot } from "@/features/dashboard/components/dashboard-learning-snapshot";
-import { DashboardResume } from "@/features/dashboard/components/dashboard-resume";
-import { DashboardSuggestedForYou } from "@/features/dashboard/components/dashboard-suggested-for-you";
-import { DashboardWelcomeHeader } from "@/features/dashboard/components/dashboard-welcome-header";
-import { DashboardWelcomeHeaderSkeleton } from "./dashboard-welcome-header-skeleton";
+import { DashboardContent } from "@/features/dashboard/components/dashboard-content";
+import { DashboardWelcomeCard } from "@/features/dashboard/components/dashboard-welcome-card";
+import { DashboardBodySkeleton } from "./dashboard-body-skeleton";
+import { DashboardWelcomeCardSkeleton } from "./dashboard-welcome-card-skeleton";
 
 type DashboardPageProps = {
   searchParams: Promise<{ from?: string }>;
 };
 
 /**
- * The Dashboard (T-04b; Figma node 80:6946). T-05 made "My Study Spaces"
- * real; T-15 makes the rest real: Learning Snapshot, Resume card, a quiz or a deck (was
- * Continue Studying) and Suggested for you (was Upcoming Revisions).
+ * The Dashboard (T-04b; redesigned in the UI redesign, Step 2): page head,
+ * welcome card, four summary numbers, then Study Spaces beside Continue
+ * studying, Your topics are ready and Suggested for you. With no spaces it
+ * is the welcome card and one empty-state card.
  */
 export default function DashboardPage({ searchParams }: DashboardPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<DashboardWelcomeHeaderSkeleton />}>
-        <DashboardWelcomeHeaderSection searchParams={searchParams} />
+    <PageContainer>
+      <PageHead title="Dashboard" subtitle="Your subjects, your progress, your next step." />
+      <Suspense fallback={<DashboardWelcomeCardSkeleton />}>
+        <DashboardWelcomeSection searchParams={searchParams} />
       </Suspense>
-      <Suspense fallback={<DashboardSectionSkeleton />}>
-        <DashboardSnapshotSection />
+      <Suspense fallback={<DashboardBodySkeleton />}>
+        <DashboardBody />
       </Suspense>
-      <Suspense fallback={null}>
-        <DashboardResumeSection />
-      </Suspense>
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground">Study Spaces</h2>
-          <Button
-            variant="ghost"
-            className="gap-2"
-            nativeButton={false}
-            render={<Link href="/spaces?create=1" />}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Create study space
-          </Button>
-        </div>
-        <Suspense fallback={<SpacesCardGridSkeleton />}>
-          <DashboardSpacesSection />
-        </Suspense>
-      </section>
-      <Suspense fallback={<DashboardSectionSkeleton />}>
-        <DashboardSuggestedSection />
-      </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
 /**
- * One read of the summary per request, shared by the three sections below
- * (`cache` de-duplicates it within a render), with the same session check as
- * every other section on this page.
+ * One read of the summary per request (`cache` de-duplicates it within a
+ * render), with the same session check as every other section on this page.
  */
 const loadSummary = cache(async () => {
   await connection();
@@ -75,25 +47,8 @@ const loadSummary = cache(async () => {
   return getDashboardSummary(user);
 });
 
-function DashboardSectionSkeleton() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Skeleton className="h-7 w-48" />
-      <Skeleton className="h-28 w-full rounded-[20px]" />
-    </div>
-  );
-}
-
-async function DashboardSnapshotSection() {
-  return <DashboardLearningSnapshot summary={await loadSummary()} />;
-}
-
-async function DashboardResumeSection() {
-  return <DashboardResume resume={(await loadSummary()).resume} />;
-}
-
-async function DashboardSuggestedSection() {
-  return <DashboardSuggestedForYou suggestions={(await loadSummary()).suggestions} />;
+async function DashboardBody() {
+  return <DashboardContent summary={await loadSummary()} />;
 }
 
 /**
@@ -104,7 +59,7 @@ async function DashboardSuggestedSection() {
  * on "zero spaces" alone, so cancelling the dialog afterwards lands on
  * this page's own empty-state prompt instead of looping back here.
  */
-async function DashboardWelcomeHeaderSection({
+async function DashboardWelcomeSection({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string }>;
@@ -123,16 +78,5 @@ async function DashboardWelcomeHeaderSection({
   }
 
   const firstName = user.name.split(" ")[0] || user.name;
-  return <DashboardWelcomeHeader firstName={firstName} />;
-}
-
-async function DashboardSpacesSection() {
-  await connection();
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/sign-in");
-  }
-
-  const spaces = await listSpaces(user);
-  return <SpacesCardGrid spaces={spaces} />;
+  return <DashboardWelcomeCard firstName={firstName} />;
 }

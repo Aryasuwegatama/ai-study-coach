@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,8 +17,7 @@ import type { SpaceResponse } from "../spaces-schemas";
 import { SpaceNameField } from "./space-name-field";
 
 /**
- * Figma node 37:5057 / 80:6962 ("ready to create" and "required-name
- * error" states). The server (`spaceNameSchema`) is the only place the
+ * The Create study space dialog (redesign prototype `#create-space`). The server (`spaceNameSchema`) is the only place the
  * name is validated — this dialog just shows whatever message it
  * returns, so there's one set of rules, not two that could drift apart.
  * On success it goes straight to the new space's Overview (plan step 6).
@@ -75,10 +75,13 @@ export function CreateSpaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[528px]">
+      <DialogContent className="sm:max-w-lg">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>Create study space</DialogTitle>
+            <DialogDescription>
+              Create a space for one subject. You can add your materials afterwards.
+            </DialogDescription>
           </DialogHeader>
           <SpaceNameField
             id="create-space-name"
@@ -86,18 +89,18 @@ export function CreateSpaceDialog({
             onChange={setName}
             error={error}
             disabled={pending}
+            placeholder="e.g. Network Security"
           />
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              className="rounded-full"
               onClick={() => handleOpenChange(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button type="submit" className="rounded-full gap-2" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               Create study space
             </Button>

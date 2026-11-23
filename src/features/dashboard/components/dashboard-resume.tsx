@@ -1,42 +1,52 @@
 import Link from "next/link";
+import { Layers, ListChecks } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { LabelledProgressBar } from "@/components/labelled-progress-bar";
 import type { UnfinishedDeck, UnfinishedQuiz } from "@/features/plan/server";
 
 /**
- * The Resume card (replaces Figma node 80:6946's "Continue Studying" card):
- * whichever unfinished quiz or flashcard deck the student touched last. Shown
- * only when there is one. A deck shows how many cards are rated, never a date.
+ * "Continue studying" (`.resource` in the redesign prototype): whichever
+ * unfinished quiz or flashcard deck the student touched last. Shown only
+ * when there is one. A deck shows how many cards are rated, never a date.
  */
 export function DashboardResume({ resume }: { resume: UnfinishedQuiz | UnfinishedDeck | null }) {
   if (!resume) return null;
   const isQuiz = resume.kind === "quiz";
   const done = isQuiz ? resume.answered : resume.rated;
-  const label = isQuiz ? `${done} of ${resume.total} answered` : `${done} of ${resume.total} rated`;
-  const percent = resume.total > 0 ? Math.round((done / resume.total) * 100) : 0;
+  const label = isQuiz ? `${done} of ${resume.total} questions answered` : `${done} of ${resume.total} cards rated`;
+  const Icon = isQuiz ? ListChecks : Layers;
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold text-foreground">{isQuiz ? "Resume quiz" : "Resume flashcards"}</h2>
-      <Card className="flex-col gap-4 rounded-[20px] p-6 sm:flex-row sm:items-center sm:gap-6">
-        <CardContent className="flex flex-1 flex-col gap-2 p-0">
-          <p className="text-base font-semibold text-foreground">{resume.title}</p>
-          <p className="text-sm text-muted-foreground">
-            {resume.spaceName} · {label}
-          </p>
-          <div
-            role="progressbar"
-            aria-label={label}
-            aria-valuemin={0}
-            aria-valuemax={resume.total}
-            aria-valuenow={done}
-            className="h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-border"
-          >
-            <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+    <section aria-labelledby="continue-title">
+      <h2 id="continue-title" className="mb-4 flex min-h-11 items-center text-section text-foreground">
+        Continue studying
+      </h2>
+      <Card className="gap-0 p-6 max-[420px]:p-4">
+        <Badge tone="blue" className="mb-4">
+          In progress
+        </Badge>
+        <div className="flex items-start gap-4">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-soft-green text-green">
+            <Icon className="size-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-card-title break-words text-foreground">{resume.title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {resume.spaceName} · {isQuiz ? "Quiz" : "Flashcards"}
+            </p>
           </div>
-        </CardContent>
-        <Button type="button" className="w-fit rounded-full" nativeButton={false} render={<Link href={resume.href} />}>
-          Resume
+        </div>
+        <LabelledProgressBar
+          className="mt-4"
+          value={done}
+          max={resume.total}
+          label={isQuiz ? "Questions answered" : "Cards rated"}
+        />
+        <p className="mt-2 text-sm text-muted-foreground">{label}</p>
+        <Button className="mt-4 w-fit" nativeButton={false} render={<Link href={resume.href} />}>
+          {isQuiz ? "Resume quiz" : "Resume flashcards"}
         </Button>
       </Card>
     </section>

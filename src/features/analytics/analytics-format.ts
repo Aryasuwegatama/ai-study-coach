@@ -32,9 +32,7 @@ export function masteryDetail(topic: Pick<TopicMastery, "status" | "percent" | "
   }
 }
 
-export function pluralise(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
+export { pluralise } from "@/lib/pluralise";
 
 /** A moment shown as a date in the student's own time zone, for example "21 Nov 2026". */
 export function formatAnsweredDate(iso: string, timeZone: string): string {

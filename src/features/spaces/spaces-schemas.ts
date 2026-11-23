@@ -29,3 +29,21 @@ export type SpaceResponse = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * What a Study Space card shows (Dashboard and Study Spaces): counts only.
+ * There is never an average or an overall mastery number.
+ */
+export type SpaceSummary = {
+  id: string;
+  name: string;
+  /** Materials in the space (any status). */
+  materialCount: number;
+  /** Confirmed topics (archived ones are not counted). */
+  confirmedTopicCount: number;
+  weakTopicCount: number;
+  /** Materials in status `review_topics`, shown to the student as "Topics ready". */
+  topicsReadyCount: number;
+  /** Quizzes the student started and hasn't submitted. */
+  quizzesInProgress: number;
+};
