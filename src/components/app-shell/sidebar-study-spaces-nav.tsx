@@ -22,6 +22,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
+import { cn } from "@/lib/class-names";
 import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 
 /**
@@ -41,12 +42,14 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
   const collapsedRail = state === "collapsed" && !isMobile;
   const pathname = usePathname();
   const activeSpaceId = pathname.match(SPACE_ID_PATTERN)?.[1];
+  // Active on the Study Spaces list page itself; on a space's own pages that space's row is active instead.
+  const onSpacesPage = pathname === "/spaces";
 
   if (collapsedRail) {
     return (
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="Study Spaces" />}>
+          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="Study Spaces" isActive={onSpacesPage} />}>
             <FolderOpen />
             <span>Study Spaces</span>
           </DropdownMenuTrigger>
@@ -91,10 +94,25 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
 
   return (
     <SidebarMenuItem>
-      {/* Tight gaps, a smaller chevron/"+" and px-3 leave the label enough
-          room in the 15rem sidebar ("Study Spaces" was being cut off). */}
-      <div className="flex w-full items-center gap-0.5">
-        <SidebarMenuButton render={<Link href="/spaces" />} className="min-w-0 flex-1 px-3">
+      {/* The whole row (link, chevron and "+") is one highlight, like the
+          other menu items: hover and the active state live on the row, and
+          the link inside stays transparent. The link keeps the standard left
+          padding so its icon lines up with Dashboard; only its right padding
+          shrinks, which leaves "Study Spaces" room in the 15rem sidebar. */}
+      <div
+        className={cn(
+          "flex w-full items-center gap-0.5 rounded-sm pr-1 text-sidebar-foreground hover:bg-surface-hover",
+          onSpacesPage &&
+            "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--sidebar-primary)] hover:bg-sidebar-accent",
+        )}
+      >
+        <SidebarMenuButton
+          render={<Link href="/spaces" aria-current={onSpacesPage ? "page" : undefined} />}
+          className={cn(
+            "min-w-0 flex-1 pr-1 hover:bg-transparent active:bg-transparent",
+            onSpacesPage && "font-semibold text-sidebar-accent-foreground",
+          )}
+        >
           <FolderOpen />
           <span>Study Spaces</span>
         </SidebarMenuButton>
@@ -103,7 +121,7 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
           aria-label={expanded ? "Collapse Study Spaces" : "Expand Study Spaces"}
-          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-current outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ChevronRight
             className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -113,7 +131,7 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
         <Link
           href="/spaces?create=1"
           aria-label="Create study space"
-          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-current outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <Plus className="size-4" aria-hidden="true" />
         </Link>
