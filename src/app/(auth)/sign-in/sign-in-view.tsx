@@ -139,7 +139,7 @@ export function SignedOutView({
               variant="outline"
               onClick={handleClick}
               disabled={pending}
-              className="h-11 w-full gap-2 rounded-full border-border text-primary hover:bg-secondary hover:text-primary"
+              className="h-11 w-full gap-2 rounded-full border-input text-primary hover:bg-surface-hover hover:text-primary"
             >
               {pending ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />

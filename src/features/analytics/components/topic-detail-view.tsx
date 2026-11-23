@@ -3,6 +3,7 @@ import { ArrowLeft, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { StickyEndColumn } from "@/components/sticky-end-column";
 import { MASTERY_MIN_EVIDENCE, MASTERY_WINDOW, type TopicMasteryDetail } from "@/features/progress/progress-schemas";
 import { formatAnsweredDate, pluralise, spaceAnalyticsHref } from "../analytics-format";
 import { AnalyticsAnswerStrip } from "./analytics-answer-strip";
@@ -69,7 +70,7 @@ export function TopicDetailView({ detail, timeZone }: { detail: TopicMasteryDeta
       </Card>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(17rem,1fr)]">
-        <div className="flex min-w-0 flex-col gap-6">
+        <StickyEndColumn className="flex flex-col gap-6">
           {mastery.status === "not_assessed" ? (
             <Card className="gap-2 p-6 max-sm:p-4">
               <h3 className="text-card-title text-foreground">Counting the latest {MASTERY_WINDOW} questions</h3>
@@ -134,19 +135,21 @@ export function TopicDetailView({ detail, timeZone }: { detail: TopicMasteryDeta
               </Card>
             </>
           )}
-        </div>
+        </StickyEndColumn>
 
-        <Card className="gap-4 p-6 max-sm:p-4">
-          <h3 className="text-card-title text-foreground">How this topic is counted</h3>
-          <ul className="flex flex-col gap-4">
-            {RULES.map((rule) => (
-              <li key={rule.title} className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold text-foreground">{rule.title}</span>
-                <span className="text-sm text-muted-foreground">{rule.body}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <StickyEndColumn>
+          <Card className="gap-4 p-6 max-sm:p-4">
+            <h3 className="text-card-title text-foreground">How this topic is counted</h3>
+            <ul className="flex flex-col gap-4">
+              {RULES.map((rule) => (
+                <li key={rule.title} className="flex flex-col gap-0.5">
+                  <span className="text-sm font-semibold text-foreground">{rule.title}</span>
+                  <span className="text-sm text-muted-foreground">{rule.body}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </StickyEndColumn>
       </div>
     </div>
   );

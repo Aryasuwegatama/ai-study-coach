@@ -62,6 +62,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-hero-start: var(--hero-start);
   --color-hero-end: var(--hero-end);
+  --color-backdrop: var(--backdrop);
   --shadow-card: var(--shadow-card);
   --shadow-popover: var(--shadow-popover);
   /* Type scale from the redesign prototype (page title, section heading,
@@ -155,6 +156,8 @@
   --destructive-foreground: #fdf8ec;
   --hero-start: #f9f3e4;
   --hero-end: #f1e7cb;
+  /* Dialog and sheet backdrop (prototype tokens.css). */
+  --backdrop: rgba(44, 44, 44, 0.42);
   --shadow-card: 0 2px 5px rgba(57, 48, 34, 0.04), 0 10px 24px rgba(57, 48, 34, 0.04);
   --shadow-popover: 0 12px 36px rgba(57, 48, 34, 0.16);
 }

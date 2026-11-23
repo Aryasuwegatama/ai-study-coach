@@ -76,7 +76,7 @@ export function DeleteDeckDialog({
           <AlertDialogAction
             onClick={() => void handleDelete()}
             disabled={pending}
-            className="gap-2 bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/40"
+            className="gap-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/40"
           >
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             Delete

@@ -34,7 +34,7 @@ export function AttemptQuestionNav({
               isCurrent
                 ? "border-primary bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
                 : answered
-                  ? "border-green bg-green text-white hover:bg-green/85"
+                  ? "border-green bg-green text-primary-foreground hover:bg-green/85"
                   : "border-muted-foreground/60 bg-background text-foreground hover:bg-muted",
             )}
           >
