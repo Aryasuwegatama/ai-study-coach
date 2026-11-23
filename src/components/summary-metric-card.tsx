@@ -13,11 +13,14 @@ const TILE_TONES = {
 export type MetricTone = keyof typeof TILE_TONES;
 
 /**
- * A summary number card (`.metric` in the redesign prototype): a tinted icon
- * tile, a large number and its label. With `href` the whole card is a link;
- * `children` is an optional detail line under the label (the Overview page
- * uses it for breakdowns). A number is always about counts, never an
- * average or an overall score.
+ * A summary number card (`.metric` and `.overview-metric` in the redesign
+ * prototype). Two layouts:
+ * - `row` (Dashboard): a tinted icon tile on the left, the number and its label beside it.
+ * - `stacked` (Space Overview): the label with a small icon on top, the number under it, then the detail.
+ *
+ * With `href` the whole `row` card is a link. `children` is an optional
+ * detail line (the Overview uses it for breakdowns and links). A number is
+ * always a count, never an average or an overall score.
  */
 export function SummaryMetricCard({
   icon: Icon,
@@ -25,6 +28,7 @@ export function SummaryMetricCard({
   value,
   label,
   href,
+  layout = "row",
   children,
 }: {
   icon: LucideIcon;
@@ -32,8 +36,22 @@ export function SummaryMetricCard({
   value: number;
   label: string;
   href?: string;
+  layout?: "row" | "stacked";
   children?: React.ReactNode;
 }) {
+  if (layout === "stacked") {
+    return (
+      <Card className="gap-2 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-sm text-muted-foreground">{label}</span>
+          <Icon className="size-5 shrink-0 text-primary" aria-hidden="true" />
+        </div>
+        <p className="text-[2rem] leading-tight font-semibold tracking-tight tabular-nums">{value}</p>
+        {children && <div className="text-sm text-muted-foreground">{children}</div>}
+      </Card>
+    );
+  }
+
   const body = (
     <>
       <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-lg", TILE_TONES[tone])}>

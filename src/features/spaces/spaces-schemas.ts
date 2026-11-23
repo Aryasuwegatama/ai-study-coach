@@ -30,6 +30,16 @@ export type SpaceResponse = {
   updatedAt: string;
 };
 
+/** The counts the space banner and tabs show (Overview, Materials, Confirm topics and the other space pages). */
+export type SpaceCounts = {
+  /** Materials in the space (any status). */
+  materialCount: number;
+  /** Confirmed topics (archived ones are not counted). */
+  confirmedTopicCount: number;
+  /** Materials in status `review_topics`, shown to the student as "Topics ready". */
+  topicsReadyCount: number;
+};
+
 /**
  * What a Study Space card shows (Dashboard and Study Spaces): counts only.
  * There is never an average or an overall mastery number.

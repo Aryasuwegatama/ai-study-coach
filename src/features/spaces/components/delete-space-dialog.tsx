@@ -15,11 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /**
- * No Figma design (plan: "Rename and delete have no Figma design"). The
- * confirm button is solid `--destructive` with white text rather than
- * the shared `AlertDialogAction`'s default primary styling — the plan
- * calls the tinted destructive Button variant too low-contrast for this
- * action. Wording never claims complete erasure (PRD Section 2 /
+ * The confirm button is the solid destructive Button variant. Wording never claims complete erasure (PRD Section 2 /
  * privacy policy): the space becomes inaccessible immediately, but the
  * row is only soft-deleted until the later cleanup job runs.
  */
@@ -73,8 +69,7 @@ export function DeleteSpaceDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete &quot;{name}&quot;?</AlertDialogTitle>
           <AlertDialogDescription>
-            You&apos;ll lose access to this space and everything in it straight away. This
-            can&apos;t be undone.
+            Its materials, topics and practice will no longer be available in this workspace.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <p className="text-sm font-medium text-destructive">{error}</p>}
@@ -83,10 +78,10 @@ export function DeleteSpaceDialog({
           <AlertDialogAction
             onClick={() => void handleDelete()}
             disabled={pending}
-            className="gap-2 bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/40"
+            variant="destructive"
           >
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Delete
+            Delete space
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

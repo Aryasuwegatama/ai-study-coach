@@ -1,12 +1,12 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api-errors";
 import { db } from "@/server/db/db-client";
-import { materials, studySpaces } from "@/server/db/schema";
-import { isValidSpaceId } from "@/server/auth/auth-space-access";
+import { materials, studySpaces, topics } from "@/server/db/schema";
+import { isValidSpaceId, requireSpace } from "@/server/auth/auth-space-access";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { getUnfinishedQuizzes, type UnfinishedQuiz } from "@/features/plan/server";
 import { getAllProgress, type SpaceProgress } from "@/features/progress/server";
-import type { SpaceResponse, SpaceSummary } from "../spaces-schemas";
+import type { SpaceCounts, SpaceResponse, SpaceSummary } from "../spaces-schemas";
 
 const SPACE_COLUMNS = {
   id: studySpaces.id,
@@ -81,6 +81,33 @@ export async function listSpaceSummaries(
       quizzesInProgress: unfinished.filter((quiz) => quiz.spaceId === space.id).length,
     };
   });
+}
+
+/**
+ * The three counts the space banner and tabs show, for one space. Owner
+ * scoped: `requireSpace()` gives the same 404 as every other space read for
+ * a missing, deleted or someone else's space.
+ */
+export async function getSpaceCounts(user: SessionUser, spaceId: string): Promise<SpaceCounts> {
+  const space = await requireSpace(spaceId, user);
+  const [[materialRow], [topicRow]] = await Promise.all([
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        topicsReady: sql<number>`(count(*) filter (where ${materials.status} = 'review_topics'))::int`,
+      })
+      .from(materials)
+      .where(eq(materials.spaceId, space.id)),
+    db
+      .select({ confirmed: sql<number>`count(*)::int` })
+      .from(topics)
+      .where(and(eq(topics.spaceId, space.id), eq(topics.status, "confirmed"))),
+  ]);
+  return {
+    materialCount: materialRow?.total ?? 0,
+    confirmedTopicCount: topicRow?.confirmed ?? 0,
+    topicsReadyCount: materialRow?.topicsReady ?? 0,
+  };
 }
 
 export async function createSpace(user: SessionUser, name: string): Promise<SpaceResponse> {

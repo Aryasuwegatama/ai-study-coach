@@ -5,10 +5,18 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
+import { PageContainer } from "@/components/page-container";
 import { listMaterials } from "@/features/materials/server";
+import { getUnfinishedDecks, getUnfinishedQuizzes } from "@/features/plan/server";
+import { getSpaceProgress } from "@/features/progress/server";
+import { listSets } from "@/features/quizzes/server";
 import { listTopics } from "@/features/topics/server";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewEmptyState } from "@/features/spaces/components/space-overview-empty-state";
+import { SpaceOverviewMetrics } from "@/features/spaces/components/space-overview-metrics";
+import { SpaceOverviewMistakes } from "@/features/spaces/components/space-overview-mistakes";
+import { SpaceOverviewNotice } from "@/features/spaces/components/space-overview-notice";
+import { SpaceOverviewResume } from "@/features/spaces/components/space-overview-resume";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
 import { MaterialsOverviewCard } from "@/features/materials/components/materials-overview-card";
@@ -23,14 +31,14 @@ export const metadata: Metadata = {
 
 type OverviewPageProps = { params: Promise<{ spaceId: string }> };
 
-/** Study Space Overview (T-05; Figma node 47:17806, empty state). */
+/** Study Space Overview (T-05; redesigned in the UI redesign, Step 3). */
 export default function SpaceOverviewPage({ params }: OverviewPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
+    <PageContainer>
       <Suspense fallback={<SpaceOverviewSkeleton />}>
         <SpaceOverviewContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -64,10 +72,10 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
 
   const materials = await listMaterials(user, space.id);
 
-  // The Welcome card only shows for a space with no materials AND no
+  // The empty state only shows for a space with no materials AND no
   // topics of any status (T-12b, Codex finding on #45): deleting a
   // space's last material keeps every topic that has quiz history, and
-  // those still deserve the normal two-card layout, not the "start from
+  // those still deserve the normal layout, not the "start from
   // scratch" screen. `includeArchived` catches a topic that was archived
   // after its last material was gone.
   if (materials.length === 0) {
@@ -75,9 +83,11 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
     if (anyTopics.length === 0) {
       return (
         <>
-          <SpaceHeader spaceId={space.id} name={space.name} />
+          <SpaceHeader spaceId={space.id} name={space.name} actions="overview" />
           <SpaceOverviewTabs spaceId={space.id} active="overview" />
-          <SpaceOverviewEmptyState spaceId={space.id} name={space.name} />
+          <div className="mt-6">
+            <SpaceOverviewEmptyState spaceId={space.id} />
+          </div>
         </>
       );
     }
@@ -87,33 +97,55 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
   // by whether any material still links to them (Arya, 2026-11-18): a
   // topic whose last material was deleted stays confirmed and keeps its
   // history, so the Overview lists it under "Topics from deleted
-  // materials" instead of dropping it. "Show archived" fetches archived
-  // ones client-side on its own.
-  const [linkedTopics, unlinkedTopics] = await Promise.all([
+  // materials" instead of dropping it. Archived topics are fetched
+  // client-side by the topics card on its own.
+  const [linkedTopics, unlinkedTopics, progress, sets, unfinishedQuizzes, unfinishedDecks] = await Promise.all([
     listTopics(user, space.id, { materials: "linked" }),
     listTopics(user, space.id, { materials: "unlinked" }),
+    getSpaceProgress(user, space.id),
+    listSets(user, space.id, null),
+    getUnfinishedQuizzes(user),
+    getUnfinishedDecks(user),
   ]);
   const hasMaterialAwaitingReview = materials.some((material) => material.status === "review_topics");
+  const progressByTopic = Object.fromEntries(progress.topics.map((topic) => [topic.topicId, topic]));
+  const mistakes = progress.topics.reduce((sum, topic) => sum + topic.mistakes, 0);
+
+  // The most recently touched unfinished quiz or deck in this space (same
+  // tie-break as the Dashboard: both lists are already newest-first).
+  const resume =
+    [unfinishedQuizzes.find((quiz) => quiz.spaceId === space.id), unfinishedDecks.find((deck) => deck.spaceId === space.id)]
+      .filter((entry) => entry !== undefined)
+      .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0] ?? null;
 
   return (
     <>
-      <SpaceHeader spaceId={space.id} name={space.name} />
+      <SpaceHeader spaceId={space.id} name={space.name} actions="overview" />
       <SpaceOverviewTabs spaceId={space.id} active="overview" />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <MaterialsOverviewCard spaceId={space.id} materials={materials} />
-        {/* `key` forces a remount when the server data changes. With
-            `cacheComponents`, Activity keeps a hidden route's client
-            components mounted and reuses them on return (see
-            node_modules/next/dist/docs/.../cacheComponents.md, "Navigation
-            with Activity"), so new props alone wouldn't refresh this
-            card's `useState`-copied lists (Codex review, T-09c #44). */}
-        <ConfirmedTopicsCard
-          key={[...linkedTopics, ...unlinkedTopics].map((topic) => `${topic.id}:${topic.updatedAt}`).join(",")}
-          spaceId={space.id}
-          initialLinkedTopics={linkedTopics}
-          initialUnlinkedTopics={unlinkedTopics}
-          hasMaterialAwaitingReview={hasMaterialAwaitingReview}
-        />
+      <div className="mt-6 flex flex-col gap-6">
+        <SpaceOverviewNotice spaceId={space.id} materials={materials} />
+        <SpaceOverviewMetrics spaceId={space.id} materials={materials} topics={progress.topics} sets={sets} />
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <SpaceOverviewResume spaceId={space.id} resume={resume} />
+            <MaterialsOverviewCard spaceId={space.id} materials={materials} />
+            <SpaceOverviewMistakes spaceId={space.id} mistakes={mistakes} />
+          </div>
+          {/* `key` forces a remount when the server data changes. With
+              `cacheComponents`, Activity keeps a hidden route's client
+              components mounted and reuses them on return (see
+              node_modules/next/dist/docs/.../cacheComponents.md, "Navigation
+              with Activity"), so new props alone wouldn't refresh this
+              card's `useState`-copied lists (Codex review, T-09c #44). */}
+          <ConfirmedTopicsCard
+            key={[...linkedTopics, ...unlinkedTopics].map((topic) => `${topic.id}:${topic.updatedAt}`).join(",")}
+            spaceId={space.id}
+            initialLinkedTopics={linkedTopics}
+            initialUnlinkedTopics={unlinkedTopics}
+            progressByTopic={progressByTopic}
+            hasMaterialAwaitingReview={hasMaterialAwaitingReview}
+          />
+        </div>
       </div>
     </>
   );
