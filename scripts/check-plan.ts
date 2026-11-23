@@ -10,11 +10,12 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { randomUUID } from "node:crypto";
-import { count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { buildTestAuth } from "../src/server/auth/auth-test-instance";
 import type { SessionUser } from "../src/server/auth/auth-session";
 import { db } from "../src/server/db/db-client";
-import { chunks, itemSources, learningItems, materials, materialTopics, planItems, studySets, studySpaces, topics } from "../src/server/db/schema";
+import { attempts, chunks, itemSources, learningItems, materials, materialTopics, planItems, studySets, studySpaces, topics } from "../src/server/db/schema";
+import { getActivity } from "../src/features/progress/server";
 import { normalizePrompt } from "../src/features/quizzes/quizzes-schemas";
 import type { AttemptResponse } from "../src/features/attempts/attempts-schemas";
 import { MAX_OPEN_PLAN_ITEMS, SUGGESTION_KINDS, type PlanItemResponse, type Suggestion } from "../src/features/plan/plan-schemas";
@@ -425,6 +426,36 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   );
   const empty = await getDashboardSummary({ ...userA, id: b.userId });
   check("Dashboard summary: a new student gets zeros, no quiz to resume and no suggestions", empty.activeSpaces === 0 && empty.quizzesCompleted === 0 && empty.weakTopics === 0 && empty.openMistakes === 0 && empty.resume === null && empty.suggestions.length === 0);
+
+  // --- Analytics "Your activity" (UI redesign, 2026-11-23) ------------------------------------------------
+  const submittedHere = (
+    await db
+      .select({ n: count() })
+      .from(attempts)
+      .innerJoin(studySpaces, eq(studySpaces.id, attempts.spaceId))
+      .where(and(eq(attempts.studentId, a.userId), eq(attempts.status, "submitted"), eq(studySpaces.id, space.id)))
+  )[0].n;
+  const activity = await getActivity(userA, null);
+  const weekKeys = activity.weeks.map((w) => w.weekStart);
+  check("Activity: 8 weeks, oldest first, Mondays as YYYY-MM-DD", activity.weeks.length === 8 && weekKeys.every((w, i) => /^\d{4}-\d{2}-\d{2}$/.test(w) && (i === 0 || w > weekKeys[i - 1])));
+  check(
+    "Activity: this week's quiz count is the student's submitted attempts in live spaces (all made just now)",
+    activity.weeks.at(-1)!.quizzes === submittedHere && activity.weeks.slice(0, -1).every((w) => w.quizzes === 0),
+    `${activity.weeks.at(-1)!.quizzes} vs ${submittedHere}`,
+  );
+  check(
+    "Activity: latest attempts are each their own result, oldest first, at most 10, nothing from a deleted space",
+    activity.quizAttempts.length === Math.min(submittedHere, 10) &&
+      activity.quizAttempts.every((q, i) => q.percent === Math.round((q.score / q.total) * 100) && (i === 0 || q.submittedAt >= activity.quizAttempts[i - 1].submittedAt)) &&
+      activity.quizAttempts.every((q) => q.spaceId !== gone.id),
+  );
+  check("Activity: no average, accuracy or overall field anywhere", !/average|accuracy|overall|streak/i.test(JSON.stringify(activity)));
+  const scoped = await getActivity(userA, space.id);
+  check("Activity: one space's activity matches it (all of this student's quizzes are in it)", scoped.weeks.at(-1)!.quizzes === submittedHere);
+  const other = await getActivity({ ...userA, id: b.userId }, null);
+  check("Activity: another student sees none of it", other.quizAttempts.length === 0 && other.deckSessions.length === 0 && other.weeks.every((w) => w.quizzes === 0 && w.flashcardSessions === 0));
+  const foreign = await getActivity({ ...userA, id: b.userId }, space.id).then(() => "ok", (e: unknown) => (e as { code?: string }).code);
+  check("Activity: another student's space → SPACE_NOT_FOUND", foreign === "SPACE_NOT_FOUND");
 
   // --- The limit -------------------------------------------------------------------------------------------------
   await db.insert(planItems).values(Array.from({ length: MAX_OPEN_PLAN_ITEMS }, (_, i) => ({ studentId: b.userId, kind: "own", title: `Filler ${i}` })));

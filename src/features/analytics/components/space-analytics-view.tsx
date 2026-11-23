@@ -3,7 +3,8 @@ import { BarChart3, Check, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountChip } from "@/components/count-chip";
-import type { SpaceProgress, TopicProgress } from "@/features/progress/progress-schemas";
+import type { ActivityResponse, SpaceProgress, TopicProgress } from "@/features/progress/progress-schemas";
+import { AnalyticsActivityCard } from "./analytics-activity-card";
 import { cn } from "@/lib/class-names";
 import { countByStatus, pluralise, reviewSpaceHref, spaceAnalyticsHref, topicAnalyticsHref, totalMistakes } from "../analytics-format";
 import { AnalyticsMasteryChart } from "./analytics-mastery-chart";
@@ -87,12 +88,23 @@ function ViewFilter({ spaceId, view, total, weak }: { spaceId: string; view: Ana
 
 /**
  * Study Space Analytics (redesign prototype `space-analytics.html`): the
- * space's topic counts by status, a per-topic mastery chart, and the topic
+ * space's topic counts by status beside its Your activity card, a per-topic
+ * mastery chart, and the topic
  * list, weak first (the API's order), each with its status and the actions
  * that follow from it. Charts show counts or one topic's own percentage,
  * never a space-level score.
  */
-export function SpaceAnalyticsView({ progress, view }: { progress: SpaceProgress; view: AnalyticsView }) {
+export function SpaceAnalyticsView({
+  progress,
+  view,
+  activity,
+  timeZone,
+}: {
+  progress: SpaceProgress;
+  view: AnalyticsView;
+  activity: ActivityResponse;
+  timeZone: string;
+}) {
   const counts = countByStatus(progress.topics);
   const topics = view === "weak" ? progress.topics.filter((t) => t.status === "weak") : progress.topics;
   const mistakes = totalMistakes(progress.topics);
@@ -125,25 +137,29 @@ export function SpaceAnalyticsView({ progress, view }: { progress: SpaceProgress
         </Card>
       ) : (
         <>
-          <Card className="gap-4 p-6 max-sm:p-4">
-            <header className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h3 id="status-summary-heading" className="text-card-title text-foreground">
-                  Topics by status
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {pluralise(progress.topics.length, "confirmed topic")} · counts, not a score
-                </p>
-              </div>
-              {mistakes > 0 && (
-                <Button variant="outline" nativeButton={false} render={<Link href={reviewSpaceHref(progress.spaceId)} />}>
-                  <RotateCcw aria-hidden="true" />
-                  Review mistakes ({mistakes})
-                </Button>
-              )}
-            </header>
-            <AnalyticsStatusBar counts={counts} label={`${progress.spaceName} topics by status`} />
-          </Card>
+          {/* Topic counts and recent activity side by side on wide screens: two short cards, not two full-width rows. */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+            <Card className="gap-4 p-6 max-sm:p-4">
+              <header className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 id="status-summary-heading" className="text-card-title text-foreground">
+                    Topics by status
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {pluralise(progress.topics.length, "confirmed topic")} · counts, not a score
+                  </p>
+                </div>
+                {mistakes > 0 && (
+                  <Button variant="outline" nativeButton={false} render={<Link href={reviewSpaceHref(progress.spaceId)} />}>
+                    <RotateCcw aria-hidden="true" />
+                    Review mistakes ({mistakes})
+                  </Button>
+                )}
+              </header>
+              <AnalyticsStatusBar counts={counts} label={`${progress.spaceName} topics by status`} />
+            </Card>
+            <AnalyticsActivityCard activity={activity} timeZone={timeZone} scope="space" headingLevel="h3" />
+          </div>
 
           <Card className="gap-4 p-6 max-sm:p-4">
             <div>

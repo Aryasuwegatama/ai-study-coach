@@ -5,7 +5,8 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
-import { getSpaceProgress } from "@/features/progress/server";
+import { getActivity, getSpaceProgress } from "@/features/progress/server";
+import { safeTimeZone } from "@/lib/time-zone";
 import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
@@ -57,14 +58,14 @@ async function SpaceAnalyticsContent({ params, searchParams }: SpaceAnalyticsPag
     notFound();
   }
 
-  const progress = await getSpaceProgress(user, space.id);
+  const [progress, activity] = await Promise.all([getSpaceProgress(user, space.id), getActivity(user, space.id)]);
   const view: AnalyticsView = query.view === "weak" ? "weak" : "all";
 
   return (
     <>
       <SpaceHeader spaceId={space.id} name={space.name} />
       <SpaceOverviewTabs spaceId={space.id} active="analytics" />
-      <SpaceAnalyticsView progress={progress} view={view} />
+      <SpaceAnalyticsView progress={progress} view={view} activity={activity} timeZone={safeTimeZone(user.timeZone)} />
     </>
   );
 }

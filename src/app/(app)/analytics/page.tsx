@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer } from "@/components/page-container";
 import { getCurrentUser } from "@/server/auth/auth-session";
-import { getAllProgress } from "@/features/progress/server";
+import { getActivity, getAllProgress } from "@/features/progress/server";
+import { safeTimeZone } from "@/lib/time-zone";
 import { MyAnalyticsView } from "@/features/analytics/components/my-analytics-view";
 
 export const metadata: Metadata = {
@@ -71,5 +72,6 @@ async function MyAnalyticsContent() {
     redirect("/sign-in");
   }
 
-  return <MyAnalyticsView spaces={await getAllProgress(user)} />;
+  const [spaces, activity] = await Promise.all([getAllProgress(user), getActivity(user, null)]);
+  return <MyAnalyticsView spaces={spaces} activity={activity} timeZone={safeTimeZone(user.timeZone)} />;
 }

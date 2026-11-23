@@ -33,6 +33,7 @@ import type { AttemptResponse } from "../src/features/attempts/attempts-schemas"
 import type { DeckListItemResponse, DeckSessionResponse, RatingResponse } from "../src/features/flashcards/flashcards-schemas";
 import type { PlanItemResponse, Suggestion } from "../src/features/plan/plan-schemas";
 import { getDashboardSummary } from "../src/features/dashboard/server/dashboard-service";
+import { getActivity } from "../src/features/progress/server";
 import { POST as practiceRoute } from "../src/app/api/sets/[id]/practice/route";
 import { POST as ratingRoute } from "../src/app/api/items/[id]/rating/route";
 import { DELETE as deleteSetRoute, PATCH as renameSetRoute } from "../src/app/api/sets/[id]/route";
@@ -440,6 +441,24 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   await rate(a, planDeck.items[3].id, { sessionId: ps.id, rating: "got_it" });
   summary = await getDashboardSummary(userA);
   check("Dashboard: and the deck again after the next rating (4 of 5)", summary.resume?.kind === "deck" && summary.resume.rated === 4);
+
+  // Analytics "Your activity" (UI redesign, 2026-11-23): finished practice sessions and their ratings.
+  const finished = await db
+    .select({ ratings: deckSessions.ratings })
+    .from(deckSessions)
+    .where(and(eq(deckSessions.studentId, a.userId), eq(deckSessions.status, "completed")));
+  const activity = await getActivity(userA, null);
+  const ratedInFinished = finished.reduce((sum, r) => sum + Object.keys(r.ratings).length, 0);
+  check(
+    "Activity: this week's flashcard sessions and cards rated match the finished sessions (in-progress ones don't count)",
+    activity.weeks.at(-1)!.flashcardSessions === finished.length && activity.weeks.at(-1)!.cardsRated === ratedInFinished,
+    `${activity.weeks.at(-1)!.flashcardSessions}/${finished.length}, ${activity.weeks.at(-1)!.cardsRated}/${ratedInFinished}`,
+  );
+  check(
+    "Activity: each finished session is its own Got it / Again split, oldest first, at most 10",
+    activity.deckSessions.length === Math.min(finished.length, 10) &&
+      activity.deckSessions.every((d, i) => d.gotIt + d.again > 0 && (i === 0 || d.finishedAt >= activity.deckSessions[i - 1].finishedAt)),
+  );
 
   // Plan items.
   const create = (s: Session, body: unknown) => planCreateRoute(req("/api/plan/items", s, "POST", body));

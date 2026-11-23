@@ -6,7 +6,8 @@ import { CountChip } from "@/components/count-chip";
 import { PageHead } from "@/components/page-container";
 import { StickyEndColumn } from "@/components/sticky-end-column";
 import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
-import type { MasteryStatus, SpaceProgress } from "@/features/progress/progress-schemas";
+import type { ActivityResponse, MasteryStatus, SpaceProgress } from "@/features/progress/progress-schemas";
+import { AnalyticsActivityCard } from "./analytics-activity-card";
 import {
   countByStatus,
   masteryDetail,
@@ -107,13 +108,12 @@ function SpaceCard({ space }: { space: SpaceProgress }) {
 /**
  * Analytics (redesign prototype `analytics.html`): one card per Study Space
  * with its topic counts by status, its weakest topics and its open mistakes,
- * plus a comparison of open mistakes per space and the status rules.
- * On wide screens the shorter column stays in view while the other scrolls
- * (`StickyEndColumn`). Deliberately no overall score and no average across topics, and no trend
- * chart, attempt counts, flashcards card or period selector (no data behind
- * them yet).
+ * plus the Your activity card, a comparison of open mistakes per space and
+ * the status rules. On wide screens the shorter column stays in view while
+ * the other scrolls (`StickyEndColumn`). Deliberately no overall score, no
+ * average across topics and no period selector.
  */
-export function MyAnalyticsView({ spaces }: { spaces: SpaceProgress[] }) {
+export function MyAnalyticsView({ spaces, activity, timeZone }: { spaces: SpaceProgress[]; activity: ActivityResponse; timeZone: string }) {
   const anyAssessed = spaces.some((s) => s.topics.some((t) => t.counted > 0));
 
   return (
@@ -167,6 +167,7 @@ export function MyAnalyticsView({ spaces }: { spaces: SpaceProgress[] }) {
 
           <StickyEndColumn>
             <aside aria-label="Across your Study Spaces" className="flex min-w-0 flex-col gap-6">
+              <AnalyticsActivityCard activity={activity} timeZone={timeZone} scope="all" />
               <Card className="gap-4 p-6 max-sm:p-4">
                 <div>
                   <h2 className="text-card-title text-foreground">Mistakes to review</h2>
