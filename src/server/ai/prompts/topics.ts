@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { escapePromptData } from "./escape-prompt-data";
 
 /**
  * Topic suggestions for one material (PRD Section 3, Pipeline A steps 6–7).
  * Changing the prompt means bumping the version.
  */
-export const PROMPT_VERSION = "topics-v1";
+export const PROMPT_VERSION = "topics-v2";
 
 export const MIN_TOPICS = 3;
 export const MAX_TOPICS = 12;
@@ -35,7 +36,7 @@ export type SourcePiece = { pageStart: number; pageEnd: number; content: string 
 /** Sources in order, each marked with its pages. */
 export function buildPrompt(pieces: SourcePiece[]): string {
   const sources = pieces
-    .map((p) => `<source pages="${p.pageStart === p.pageEnd ? p.pageStart : `${p.pageStart}-${p.pageEnd}`}">\n${p.content}\n</source>`)
+    .map((p) => `<source pages="${p.pageStart === p.pageEnd ? p.pageStart : `${p.pageStart}-${p.pageEnd}`}">\n${escapePromptData(p.content)}\n</source>`)
     .join("\n");
   return `Course material:\n${sources}\n\nList the study topics.`;
 }

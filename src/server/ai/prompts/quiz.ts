@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { escapePromptData } from "./escape-prompt-data";
 
 /**
  * Write MCQs from labelled sources (PRD Section 3, Pipeline B step 3), and
  * the separate answer check (step 5). Bump a version when its prompt changes.
  */
-export const PROMPT_VERSION = "quiz-v2";
-export const CHECK_PROMPT_VERSION = "check-v1";
+export const PROMPT_VERSION = "quiz-v3";
+export const CHECK_PROMPT_VERSION = "check-v2";
 
 export const writtenQuestionsSchema = z.object({
   questions: z.array(
@@ -37,11 +38,11 @@ export type LabelledSource = { label: string; pages: string; content: string };
 export type LabelledTopic = { label: string; name: string; description: string; count: number; sourceLabels: string[] };
 
 export function buildWritePrompt(topics: LabelledTopic[], sources: LabelledSource[], avoid: string[]): string {
-  const sourceText = sources.map((s) => `<source id="${s.label}" pages="${s.pages}">\n${s.content}\n</source>`).join("\n");
+  const sourceText = sources.map((s) => `<source id="${escapePromptData(s.label)}" pages="${escapePromptData(s.pages)}">\n${escapePromptData(s.content)}\n</source>`).join("\n");
   const topicText = topics
-    .map((t) => `${t.label}: ${t.name} — ${t.description} (write ${t.count}; its sources: ${t.sourceLabels.join(", ")})`)
+    .map((t) => `${escapePromptData(t.label)}: ${escapePromptData(t.name)} — ${escapePromptData(t.description)} (write ${t.count}; its sources: ${t.sourceLabels.map(escapePromptData).join(", ")})`)
     .join("\n");
-  const avoidText = avoid.length ? `\n\nDon't repeat these existing questions:\n${avoid.map((q) => `- ${q}`).join("\n")}` : "";
+  const avoidText = avoid.length ? `\n\nDon't repeat these existing questions:\n${avoid.map((q) => `- ${escapePromptData(q)}`).join("\n")}` : "";
   return `Sources:\n${sourceText}\n\nTopics:\n${topicText}${avoidText}`;
 }
 
@@ -65,9 +66,9 @@ export type CheckCandidate = { id: string; question: string; options: string[]; 
 export function buildCheckPrompt(candidates: CheckCandidate[]): string {
   return candidates
     .map((c) => {
-      const options = c.options.map((o, i) => `${i}. ${o}${i === c.correctOption ? "  (marked correct)" : ""}`).join("\n");
-      const sources = c.sources.map((s) => `<source id="${s.label}" pages="${s.pages}">\n${s.content}\n</source>`).join("\n");
-      return `<question id="${c.id}">\n${c.question}\n${options}\n${sources}\n</question>`;
+      const options = c.options.map((o, i) => `${i}. ${escapePromptData(o)}${i === c.correctOption ? "  (marked correct)" : ""}`).join("\n");
+      const sources = c.sources.map((s) => `<source id="${escapePromptData(s.label)}" pages="${escapePromptData(s.pages)}">\n${escapePromptData(s.content)}\n</source>`).join("\n");
+      return `<question id="${escapePromptData(c.id)}">\n${escapePromptData(c.question)}\n${options}\n${sources}\n</question>`;
     })
     .join("\n\n");
 }
