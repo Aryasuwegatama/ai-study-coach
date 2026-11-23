@@ -164,7 +164,7 @@ Most of the Figma design is built as designed. Six screen groups change (plus on
 | Materials & Topics | Review suggested topics, Edited draft, Draft saved, Confirm | Build | — |
 | Materials & Topics | (new) Duplicate topic note | Change in Figma | Add a small "Already in this space — will be linked" label on matching suggestions. |
 | Quizzes | Quiz Library (empty, populated, generating, failed), Attempt (MCQ), Saved attempt, Resume, Confirm submission, Answer review, Report issue | Build | — |
-| Quizzes | Generate Quiz setup | Change in Figma | Remove the Short answer type; add topic checkboxes (all ticked by default). |
+| Quizzes | Create quiz setup (named "Generate quiz" before the UI redesign, 23 Nov) | Change in Figma | Remove the Short answer type; add topic checkboxes (all ticked by default). Redesign: materials and topics on the left; question count, the summary and **Create quiz** on the right; materials not ready yet are listed with the reason. |
 | Quizzes | Results | Change in Figma | Remove provisional short answers; add a per-topic score row. |
 | Quizzes | Attempt (Short answer), Short-answer feedback (provisional) | Change in Figma | Remove from quizzes (short answer now lives in flashcards). |
 | Flashcards | Deck Library (all states), Practice (front, revealed, rated, next, paused, completed), Exit with unsaved rating | Build | — |

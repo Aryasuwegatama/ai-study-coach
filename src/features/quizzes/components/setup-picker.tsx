@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { FileText, RotateCcw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { MaterialStatus } from "@/features/materials/materials-schemas";
+import { pluralise } from "@/lib/pluralise";
 import { createApiMaterialsClient } from "@/features/materials/client/api-materials-client";
 import { MaterialsClientError } from "@/features/materials/client/materials-client";
 import { topicsClient, TopicsClientError } from "@/features/topics/client/api-topics-client";
@@ -24,7 +27,7 @@ import type { SetResponse } from "../quizzes-schemas";
 /** A material and its confirmed topics, joined client-side from `GET …/materials`
  * and `GET …/topics?materials=linked` (`TopicResponse.materialIds`; T-12b, gap 2). */
 type SetupTopic = { id: string; name: string };
-type SetupMaterial = { id: string; name: string; ready: boolean; topics: SetupTopic[] };
+type SetupMaterial = { id: string; name: string; ready: boolean; status: MaterialStatus; topics: SetupTopic[] };
 type Selection = { materialIds: Set<string>; topicIds: Set<string> };
 
 function loadErrorMessage(err: unknown): string {
@@ -44,6 +47,8 @@ export type SetupPicker = {
   /** What gets sent: Ready materials with at least one ticked topic, and only topics those materials offer. */
   selectedMaterialIds: string[];
   selectedTopicIds: string[];
+  /** Loads the materials and topics again (the error state's "Try again"). */
+  reload: () => void;
 };
 
 /**
@@ -71,6 +76,7 @@ export function useSetupPicker({
   const [materials, setMaterials] = useState<SetupMaterial[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>({ materialIds: new Set(), topicIds: new Set() });
+  const [loadRound, setLoadRound] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -83,6 +89,7 @@ export function useSetupPicker({
           id: material.id,
           name: material.originalName,
           ready: material.status === "ready",
+          status: material.status,
           topics: topicRows.filter((topic) => topic.materialIds.includes(material.id)).map((topic) => ({ id: topic.id, name: topic.name })),
         }));
         setMaterials(list);
@@ -118,7 +125,7 @@ export function useSetupPicker({
     return () => {
       ignore = true;
     };
-  }, [client, spaceId, retryParam, topicParam, onRetryLoaded]);
+  }, [client, spaceId, retryParam, topicParam, onRetryLoaded, loadRound]);
 
   const readyMaterials = useMemo(() => materials?.filter((m) => m.ready) ?? [], [materials]);
   const notReadyMaterials = useMemo(() => materials?.filter((m) => !m.ready) ?? [], [materials]);
@@ -186,100 +193,170 @@ export function useSetupPicker({
     toggleTopic,
     selectedMaterialIds: sentMaterials.map((m) => m.id),
     selectedTopicIds: [...selection.topicIds].filter((id) => offered.has(id)),
+    reload: () => {
+      setLoadError(null);
+      setMaterials(null);
+      setLoadRound((round) => round + 1);
+    },
   };
 }
 
-/** The load error, the loading skeleton, or "No Ready materials yet" — whatever the picker shows instead of the form. */
+/**
+ * The load error, the loading skeleton, or "No ready materials yet": whatever
+ * the picker shows instead of the form (redesign prototype `quiz-new.html`).
+ */
 export function SetupPickerStatus({
   picker,
   spaceId,
   noun,
+  backHref,
+  backLabel,
 }: {
   picker: SetupPicker;
   spaceId: string;
-  /** "a quiz" or "flashcards": "…before generating {noun}". */
+  /** "a quiz" or "flashcards": "…before creating {noun}". */
   noun: string;
+  /** Where the error state's second button goes, for example the Quizzes tab. */
+  backHref?: string;
+  backLabel?: string;
 }) {
   if (picker.state === "error") {
     return (
-      <Card className="rounded-[20px] p-8">
-        <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <AlertTriangle className="size-6" aria-hidden="true" />
-          </span>
-          <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-            {picker.loadError}
-          </p>
-        </CardContent>
+      <Card role="alert" className="gap-4 p-6 max-sm:p-4">
+        <h3 className="text-card-title text-foreground">We couldn&apos;t load your materials and topics</h3>
+        <p className="text-muted-foreground">{picker.loadError} Check your connection and try again.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={picker.reload}>
+            <RotateCcw aria-hidden="true" />
+            Try again
+          </Button>
+          {backHref && backLabel && (
+            <Button variant="ghost" nativeButton={false} render={<Link href={backHref} />}>
+              {backLabel}
+            </Button>
+          )}
+        </div>
       </Card>
     );
   }
 
   if (picker.state === "loading") {
     return (
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-24 w-full rounded-[16px]" />
-        <Skeleton className="h-24 w-full rounded-[16px]" />
+      <div className="flex flex-col gap-4" aria-busy="true">
+        <p className="sr-only" role="status">
+          Loading your materials and topics.
+        </p>
+        {[0, 1].map((key) => (
+          <Card key={key} className="gap-3 p-6" aria-hidden="true">
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-[85%]" />
+            <Skeleton className="h-4 w-2/5" />
+          </Card>
+        ))}
       </div>
     );
   }
 
   return (
-    <Card className="rounded-[20px] p-8">
-      <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold text-foreground">No Ready materials yet</h3>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Upload and confirm topics for a material before generating {noun}.
-          </p>
-        </div>
-        <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/materials`} />}>
-          Go to Materials
-        </Button>
-      </CardContent>
+    <Card className="items-center gap-4 px-6 py-10 text-center">
+      <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
+        <FileText className="size-5" aria-hidden="true" />
+      </span>
+      <h3 className="text-card-title text-foreground">No ready materials yet</h3>
+      <p className="max-w-[42rem] text-muted-foreground">Upload a material and confirm its topics before creating {noun}.</p>
+      <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/materials`} />}>
+        Go to Materials
+      </Button>
     </Card>
   );
 }
 
-/** Ready materials with their topic checkboxes, then the Review-needed ones, disabled. */
-export function SetupMaterialList({ picker }: { picker: SetupPicker }) {
-  return (
-    <div className="flex flex-col gap-3">
-      {picker.readyMaterials.map((material) => (
-        <Card key={material.id} className="rounded-[16px] p-4">
-          <CardContent className="flex flex-col gap-3 p-0">
-            <label className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Checkbox
-                checked={picker.materialChecked(material)}
-                onCheckedChange={(checked) => picker.toggleMaterial(material, checked)}
-              />
-              {material.name}
-            </label>
-            <ul className="flex flex-col gap-2 pl-6">
-              {material.topics.map((topic) => (
-                <li key={topic.id}>
-                  <label className="flex items-center gap-2 text-sm text-foreground">
-                    <Checkbox
-                      checked={picker.topicChecked(material, topic.id)}
-                      onCheckedChange={(checked) => picker.toggleTopic(material, topic.id, checked)}
-                    />
-                    {topic.name}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ))}
+/** Why a material can't be used yet, with its status pill. */
+const NOT_READY: Record<Exclude<MaterialStatus, "ready">, { reason: string; label: string; tone: "amber" | "blue" | "red" }> = {
+  review_topics: { reason: "Confirm its topic suggestions to use this file.", label: "Topics ready", tone: "amber" },
+  processing: { reason: "The file is still being prepared.", label: "Processing", tone: "blue" },
+  uploading: { reason: "The file is still uploading.", label: "Uploading", tone: "blue" },
+  failed: { reason: "This file couldn't be processed. Retry it on the Materials tab.", label: "Failed", tone: "red" },
+};
 
-      {picker.notReadyMaterials.map((material) => (
-        <Card key={material.id} className="rounded-[16px] p-4 opacity-60">
-          <CardContent className="flex items-center justify-between gap-2 p-0">
-            <span className="text-sm font-medium text-muted-foreground">{material.name}</span>
-            <span className="text-xs text-muted-foreground">Topics ready</span>
-          </CardContent>
+/**
+ * "Materials and topics" (ready materials with their topic checkboxes) and
+ * "Not available yet" (the rest, each with why and, for Topics ready, a link
+ * to confirm them). `spaceId` turns on that link; `noun` names what is being
+ * created ("this quiz", "these flashcards").
+ */
+export function SetupMaterialList({ picker, spaceId, noun = "this quiz" }: { picker: SetupPicker; spaceId?: string; noun?: string }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <Card className="gap-0 p-0">
+        <header className="p-6 pb-4 max-sm:p-4">
+          <h3 className="text-card-title text-foreground">Materials and topics</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Only ready materials and confirmed topics can be used.</p>
+        </header>
+        <ul>
+          {picker.readyMaterials.map((material) => {
+            return (
+              <li key={material.id} className="border-t border-border px-6 py-4 max-sm:px-4">
+                <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                  <Checkbox
+                    checked={picker.materialChecked(material)}
+                    onCheckedChange={(checked) => picker.toggleMaterial(material, checked)}
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-semibold break-words text-foreground">{material.name}</span>
+                    <span className="block text-sm text-muted-foreground">Ready · {pluralise(material.topics.length, "confirmed topic")}</span>
+                  </span>
+                </label>
+                <fieldset className="mt-1 pl-8">
+                  <legend className="sr-only">Confirmed topics from {material.name}</legend>
+                  <ul className="flex flex-col">
+                    {material.topics.map((topic) => {
+                      return (
+                        <li key={topic.id}>
+                          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-foreground">
+                            <Checkbox
+                              checked={picker.topicChecked(material, topic.id)}
+                              onCheckedChange={(checked) => picker.toggleTopic(material, topic.id, checked)}
+                            />
+                            <span className="min-w-0 break-words">{topic.name}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      {picker.notReadyMaterials.length > 0 && (
+        <Card className="gap-0 p-0">
+          <header className="p-6 pb-4 max-sm:p-4">
+            <h3 className="text-card-title text-foreground">Not available for {noun} yet</h3>
+          </header>
+          <ul>
+            {picker.notReadyMaterials.map((material) => {
+              const info = NOT_READY[material.status as Exclude<MaterialStatus, "ready">] ?? NOT_READY.processing;
+              return (
+                <li key={material.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-6 py-4 max-sm:px-4">
+                  <div className="min-w-[12rem] flex-1">
+                    <p className="text-sm font-semibold break-words text-foreground">{material.name}</p>
+                    <p className="text-sm text-muted-foreground">{info.reason}</p>
+                  </div>
+                  <Badge tone={info.tone}>{info.label}</Badge>
+                  {spaceId && material.status === "review_topics" && (
+                    <Button variant="outline" nativeButton={false} render={<Link href={`/spaces/${spaceId}/materials/${material.id}/topics`} />}>
+                      Confirm topics
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </Card>
-      ))}
+      )}
     </div>
   );
 }

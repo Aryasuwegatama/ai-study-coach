@@ -24,12 +24,15 @@ export function ReportIssueDialog({
   onOpenChange,
   client,
   onReported,
+  questionNumber = null,
 }: {
   question: QuestionResult | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: QuizzesClient;
   onReported: (itemId: string, report: ItemReport) => void;
+  /** Shown above the form ("Question 2 · …") so the student sees which question they're reporting. */
+  questionNumber?: number | null;
 }) {
   const [reason, setReason] = useState<ReportReason>("incorrect_answer");
   const [comment, setComment] = useState("");
@@ -85,7 +88,7 @@ export function ReportIssueDialog({
               <DialogDescription>Thanks for letting us know. We&apos;ll look into this question.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button type="button" className="rounded-full" onClick={() => onOpenChange(false)}>
+              <Button type="button" onClick={() => onOpenChange(false)}>
                 Done
               </Button>
             </DialogFooter>
@@ -94,14 +97,17 @@ export function ReportIssueDialog({
           <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
             <DialogHeader>
               <DialogTitle>Report an issue</DialogTitle>
-              <DialogDescription>Let us know what&apos;s wrong with this question.</DialogDescription>
+              <DialogDescription className="break-words">
+                {questionNumber ? `Question ${questionNumber} · ` : ""}
+                {question?.prompt ?? "Let us know what's wrong with this question."}
+              </DialogDescription>
             </DialogHeader>
 
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-foreground">What&apos;s the issue?</legend>
+              <legend className="mb-1 text-sm font-semibold text-foreground">What&apos;s the issue?</legend>
               <RadioGroup value={reason} onValueChange={(value) => setReason(value as ReportReason)}>
                 {REPORT_REASONS.map((value) => (
-                  <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+                  <label key={value} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-foreground">
                     <RadioGroupItem value={value} disabled={pending} />
                     {REPORT_REASON_LABELS[value]}
                   </label>
@@ -118,16 +124,20 @@ export function ReportIssueDialog({
                 maxLength={MAX_REPORT_COMMENT}
                 rows={3}
                 disabled={pending}
-                className="rounded-xl border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-describedby="report-comment-help"
+                className="rounded-sm border border-input bg-card px-3 py-2 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted md:text-sm"
               />
+              <p id="report-comment-help" className="text-sm text-muted-foreground">
+                Up to {MAX_REPORT_COMMENT} characters.
+              </p>
             </div>
 
             <label className="flex items-start gap-2 text-sm">
               <Checkbox checked={removeFromPractice} onCheckedChange={(checked) => setRemoveFromPractice(checked === true)} disabled={pending} />
               <span className="flex flex-col gap-0.5">
                 <span className="font-medium text-foreground">Remove from my practice</span>
-                <span className="text-xs text-muted-foreground">
-                  This question won&apos;t appear in new quizzes or count toward mastery. Your past results stay as they are.
+                <span className="text-sm text-muted-foreground">
+                  This question won&apos;t appear in future practice or count toward mastery. Your past results stay as they are.
                 </span>
               </span>
             </label>
@@ -139,12 +149,12 @@ export function ReportIssueDialog({
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => handleOpenChange(false)} disabled={pending}>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
                 Cancel
               </Button>
-              <Button type="submit" className="gap-2 rounded-full" disabled={pending}>
-                {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-                Submit report
+              <Button type="submit" disabled={pending}>
+                {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
+                {pending ? "Submitting…" : "Submit report"}
               </Button>
             </DialogFooter>
           </form>

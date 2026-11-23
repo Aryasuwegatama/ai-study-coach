@@ -103,7 +103,7 @@ export function DeckSetupForm({ spaceId, client }: { spaceId: string; client: Fl
     <div className="flex max-w-2xl flex-col gap-6">
       <h2 className="text-xl font-semibold text-foreground">Generate flashcards</h2>
 
-      <SetupMaterialList picker={picker} />
+      <SetupMaterialList picker={picker} spaceId={spaceId} noun="these flashcards" />
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium text-foreground">Card style</legend>

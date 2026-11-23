@@ -12,8 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/** Figma node 49:19295, "Submit confirmation" — lists unanswered
- * question numbers (issue #46). */
+/** "Submit this quiz?" (issue #46; redesign prototype `quiz-attempt.html`): lists the unanswered questions. */
 export function SubmitConfirmationDialog({
   open,
   onOpenChange,
@@ -36,16 +35,21 @@ export function SubmitConfirmationDialog({
           <AlertDialogTitle>Submit this quiz?</AlertDialogTitle>
           <AlertDialogDescription>
             {unansweredPositions.length === 0
-              ? "Every question is answered. You can't change your answers after submitting."
-              : `You haven't answered question${unansweredPositions.length === 1 ? "" : "s"} ${unansweredPositions.join(", ")}. Unanswered questions count as incorrect, and you can't change your answers after submitting.`}
+              ? "Every question is answered. "
+              : `You haven't answered ${unansweredPositions.map((position) => `question ${position}`).join(", ")}. Unanswered questions count as incorrect. `}
+            You can&apos;t change your answers after submitting.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {submitError && <p className="text-sm font-medium text-destructive">{submitError}</p>}
+        {submitError && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {submitError}
+          </p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={submitting}>Keep answering</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={submitting} className="gap-2">
-            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Submit
+          <AlertDialogAction onClick={onConfirm} disabled={submitting}>
+            {submitting && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {submitting ? "Submitting…" : "Submit quiz"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -2,49 +2,30 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { ListChecks, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { CountChip } from "@/components/count-chip";
+import { LabelledProgressBar } from "@/components/labelled-progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { pluralise } from "@/lib/pluralise";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ATTEMPT_API_ERRORS } from "@/features/attempts/attempts-schemas";
 import type { SetListItemResponse } from "../quizzes-schemas";
 import { QuizzesEmptyState } from "./quizzes-empty-state";
 
 const ATTEMPT_LABELS = { none: "Not started", in_progress: "In progress", submitted: "Completed" } as const;
-const ATTEMPT_CLASSES = {
-  none: "bg-muted text-muted-foreground",
-  in_progress: "bg-soft-amber text-amber",
-  submitted: "bg-soft-green text-green",
-} as const;
+const ATTEMPT_TONES = { none: "neutral", in_progress: "amber", submitted: "green" } as const;
 
 function QuizStatusPill({ quiz }: { quiz: SetListItemResponse }) {
-  if (quiz.status === "generating") {
-    return (
-      <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-soft-amber px-3 text-xs font-semibold text-amber">
-        Generating
-      </span>
-    );
-  }
-  if (quiz.status === "failed") {
-    return (
-      <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-destructive/10 px-3 text-xs font-semibold text-destructive">
-        Generation failed
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`inline-flex h-7 w-fit shrink-0 items-center rounded-full px-3 text-xs font-semibold ${ATTEMPT_CLASSES[quiz.latestAttempt.status]}`}
-    >
-      {ATTEMPT_LABELS[quiz.latestAttempt.status]}
-    </span>
-  );
+  if (quiz.status === "generating") return <Badge tone="amber">Generating</Badge>;
+  if (quiz.status === "failed") return <Badge tone="red">Generation failed</Badge>;
+  return <Badge tone={ATTEMPT_TONES[quiz.latestAttempt.status]}>{ATTEMPT_LABELS[quiz.latestAttempt.status]}</Badge>;
 }
 
 /**
@@ -80,56 +61,36 @@ function QuizCardActions({
   let primary: ReactNode = null;
   if (quiz.status === "failed") {
     primary = (
-      <Button
-        type="button"
-        variant="outline"
-        className="rounded-full"
-        nativeButton={false}
-        render={<Link href={`/spaces/${spaceId}/quizzes/new?retry=${quiz.id}`} />}
-      >
+      <Button variant="outline" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/new?retry=${quiz.id}`} />}>
         Try again
       </Button>
     );
   } else if (noActiveQuestions) {
-    primary = (
-      <div className="flex flex-col gap-2">
-        {quiz.latestAttempt.status === "submitted" && (
-          <Button
-            type="button"
-            className="rounded-full"
-            nativeButton={false}
-            render={<Link href={`/spaces/${spaceId}/quizzes/${quiz.id}/results/${quiz.latestAttempt.attemptId}`} />}
-          >
-            View results
-          </Button>
-        )}
-        <p className="text-xs text-muted-foreground">{ATTEMPT_API_ERRORS.SET_NO_ACTIVE_QUESTIONS.message}</p>
-      </div>
-    );
+    primary =
+      quiz.latestAttempt.status === "submitted" ? (
+        <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/${quiz.id}/results/${quiz.latestAttempt.attemptId}`} />}>
+          View results
+        </Button>
+      ) : null;
   } else if (quiz.status === "ready" && quiz.latestAttempt.status === "none") {
     primary = (
-      <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={attemptHref} />}>
+      <Button nativeButton={false} render={<Link href={attemptHref} />}>
         Start quiz
       </Button>
     );
   } else if (quiz.status === "ready" && quiz.latestAttempt.status === "in_progress") {
     primary = (
-      <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={attemptHref} />}>
-        Resume
+      <Button nativeButton={false} render={<Link href={attemptHref} />}>
+        Resume quiz
       </Button>
     );
   } else if (quiz.status === "ready" && quiz.latestAttempt.status === "submitted") {
     primary = (
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          className="rounded-full"
-          nativeButton={false}
-          render={<Link href={`/spaces/${spaceId}/quizzes/${quiz.id}/results/${quiz.latestAttempt.attemptId}`} />}
-        >
+        <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/${quiz.id}/results/${quiz.latestAttempt.attemptId}`} />}>
           View results
         </Button>
-        <Button type="button" variant="outline" className="rounded-full" nativeButton={false} render={<Link href={attemptHref} />}>
+        <Button variant="outline" nativeButton={false} render={<Link href={attemptHref} />}>
           Retake
         </Button>
       </div>
@@ -137,18 +98,19 @@ function QuizCardActions({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {primary}
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap gap-2">{primary}</div>
       {canDelete && (
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Actions for ${quiz.title}`} />}
+            render={<Button type="button" variant="ghost" size="icon" aria-label={`More actions for ${quiz.title}`} />}
           >
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem variant="destructive" onClick={() => onDelete(quiz)}>
-              Delete
+              <Trash2 aria-hidden="true" />
+              Delete quiz
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -157,6 +119,32 @@ function QuizCardActions({
   );
 }
 
+/** The line under the title: what the quiz holds, or why it isn't ready. */
+function quizMeta(quiz: SetListItemResponse): string {
+  if (quiz.status === "generating") return "Preparing your questions. You can keep studying.";
+  if (quiz.status === "failed") return quiz.error?.message ?? "We couldn't generate this quiz. Try again.";
+  const removed = quiz.generatedCount - quiz.activeCount;
+  if (quiz.activeCount === 0 && quiz.latestAttempt.status !== "in_progress") return "No questions available for a new attempt.";
+  const parts = [pluralise(quiz.generatedCount, "question")];
+  if (quiz.generatedCount < quiz.requestedCount) parts.push(`${quiz.generatedCount} of ${quiz.requestedCount} generated`);
+  if (removed > 0) parts.push(`${removed} removed after a report`);
+  return parts.join(" · ");
+}
+
+/** A second, quieter line for the special cases (partial, removed, none left). */
+function quizNote(quiz: SetListItemResponse): string | null {
+  if (quiz.status !== "ready") return null;
+  const submitted = quiz.latestAttempt.status === "submitted";
+  if (quiz.activeCount === 0 && quiz.latestAttempt.status !== "in_progress") return submitted ? "You can still view your previous result." : null;
+  if (submitted && quiz.generatedCount > quiz.activeCount) return "Your previous result is kept. The next attempt uses the remaining questions.";
+  if (quiz.latestAttempt.status === "none" && quiz.generatedCount < quiz.requestedCount) return "You can start with the questions that are ready.";
+  return null;
+}
+
+/**
+ * One quiz (`.quiz-card` in the redesign prototype): its icon and status,
+ * title, what it holds, its progress or latest score, then its actions.
+ */
 function QuizCard({
   spaceId,
   quiz,
@@ -166,60 +154,73 @@ function QuizCard({
   quiz: SetListItemResponse;
   onDelete: (quiz: SetListItemResponse) => void;
 }) {
-  // `generatedCount` is what was published; the rest were removed from
-  // practice by a report, so retakes are shorter (Arya, 2026-11-19, T-12b:
-  // no replacement questions). At 0 left, the actions show their own message.
-  const removedCount = quiz.status === "ready" ? quiz.generatedCount - quiz.activeCount : 0;
-
+  const note = quizNote(quiz);
+  const titleId = `quiz-${quiz.id}-title`;
   return (
-    <Card className="flex flex-col rounded-[20px] p-5">
-      <CardContent className="flex flex-1 flex-col gap-3 p-0">
-        <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{quiz.title}</h3>
+    <Card className="gap-4 p-6 max-sm:p-4" aria-labelledby={titleId} role="article">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+          <ListChecks className="size-5" aria-hidden="true" />
+        </span>
         <QuizStatusPill quiz={quiz} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <h3 id={titleId} className="text-card-title break-words text-foreground">
+          {quiz.title}
+        </h3>
+        <p className="text-sm text-muted-foreground">{quizMeta(quiz)}</p>
+      </div>
 
-        {quiz.status === "ready" && quiz.generatedCount < quiz.requestedCount && (
-          <p className="text-xs text-muted-foreground">
-            {quiz.generatedCount} of {quiz.requestedCount} generated
-          </p>
-        )}
-        {quiz.status === "failed" && quiz.error && <p className="text-xs text-muted-foreground">{quiz.error.message}</p>}
-        {removedCount > 0 && quiz.activeCount > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {removedCount} question{removedCount === 1 ? "" : "s"} removed after a report
-          </p>
-        )}
-        {quiz.status === "ready" && quiz.latestAttempt.status === "in_progress" && (
-          <p className="text-xs text-muted-foreground">
+      {quiz.status === "ready" && quiz.latestAttempt.status === "in_progress" && (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground" aria-hidden="true">
             {quiz.latestAttempt.answeredCount} of {quiz.latestAttempt.totalCount} answered
           </p>
-        )}
-        {quiz.status === "ready" && quiz.latestAttempt.status === "submitted" && (
-          <p className="text-xs text-muted-foreground">
-            Score: {quiz.latestAttempt.score} of {quiz.latestAttempt.total} ({quiz.latestAttempt.percent}%)
-          </p>
-        )}
-
-        <div className="mt-auto pt-2">
-          <QuizCardActions spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
+          <LabelledProgressBar
+            value={quiz.latestAttempt.answeredCount}
+            max={quiz.latestAttempt.totalCount}
+            label={`${quiz.latestAttempt.answeredCount} of ${quiz.latestAttempt.totalCount} answered`}
+          />
         </div>
-      </CardContent>
+      )}
+      {quiz.status === "ready" && quiz.latestAttempt.status === "submitted" && (
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-sm text-muted-foreground">Latest score</span>
+          <span className="font-semibold text-foreground">
+            {quiz.latestAttempt.score} of {quiz.latestAttempt.total}
+          </span>
+          <span className="text-sm text-muted-foreground">({quiz.latestAttempt.percent}%)</span>
+        </p>
+      )}
+      {note && <p className="text-sm text-muted-foreground">{note}</p>}
+
+      <div className="mt-auto">
+        <QuizCardActions spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
+      </div>
     </Card>
   );
 }
 
 function QuizLibrarySkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[0, 1, 2].map((key) => (
-        <Skeleton key={key} className="h-44 w-full rounded-[20px]" />
+    <div className="grid gap-4 md:grid-cols-2" aria-busy="true">
+      <p className="sr-only" role="status">
+        Loading your quizzes.
+      </p>
+      {[0, 1].map((key) => (
+        <Card key={key} className="gap-4 p-6" aria-hidden="true">
+          <Skeleton className="size-10 rounded-lg" />
+          <Skeleton className="h-6 w-3/5" />
+          <Skeleton className="h-4 w-2/5" />
+          <Skeleton className="h-11 w-32" />
+        </Card>
       ))}
     </div>
   );
 }
 
 /**
- * The Quiz Library (issue #46, plan step 4; Figma nodes 49:18466
- * populated, 49:18286 empty, 49:18844 generating, 49:18869 failed). A
+ * The Quiz Library (issue #46; redesign prototype `quiz-library.html`): a
  * grid of cards, not a table — each status needs a different action
  * layout, which fits a card better than a shared row shape.
  */
@@ -237,15 +238,21 @@ export function QuizLibrary({
   onDelete: (quiz: SetListItemResponse) => void;
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-foreground">Quizzes · {quizzes.length}</h2>
+    <section aria-labelledby="quizzes-heading" className="mt-6 flex flex-col gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id="quizzes-heading" className="flex items-center gap-2 text-section text-foreground">
+            Quizzes {!loading && <CountChip count={quizzes.length} />}
+          </h2>
+          <p className="mt-1 max-w-[42rem] text-muted-foreground">Practise with quizzes made from your confirmed topics.</p>
+        </div>
         {!loading && quizzes.length > 0 && (
-          <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/new`} />}>
-            Generate quiz
+          <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/new`} />}>
+            <Plus aria-hidden="true" />
+            Create quiz
           </Button>
         )}
-      </div>
+      </header>
 
       {actionError && (
         <p role="alert" className="text-sm font-medium text-destructive">
@@ -258,11 +265,16 @@ export function QuizLibrary({
       ) : quizzes.length === 0 ? (
         <QuizzesEmptyState spaceId={spaceId} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {quizzes.map((quiz) => (
-            <QuizCard key={quiz.id} spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
-          ))}
-        </div>
+        <>
+          <ul className="grid gap-4 md:grid-cols-2">
+            {quizzes.map((quiz) => (
+              <li key={quiz.id} className="flex [&>*]:flex-1">
+                <QuizCard spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-muted-foreground">Answers and explanations appear after you submit a quiz.</p>
+        </>
       )}
     </section>
   );

@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Check, ChevronDown, CircleCheck, CircleX, Flag, Sparkles, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/class-names";
 import type { QuizzesClient } from "@/features/quizzes/client/quizzes-client";
 import { OPTION_LETTERS, type ItemReport, type QuestionResult } from "../attempts-schemas";
@@ -29,90 +31,137 @@ export function AnswerReviewList({ questions, client }: { questions: QuestionRes
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h3 className="text-lg font-semibold text-foreground">Review answers</h3>
-      {questions.map((question, questionIndex) => {
-        const report = newReports[question.itemId] ?? question.report;
-        return (
-        <Card key={question.itemId} className="rounded-[20px] p-5">
-          <CardContent className="flex flex-col gap-3 p-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">Question {questionIndex + 1}</span>
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                  question.isCorrect ? "bg-soft-green text-green" : "bg-destructive/10 text-destructive",
-                )}
-              >
-                {question.isCorrect ? "Correct" : "Incorrect"}
-              </span>
-              <span className="rounded-full bg-soft-purple px-2.5 py-0.5 text-xs font-semibold text-purple">AI-generated</span>
-            </div>
-
-            <p className="font-medium text-foreground">{question.prompt}</p>
-
-            <ul className="flex flex-col gap-2">
-              {question.options.map((option, index) => {
-                const isCorrectOption = index === question.correctIndex;
-                const isSelected = index === question.selectedIndex;
-                return (
-                  <li
-                    key={index}
-                    className={cn(
-                      "flex gap-3 rounded-xl border px-3 py-2 text-sm",
-                      isCorrectOption
-                        ? "border-green bg-soft-green text-green"
-                        : isSelected
-                          ? "border-destructive bg-destructive/10 text-destructive"
-                          : "border-border text-foreground",
-                    )}
-                  >
-                    <span className="w-4 shrink-0 font-semibold">{OPTION_LETTERS[index]}</span>
-                    <span className="min-w-0">
-                      {option}
-                      {isCorrectOption && <span className="ml-2 text-xs font-semibold">(Correct answer)</span>}
-                      {isSelected && !isCorrectOption && <span className="ml-2 text-xs font-semibold">(Your answer)</span>}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {question.explanation && <p className="text-sm text-muted-foreground">{question.explanation}</p>}
-
-            {question.sources.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Source removed</p>
-            ) : (
-              <details className="text-sm">
-                <summary className="cursor-pointer font-medium text-primary underline underline-offset-2">View source</summary>
-                <div className="mt-2 flex flex-col gap-2 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
-                  {question.sources.map((source) => (
-                    <div key={source.chunkId}>
-                      <p className="font-medium text-foreground">
-                        {source.materialName} · {source.pages}
-                      </p>
-                      <p>{source.excerpt}</p>
-                    </div>
-                  ))}
+    <section aria-labelledby="review-answers-title" className="flex flex-col gap-4">
+      <div>
+        <h3 id="review-answers-title" className="text-section text-foreground">
+          Review answers
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">See your choices, correct answers and explanations.</p>
+      </div>
+      <ol className="flex flex-col gap-4">
+        {questions.map((question, questionIndex) => {
+          const report = newReports[question.itemId] ?? question.report;
+          const unanswered = question.selectedIndex === null;
+          const titleId = `review-${question.itemId}-title`;
+          return (
+            <li key={question.itemId}>
+              <Card className="gap-4 p-6 max-sm:p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 id={titleId} className="text-sm font-semibold tracking-normal text-foreground">
+                    Question {questionIndex + 1}
+                  </h4>
+                  {question.isCorrect ? (
+                    <Badge tone="green">
+                      <Check aria-hidden="true" />
+                      Correct
+                    </Badge>
+                  ) : (
+                    <Badge tone="red">
+                      <X aria-hidden="true" />
+                      {unanswered ? "Not answered" : "Incorrect"}
+                    </Badge>
+                  )}
+                  <Badge tone="purple">{question.topicName}</Badge>
+                  <Badge tone="neutral">
+                    <Sparkles aria-hidden="true" />
+                    AI-generated
+                  </Badge>
                 </div>
-              </details>
-            )}
 
-            <div>
-              {report ? (
-                <span className="inline-flex h-7 w-fit shrink-0 items-center rounded-full bg-muted px-3 text-xs font-semibold text-muted-foreground">
-                  Reported{report.removedFromPractice ? " · Removed from your practice" : ""}
-                </span>
-              ) : (
-                <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => setReportTarget(question)}>
-                  Report issue
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        );
-      })}
+                <p className="font-semibold break-words text-foreground">{question.prompt}</p>
+
+                <ul className="flex flex-col gap-2">
+                  {question.options.map((option, index) => {
+                    const isCorrectOption = index === question.correctIndex;
+                    const isSelected = index === question.selectedIndex;
+                    const label = isCorrectOption && isSelected ? "Correct answer · Your answer" : isCorrectOption ? "Correct answer" : isSelected ? "Your answer" : null;
+                    return (
+                      <li
+                        key={index}
+                        className={cn(
+                          "flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border p-3 text-foreground",
+                          isCorrectOption
+                            ? "border-green bg-soft-green shadow-[inset_0_0_0_1px_var(--green)]"
+                            : isSelected
+                              ? "border-destructive bg-soft-red shadow-[inset_0_0_0_1px_var(--destructive)]"
+                              : "border-border bg-card",
+                        )}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "grid size-8 shrink-0 place-items-center rounded-full border text-sm font-semibold",
+                            isCorrectOption
+                              ? "border-green bg-green text-primary-foreground"
+                              : isSelected
+                                ? "border-destructive bg-destructive text-destructive-foreground"
+                                : "border-input",
+                          )}
+                        >
+                          {OPTION_LETTERS[index]}
+                        </span>
+                        <span className="min-w-[12rem] flex-1 break-words">
+                          <span className="sr-only">{OPTION_LETTERS[index]}. </span>
+                          {option}
+                        </span>
+                        {label && (
+                          <span
+                            className={cn(
+                              "inline-flex shrink-0 items-center gap-1 text-sm font-semibold",
+                              isCorrectOption ? "text-green" : "text-destructive",
+                            )}
+                          >
+                            {isCorrectOption ? <CircleCheck className="size-4" aria-hidden="true" /> : <CircleX className="size-4" aria-hidden="true" />}
+                            {label}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {question.explanation && (
+                  <div className="rounded-lg bg-secondary p-4">
+                    <h5 className="text-sm font-semibold text-foreground">Explanation</h5>
+                    <p className="mt-1 text-foreground">{question.explanation}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  {question.sources.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Source removed. Your submitted score and answer review are kept.</p>
+                  ) : (
+                    <details className="group min-w-0 flex-1">
+                      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-sm text-sm font-semibold text-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+                        View source
+                        <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                      </summary>
+                      <div className="mt-1 flex flex-col gap-3 rounded-lg border border-border bg-background p-4 text-sm">
+                        {question.sources.map((source) => (
+                          <div key={source.chunkId}>
+                            <p className="font-semibold break-words text-foreground">
+                              {source.materialName} · {source.pages}
+                            </p>
+                            <p className="mt-1 text-muted-foreground">{source.excerpt}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                  {report ? (
+                    <Badge tone="neutral">Reported{report.removedFromPractice ? " · Removed from your practice" : ""}</Badge>
+                  ) : (
+                    <Button type="button" variant="outline" aria-describedby={titleId} onClick={() => setReportTarget(question)}>
+                      <Flag aria-hidden="true" />
+                      Report issue
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            </li>
+          );
+        })}
+      </ol>
 
       <ReportIssueDialog
         question={reportTarget}
@@ -122,7 +171,8 @@ export function AnswerReviewList({ questions, client }: { questions: QuestionRes
         }}
         client={client}
         onReported={handleReported}
+        questionNumber={reportTarget ? questions.indexOf(reportTarget) + 1 : null}
       />
-    </div>
+    </section>
   );
 }
