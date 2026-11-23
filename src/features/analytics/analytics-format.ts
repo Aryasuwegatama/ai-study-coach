@@ -12,6 +12,19 @@ export const STATUS_LABELS: Record<MasteryStatus, string> = {
   not_assessed: "Not assessed",
 };
 
+/** The fixed status order for counts, legends and charts (the API's "weak first" order). */
+export const STATUS_ORDER: MasteryStatus[] = ["weak", "insufficient", "not_assessed", "on_track"];
+
+/** How many topics have each status. Counts only: never an average or an overall score. */
+export function countByStatus(topics: ReadonlyArray<{ status: MasteryStatus }>): Record<MasteryStatus, number> {
+  const counts: Record<MasteryStatus, number> = { weak: 0, insufficient: 0, not_assessed: 0, on_track: 0 };
+  for (const topic of topics) counts[topic.status] += 1;
+  return counts;
+}
+
+/** Open mistakes across these topics (a count of questions to revisit, not a score). */
+export const totalMistakes = (topics: ReadonlyArray<{ mistakes: number }>) => topics.reduce((sum, t) => sum + t.mistakes, 0);
+
 /** Pill tones (`Badge`): red for Weak, green for On track, neutral for the rest. */
 export const STATUS_TONES: Record<MasteryStatus, "red" | "green" | "neutral"> = {
   weak: "red",

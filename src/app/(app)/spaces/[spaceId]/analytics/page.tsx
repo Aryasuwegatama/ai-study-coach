@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import { getSpaceProgress } from "@/features/progress/server";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -22,14 +23,14 @@ type SpaceAnalyticsPageProps = {
   searchParams: Promise<{ view?: string }>;
 };
 
-/** The Analytics tab (T-15; Figma 65:43673, weak view 65:44105). */
+/** The Analytics tab (T-15; redesign prototype `space-analytics.html`). */
 export default function SpaceAnalyticsPage({ params, searchParams }: SpaceAnalyticsPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <SpaceAnalyticsContent params={params} searchParams={searchParams} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
