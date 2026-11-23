@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ListChecks, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SetListItemResponse } from "../quizzes-schemas";
 import { QuizzesEmptyState } from "./quizzes-empty-state";
+import { QuizzesStatusFilter, matchesQuizFilter, type QuizzesFilterValue } from "./quizzes-status-filter";
 
 const ATTEMPT_LABELS = { none: "Not started", in_progress: "In progress", submitted: "Completed" } as const;
 const ATTEMPT_TONES = { none: "neutral", in_progress: "amber", submitted: "green" } as const;
@@ -172,6 +173,8 @@ function QuizCard({
   onRename: (quiz: SetListItemResponse) => void;
 }) {
   const hiddenTags = quiz.topics.length - TAGS_SHOWN;
+  const [showAllTags, setShowAllTags] = useState(false);
+  const tagListId = `quiz-${quiz.id}-topics`;
   const note = quizNote(quiz);
   const titleId = `quiz-${quiz.id}-title`;
   return (
@@ -189,8 +192,8 @@ function QuizCard({
         <p className="text-sm text-muted-foreground">{quizMeta(quiz)}</p>
       </div>
       {quiz.topics.length > 0 && (
-        <ul aria-label="Topics in this quiz" className="flex flex-wrap gap-1.5">
-          {quiz.topics.slice(0, TAGS_SHOWN).map((topic) => (
+        <ul id={tagListId} aria-label="Topics in this quiz" className="flex flex-wrap items-center gap-1.5">
+          {(showAllTags ? quiz.topics : quiz.topics.slice(0, TAGS_SHOWN)).map((topic) => (
             <li key={topic.id}>
               <Badge tone="purple" className="max-w-full whitespace-normal">
                 {topic.name}
@@ -199,9 +202,16 @@ function QuizCard({
           ))}
           {hiddenTags > 0 && (
             <li>
-              <Badge tone="neutral" title={quiz.topics.slice(TAGS_SHOWN).map((t) => t.name).join(", ")}>
-                +{hiddenTags} more
-              </Badge>
+              {/* Opens the rest of the list in place, so every topic can be checked. */}
+              <button
+                type="button"
+                aria-expanded={showAllTags}
+                aria-controls={tagListId}
+                onClick={() => setShowAllTags((value) => !value)}
+                className="inline-flex min-h-8 cursor-pointer items-center rounded-full border border-border-strong bg-secondary px-2 py-0.5 text-sm font-medium text-secondary-foreground outline-none hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {showAllTags ? "Show fewer" : `+${hiddenTags} more`}
+              </button>
             </li>
           )}
         </ul>
@@ -275,6 +285,9 @@ export function QuizLibrary({
   onDelete: (quiz: SetListItemResponse) => void;
   onRename: (quiz: SetListItemResponse) => void;
 }) {
+  const [filter, setFilter] = useState<QuizzesFilterValue>("all");
+  const visible = quizzes.filter((quiz) => matchesQuizFilter(quiz, filter));
+
   return (
     <section aria-labelledby="quizzes-heading" className="mt-6 flex flex-col gap-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -304,13 +317,20 @@ export function QuizLibrary({
         <QuizzesEmptyState spaceId={spaceId} />
       ) : (
         <>
-          <ul className="grid gap-4 md:grid-cols-2">
-            {quizzes.map((quiz) => (
-              <li key={quiz.id} className="flex [&>*]:flex-1">
-                <QuizCard spaceId={spaceId} quiz={quiz} onDelete={onDelete} onRename={onRename} />
-              </li>
-            ))}
-          </ul>
+          <QuizzesStatusFilter quizzes={quizzes} value={filter} onChange={setFilter} />
+          {visible.length === 0 ? (
+            <Card className="px-6 py-8 text-center">
+              <p className="text-muted-foreground">No quizzes with this status.</p>
+            </Card>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {visible.map((quiz) => (
+                <li key={quiz.id} className="flex [&>*]:flex-1">
+                  <QuizCard spaceId={spaceId} quiz={quiz} onDelete={onDelete} onRename={onRename} />
+                </li>
+              ))}
+            </ul>
+          )}
           <p className="text-sm text-muted-foreground">Answers and explanations appear after you submit a quiz.</p>
         </>
       )}
