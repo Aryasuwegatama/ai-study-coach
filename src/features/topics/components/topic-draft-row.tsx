@@ -22,10 +22,10 @@ export type DraftRowView = {
 
 /**
  * One suggestion card in the Confirm topics editor (`.suggestion-card` in the
- * redesign prototype): the editable name, the "AI-suggested" pill (PRD Section
- * 2 requires it until confirmation), the description, where the AI found it,
- * and a green badge when the name matches a topic already in the space. A
- * removed suggestion is dimmed, with a note and a Restore button.
+ * redesign prototype): the editable name with a Rename button (which focuses
+ * the field) and a Remove button, the description, where the AI found it, and
+ * a green badge when the name matches a topic already in the space. A removed
+ * suggestion is dimmed, with a note and a Restore button.
  */
 export function TopicDraftRow({
   row,
@@ -108,16 +108,25 @@ export function TopicDraftRow({
             className="text-card-title"
           />
         </div>
-        {row.origin === "ai" && (
-          <Badge tone="purple" className="mt-2.5 shrink-0 max-sm:mt-0 max-sm:self-center">
-            AI-suggested
-          </Badge>
-        )}
+        <Button
+          type="button"
+          variant="ghost"
+          className="shrink-0 max-sm:ml-auto"
+          onClick={() => {
+            const input = document.getElementById(fieldId) as HTMLInputElement | null;
+            input?.focus();
+            input?.select();
+          }}
+          disabled={disabled}
+          aria-label={`Rename ${displayName}`}
+        >
+          Rename
+        </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="shrink-0 max-sm:ml-auto"
+          className="shrink-0"
           aria-label={`Remove ${displayName}`}
           onClick={() => onRemove(row.key)}
           disabled={disabled}
