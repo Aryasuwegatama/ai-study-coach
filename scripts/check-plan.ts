@@ -213,7 +213,7 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   const review = suggestions.find((s) => s.kind === "topic_review")!;
   check(
     "Suggestions: a material waiting for topic review links to its topic review page",
-    review.actionLabel === "Review topics" && review.href === `/spaces/${space.id}/materials/${reviewMaterialId}/topics` && review.plan.materialId === reviewMaterialId,
+    review.actionLabel === "Confirm topics" && review.href === `/spaces/${space.id}/materials/${reviewMaterialId}/topics` && review.plan.materialId === reviewMaterialId,
   );
   check(
     "Suggestions: a weak topic from deleted material only gives \"mistakes to review\" (no Practise suggestion for it)",
@@ -334,6 +334,29 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   res = await patch(a, ownNoSpace.id, { done: false });
   const undone = ((await res.json()) as { item: PlanItemResponse }).item;
   check("Undo: the done time is cleared and the item is open again", res.status === 200 && undone.doneAt === null && (await list()).find((i) => i.id === ownNoSpace.id)!.doneAt === null);
+
+  // --- Plan board stages (UI redesign, 2026-11-23): To do → Doing → Done → To do -------------------------
+  const stageOf = async (id: string) => (await list()).find((i) => i.id === id)!;
+  check("Board: a new item starts in To do", undone.stage === "todo" && undone.startedAt === null);
+  res = await patch(a, ownNoSpace.id, { stage: "doing" });
+  const doing = ((await res.json()) as { item: PlanItemResponse }).item;
+  check("Board: Start moves it to Doing (startedAt stamped, still open)", res.status === 200 && doing.stage === "doing" && doing.startedAt !== null && doing.doneAt === null);
+  res = await patch(a, ownNoSpace.id, { stage: "doing" });
+  const doingAgain = ((await res.json()) as { item: PlanItemResponse }).item;
+  check("Board: moving to Doing again keeps the first start time", doingAgain.startedAt === doing.startedAt);
+  res = await patch(a, ownNoSpace.id, { stage: "done" });
+  const finished = ((await res.json()) as { item: PlanItemResponse }).item;
+  check("Board: Done stamps doneAt and the stage is done", res.status === 200 && finished.stage === "done" && finished.doneAt !== null);
+  res = await patch(a, ownNoSpace.id, { stage: "todo" });
+  const reopened = ((await res.json()) as { item: PlanItemResponse }).item;
+  check("Board: Undo (to To do) clears both stamps", res.status === 200 && reopened.stage === "todo" && reopened.startedAt === null && reopened.doneAt === null && (await stageOf(ownNoSpace.id)).stage === "todo");
+  res = await patch(a, ownNoSpace.id, { stage: "later" });
+  check("Board validation: an unknown stage → 400", res.status === 400 && (await errorCode(res)) === "VALIDATION_ERROR");
+  res = await patch(a, ownNoSpace.id, { stage: "done", done: true });
+  check("Board validation: stage and done together → 400", res.status === 400 && (await errorCode(res)) === "VALIDATION_ERROR");
+  res = await patch(b, ownNoSpace.id, { stage: "doing" });
+  check("Board ownership: another student moving the card → 404 PLAN_ITEM_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "PLAN_ITEM_NOT_FOUND");
+  check("Board ownership: the card is still in To do after that", (await stageOf(ownNoSpace.id)).stage === "todo");
   res = await patch(a, ownNoSpace.id, { title: "Read chapter 5", plannedOn: "2026-11-25" });
   const edited = ((await res.json()) as { item: PlanItemResponse }).item;
   check("Edit: title and day", res.status === 200 && edited.title === "Read chapter 5" && edited.plannedOn === "2026-11-25");
@@ -397,7 +420,7 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   const keys = Object.keys(summary).sort().join();
   check(
     "Dashboard summary: no average, accuracy or percentage across topics (and no dates)",
-    keys === "activeSpaces,openMistakes,quizzesCompleted,resume,suggestions,weakTopics" && !/average|accuracy|overall/i.test(JSON.stringify(summary)),
+    keys === "activeSpaces,openMistakes,quizzesCompleted,resume,spaces,suggestions,topicsReady,weakTopics" && !/average|accuracy|overall/i.test(JSON.stringify(summary)),
     keys,
   );
   const empty = await getDashboardSummary({ ...userA, id: b.userId });

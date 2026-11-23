@@ -1,4 +1,4 @@
-import type { PlanItemResponse, SuggestionPlan } from "./plan-schemas";
+import type { PlanItemResponse, PlanStage, SuggestionKind, SuggestionPlan } from "./plan-schemas";
 
 /**
  * A day the student picked, shown as a plain date: "Mon 23 Nov" (with the
@@ -22,4 +22,27 @@ export function formatPlannedOn(day: string): string {
 export function isInPlan(plan: SuggestionPlan, items: PlanItemResponse[]): boolean {
   const target = plan.topicId ?? plan.setId ?? plan.materialId;
   return items.some((item) => item.doneAt === null && item.kind === plan.kind && (item.topicId ?? item.setId ?? item.materialId) === target);
+}
+
+/** Short labels above each suggestion so the ranked list is quick to scan (UI redesign). The sentence itself is unchanged. */
+export const SUGGESTION_KIND_LABELS: Record<SuggestionKind, string> = {
+  weak_topic: "Weak topic",
+  mistakes: "Mistakes to review",
+  not_enough_evidence: "Not enough evidence",
+  unfinished_quiz: "Unfinished quiz",
+  unfinished_deck: "Unfinished flashcards",
+  not_tested: "Not tested yet",
+  topic_review: "Topics ready",
+};
+
+/** Plan board columns, in order. */
+export const PLAN_STAGE_LABELS: Record<PlanStage, string> = { todo: "To do", doing: "Doing", done: "Done" };
+
+/** Items split by board column, keeping the server's order (open by planned day then Anytime; done newest first). */
+export function itemsByStage(items: PlanItemResponse[]): Record<PlanStage, PlanItemResponse[]> {
+  return {
+    todo: items.filter((item) => item.stage === "todo"),
+    doing: items.filter((item) => item.stage === "doing"),
+    done: items.filter((item) => item.stage === "done"),
+  };
 }

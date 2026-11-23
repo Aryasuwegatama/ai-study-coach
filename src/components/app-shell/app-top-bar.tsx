@@ -18,6 +18,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/analytics": "Analytics",
   "/plan": "My Plan",
   "/plan/review": "Review mistakes",
+  "/plan/board": "Plan board",
 };
 
 const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|flashcards|analytics)(?:\/.*)?$/;

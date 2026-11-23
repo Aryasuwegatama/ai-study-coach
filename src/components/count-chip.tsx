@@ -1,7 +1,7 @@
 import { cn } from "@/lib/class-names";
 
-/** The small grey count next to a heading, for example "Study Spaces 3" (`.count` in the redesign prototype). */
-export function CountChip({ count, className }: { count: number; className?: string }) {
+/** The small grey count next to a heading, for example "Study Spaces 3" (`.count` in the redesign prototype). `suffix` adds a word, for example "6 open". */
+export function CountChip({ count, suffix, className }: { count: number; suffix?: string; className?: string }) {
   return (
     <span
       className={cn(
@@ -9,7 +9,7 @@ export function CountChip({ count, className }: { count: number; className?: str
         className,
       )}
     >
-      {count}
+      {suffix ? `${count} ${suffix}` : count}
     </span>
   );
 }

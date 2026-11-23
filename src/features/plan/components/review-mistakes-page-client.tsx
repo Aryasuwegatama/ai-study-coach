@@ -6,7 +6,17 @@ import { createApiPlanClient } from "../client/api-plan-client";
 import { ReviewMistakesView } from "./review-mistakes-view";
 
 /** Owns the real `PlanClient` for the Review mistakes screen, the same split the quiz pages use. */
-export function ReviewMistakesPageClient({ scope, scopeName, exitHref }: { scope: MistakesScope; scopeName: string; exitHref: string }) {
+export function ReviewMistakesPageClient({
+  scope,
+  scopeName,
+  contextName,
+  exitHref,
+}: {
+  scope: MistakesScope;
+  scopeName: string;
+  contextName?: string;
+  exitHref: string;
+}) {
   const [client] = useState(() => createApiPlanClient());
-  return <ReviewMistakesView client={client} scope={scope} scopeName={scopeName} exitHref={exitHref} />;
+  return <ReviewMistakesView client={client} scope={scope} scopeName={scopeName} contextName={contextName} exitHref={exitHref} />;
 }

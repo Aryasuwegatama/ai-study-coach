@@ -8,6 +8,7 @@ import { requireSpace } from "@/server/auth/auth-space-access";
 import { requireTopic } from "@/features/topics/server";
 import { mistakesQuerySchema } from "@/features/revision/revision-schemas";
 import { ReviewMistakesPageClient } from "@/features/plan/components/review-mistakes-page-client";
+import { PageContainer } from "@/components/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
@@ -19,11 +20,11 @@ type ReviewPageProps = { searchParams: Promise<{ topicId?: string | string[]; sp
 /** Review mistakes (T-15): `?topicId=` or `?spaceId=`. */
 export default function ReviewMistakesPage({ searchParams }: ReviewPageProps) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<Skeleton className="h-64 w-full rounded-[20px]" />}>
+    <PageContainer>
+      <Suspense fallback={<Skeleton className="mx-auto h-64 w-full max-w-[48rem] rounded-xl" />}>
         <ReviewMistakesContent searchParams={searchParams} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -56,11 +57,20 @@ async function ReviewMistakesContent({ searchParams }: ReviewPageProps) {
     if (!topic) {
       notFound();
     }
+    // The topic is the student's, so its space is too; it only names it in the header.
+    const topicSpace = await requireSpace(topic.spaceId, user).catch((error: unknown) => {
+      if (isCode(error, "SPACE_NOT_FOUND")) return null;
+      throw error;
+    });
+    if (!topicSpace) {
+      notFound();
+    }
     return (
       <ReviewMistakesPageClient
         key={topic.id}
         scope={{ topicId: topic.id }}
         scopeName={topic.name}
+        contextName={topicSpace.name}
         exitHref={`/spaces/${topic.spaceId}/analytics/topics/${topic.id}`}
       />
     );

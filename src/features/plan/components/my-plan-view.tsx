@@ -1,40 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, ListTodo, Plus } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Lightbulb } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { CountChip } from "@/components/count-chip";
+import { PageHead } from "@/components/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 import { PlanClientError, type PlanClient } from "../client/plan-client";
+import type { PlanItemResponse, PlanStage, Suggestion } from "../plan-schemas";
 import { isInPlan } from "../plan-format";
-import type { PlanItemResponse, Suggestion } from "../plan-schemas";
 import { PlanItemDialog, type PlanItemFormValues } from "./plan-item-dialog";
-import { PlanItemRow } from "./plan-item-row";
+import { PlanOverviewCard } from "./plan-overview-card";
+import { usePlanStickyEnd } from "./plan-sticky-end";
 import { SuggestionRow } from "./suggestion-row";
 
 const SUGGESTIONS_SHOWN = 8;
 const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
-const messageOf = (error: unknown) => (error instanceof PlanClientError ? error.message : GENERIC_ERROR_MESSAGE);
+export const planErrorMessage = (error: unknown) => (error instanceof PlanClientError ? error.message : GENERIC_ERROR_MESSAGE);
 
 type Loaded = { items: PlanItemResponse[]; suggestions: Suggestion[]; spaces: SpaceResponse[] };
 type LoadState = { status: "loading" } | { status: "error"; message: string } | ({ status: "ready" } & Loaded);
-type DialogState = { kind: "closed" } | { kind: "add" } | { kind: "edit"; item: PlanItemResponse };
+
+/** Two columns from `lg`: the student's plan on the left, suggestions on the right. */
+const LAYOUT = "grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(20rem,1fr)]";
+/** The plan card stays in view while the suggestions scroll (see `usePlanStickyEnd`). */
+const STICKY_END = "lg:sticky lg:top-[min(1.5rem,calc(100vh_-_var(--sticky-height,0px)_-_1.5rem))]";
 
 /**
- * My Plan (T-15; Figma 65:44462 for the layout only): suggestions built from the
- * student's analytics, and the student's own plan. The app never sets a day
- * for anything: a day is only ever one the student picked, shown as a plain date.
+ * My Plan (T-15; redesign prototype `my-plan.html`): the student's own plan at
+ * a glance next to the suggestions built from their analytics. The full board
+ * (To do, Doing, Done) is its own page, `/plan/board`. The app never sets a
+ * day for anything: a day is only ever one the student picked.
  *
  * Loads on mount (and so again whenever the route becomes visible, as Cache
  * Components keeps hidden routes mounted and re-runs their effects), so it is
@@ -46,8 +46,9 @@ export function MyPlanView({ client }: { client: PlanClient }) {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [dialog, setDialog] = useState<DialogState>({ kind: "closed" });
-  const [removeTarget, setRemoveTarget] = useState<PlanItemResponse | null>(null);
+  const [adding, setAdding] = useState(false);
+  const planCard = useRef<HTMLDivElement>(null);
+  usePlanStickyEnd(planCard);
 
   useEffect(() => {
     let ignore = false;
@@ -56,7 +57,7 @@ export function MyPlanView({ client }: { client: PlanClient }) {
         if (!ignore) setState({ status: "ready", items, suggestions, spaces });
       })
       .catch((error: unknown) => {
-        if (!ignore) setState({ status: "error", message: messageOf(error) });
+        if (!ignore) setState({ status: "error", message: planErrorMessage(error) });
       });
     return () => {
       ignore = true;
@@ -67,7 +68,7 @@ export function MyPlanView({ client }: { client: PlanClient }) {
     setState({ status: "loading" });
     Promise.all([client.listItems(), client.listSuggestions(), client.listSpaces()])
       .then(([items, suggestions, spaces]) => setState({ status: "ready", items, suggestions, spaces }))
-      .catch((error: unknown) => setState({ status: "error", message: messageOf(error) }));
+      .catch((error: unknown) => setState({ status: "error", message: planErrorMessage(error) }));
   }
 
   async function reloadItems() {
@@ -75,7 +76,7 @@ export function MyPlanView({ client }: { client: PlanClient }) {
     setState((previous) => (previous.status === "ready" ? { ...previous, items } : previous));
   }
 
-  /** A change from a button on the page: one at a time, its error shown above the list. */
+  /** A change from a button on the page: one at a time, its error shown above the plan. */
   async function mutate(work: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -84,188 +85,142 @@ export function MyPlanView({ client }: { client: PlanClient }) {
       await work();
       await reloadItems();
     } catch (error) {
-      setActionError(messageOf(error));
+      setActionError(planErrorMessage(error));
     } finally {
       setBusy(false);
     }
   }
 
-  async function submitDialog(values: PlanItemFormValues) {
-    if (dialog.kind === "edit") {
-      await client.updateItem(dialog.item.id, { title: values.title, plannedOn: values.plannedOn });
-    } else {
-      await client.createItem({
-        kind: "own",
-        title: values.title,
-        ...(values.plannedOn ? { plannedOn: values.plannedOn } : {}),
-        ...(values.spaceId ? { spaceId: values.spaceId } : {}),
-      });
-    }
+  async function addOwn(values: PlanItemFormValues) {
+    await client.createItem({
+      kind: "own",
+      title: values.title,
+      ...(values.plannedOn ? { plannedOn: values.plannedOn } : {}),
+      ...(values.spaceId ? { spaceId: values.spaceId } : {}),
+    });
     await reloadItems();
   }
 
+  const head = (
+    <PageHead title="My Plan" subtitle="Suggestions come from your quiz results. You decide what to study and when." />
+  );
+
   if (state.status === "loading") {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-28 w-full rounded-[20px]" />
-        <Skeleton className="h-28 w-full rounded-[20px]" />
-      </div>
+      <>
+        {head}
+        <div className={LAYOUT} aria-busy="true">
+          <p className="sr-only" role="status">
+            Loading My Plan.
+          </p>
+          <Card className="gap-4 p-6" aria-hidden="true">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-4 w-[85%]" />
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((key) => (
+                <Skeleton key={key} className="h-20" />
+              ))}
+            </div>
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </Card>
+          <div className="flex flex-col gap-4" aria-hidden="true">
+            {[0, 1, 2].map((key) => (
+              <Card key={key} className="gap-2 p-6">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-5 w-[85%]" />
+                <Skeleton className="h-11 w-40" />
+              </Card>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
   if (state.status === "error") {
     return (
-      <Card className="rounded-[20px] p-8">
-        <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <AlertTriangle className="size-6" aria-hidden="true" />
-          </span>
-          <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-            {state.message}
-          </p>
-          <Button type="button" className="rounded-full" onClick={reload}>
-            Try again
-          </Button>
-        </CardContent>
-      </Card>
+      <>
+        {head}
+        <Card role="alert" className="gap-4 p-6">
+          <h2 className="text-card-title text-foreground">We couldn&apos;t load My Plan</h2>
+          <p className="text-muted-foreground">{state.message} Your plan is still saved.</p>
+          <div>
+            <Button type="button" variant="outline" onClick={reload}>
+              Try again
+            </Button>
+          </div>
+        </Card>
+      </>
     );
   }
 
   const { items, suggestions, spaces } = state;
-  const open = items.filter((item) => item.doneAt === null);
-  const done = items.filter((item) => item.doneAt !== null);
   const shown = showAll ? suggestions : suggestions.slice(0, SUGGESTIONS_SHOWN);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">My Plan</h1>
-        <p className="text-sm text-muted-foreground">Suggestions come from your quiz results. You decide what to study and when.</p>
+    <>
+      {head}
+      {actionError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      )}
+      <div className={LAYOUT}>
+        <PlanOverviewCard
+          ref={planCard}
+          className={STICKY_END}
+          items={items}
+          busy={busy}
+          onMove={(item, stage: PlanStage) => void mutate(() => client.updateItem(item.id, { stage }))}
+          onAdd={() => setAdding(true)}
+        />
+
+        <section aria-labelledby="suggested-heading" className="flex min-w-0 flex-col gap-4">
+          <div>
+            <h2 id="suggested-heading" className="flex items-center gap-2 text-section text-foreground">
+              Suggested for you <CountChip count={suggestions.length} />
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">Most useful first. Nothing here is required. Add one and it goes into To do.</p>
+          </div>
+          {suggestions.length === 0 ? (
+            <Card className="items-center gap-3 px-6 py-10 text-center">
+              <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
+                <Lightbulb className="size-5" aria-hidden="true" />
+              </span>
+              <h3 className="text-card-title text-foreground">No suggestions yet</h3>
+              <p className="text-muted-foreground">No suggestions yet. Take a quiz to get some.</p>
+              <Button variant="outline" nativeButton={false} render={<Link href="/spaces" />}>
+                Go to Study Spaces
+              </Button>
+            </Card>
+          ) : (
+            <>
+              <ul className="flex flex-col gap-4">
+                {shown.map((suggestion) => (
+                  <li key={suggestion.key}>
+                    <SuggestionRow
+                      suggestion={suggestion}
+                      inPlan={isInPlan(suggestion.plan, items)}
+                      busy={busy}
+                      onAdd={(s) => void mutate(() => client.createItem({ ...s.plan, title: s.title }))}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {suggestions.length > SUGGESTIONS_SHOWN && (
+                <Button type="button" variant="outline" className="w-fit" onClick={() => setShowAll((value) => !value)}>
+                  {showAll ? "Show fewer" : `Show all (${suggestions.length})`}
+                </Button>
+              )}
+            </>
+          )}
+        </section>
       </div>
 
-      <section className="flex flex-col gap-4" aria-labelledby="suggested-heading">
-        <h2 id="suggested-heading" className="text-xl font-semibold text-foreground">
-          Suggested for you
-        </h2>
-        {suggestions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No suggestions yet. Take a quiz to get some.</p>
-        ) : (
-          <>
-            <ul className="flex flex-col gap-3">
-              {shown.map((suggestion) => (
-                <li key={suggestion.key}>
-                  <SuggestionRow
-                    suggestion={suggestion}
-                    inPlan={isInPlan(suggestion.plan, items)}
-                    busy={busy}
-                    onAdd={(s) => void mutate(() => client.createItem({ ...s.plan, title: s.title }))}
-                  />
-                </li>
-              ))}
-            </ul>
-            {suggestions.length > SUGGESTIONS_SHOWN && (
-              <Button type="button" variant="outline" className="w-fit rounded-full" onClick={() => setShowAll((value) => !value)}>
-                {showAll ? "Show fewer" : `Show all (${suggestions.length})`}
-              </Button>
-            )}
-          </>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-4" aria-labelledby="plan-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="plan-heading" className="text-xl font-semibold text-foreground">
-            My plan
-          </h2>
-          <Button type="button" className="gap-1.5 rounded-full" onClick={() => setDialog({ kind: "add" })}>
-            <Plus className="size-4" aria-hidden="true" />
-            Add your own
-          </Button>
-        </div>
-
-        {actionError && (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {actionError}
-          </p>
-        )}
-
-        {open.length === 0 ? (
-          <Card className="rounded-[20px] p-8">
-            <CardContent className="flex flex-col items-center gap-3 p-0 text-center">
-              <span className="flex size-12 items-center justify-center rounded-full bg-soft-purple text-purple">
-                <ListTodo className="size-6" aria-hidden="true" />
-              </span>
-              <p className="max-w-sm text-sm text-muted-foreground">Your plan is empty. Add a suggestion or write your own.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {open.map((item) => (
-              <li key={item.id}>
-                <PlanItemRow
-                  item={item}
-                  busy={busy}
-                  onToggleDone={(target, value) => void mutate(() => client.updateItem(target.id, { done: value }))}
-                  onEdit={(target) => setDialog({ kind: "edit", item: target })}
-                  onRemove={setRemoveTarget}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {done.length > 0 && (
-          <details className="group rounded-[20px] border border-border bg-card p-4">
-            <summary className="cursor-pointer rounded-sm text-sm font-semibold text-foreground">Done ({done.length})</summary>
-            <ul className="mt-3 flex flex-col gap-3">
-              {done.map((item) => (
-                <li key={item.id}>
-                  <PlanItemRow
-                    item={item}
-                    busy={busy}
-                    onToggleDone={(target, value) => void mutate(() => client.updateItem(target.id, { done: value }))}
-                    onEdit={(target) => setDialog({ kind: "edit", item: target })}
-                    onRemove={setRemoveTarget}
-                  />
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-      </section>
-
-      {dialog.kind !== "closed" && (
-        <PlanItemDialog
-          key={dialog.kind === "edit" ? dialog.item.id : "add"}
-          open
-          onOpenChange={(next) => !next && setDialog({ kind: "closed" })}
-          item={dialog.kind === "edit" ? dialog.item : null}
-          spaces={spaces}
-          onSubmit={submitDialog}
-        />
+      {adding && (
+        <PlanItemDialog open onOpenChange={(next) => !next && setAdding(false)} item={null} spaces={spaces} onSubmit={addOwn} />
       )}
-
-      <AlertDialog open={removeTarget !== null} onOpenChange={(next) => !next && setRemoveTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove this item?</AlertDialogTitle>
-            <AlertDialogDescription>&ldquo;{removeTarget?.title}&rdquo; will be removed from your plan. You can add it again later.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const target = removeTarget;
-                setRemoveTarget(null);
-                if (target) void mutate(() => client.deleteItem(target.id));
-              }}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+    </>
   );
 }
