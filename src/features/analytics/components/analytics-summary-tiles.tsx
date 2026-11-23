@@ -5,9 +5,38 @@ import { cn } from "@/lib/class-names";
 import { STATUS_LABELS, STATUS_ORDER, analyticsViewHref, type AnalyticsView } from "../analytics-format";
 import { STATUS_FILL } from "./analytics-status-bar";
 
-const TILE =
+/** One summary tile on the Analytics pages (also used by Topic detail). */
+export const TILE =
   "flex h-full flex-col justify-between gap-3 rounded-xl border p-4 shadow-card outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50";
-const NUMBER = "text-[1.75rem] leading-none font-semibold tabular-nums text-foreground";
+export const TILE_NUMBER = "text-[1.75rem] leading-none font-semibold tabular-nums text-foreground";
+
+/** "Mistakes to review" with its count; a link to Review mistakes (warm background) when there are any. */
+export function MistakesTile({ mistakes, reviewHref, className }: { mistakes: number; reviewHref: string; className?: string }) {
+  const body = (
+    <>
+      <span className="text-sm font-medium text-muted-foreground">Mistakes to review</span>
+      <span className="flex items-end justify-between gap-2">
+        <span className={TILE_NUMBER}>{mistakes}</span>
+        {mistakes > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary">
+            Review
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </span>
+        )}
+      </span>
+    </>
+  );
+  return mistakes > 0 ? (
+    <Link
+      href={reviewHref}
+      className={cn(TILE, "border-border bg-[linear-gradient(110deg,var(--hero-start),var(--hero-end))] hover:brightness-[0.98]", className)}
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className={cn(TILE, "border-border bg-card", className)}>{body}</div>
+  );
+}
 
 /**
  * The summary strip at the top of both Analytics pages: how many topics have
@@ -30,21 +59,6 @@ export function AnalyticsSummaryTiles({
   baseHref: string;
   reviewHref: string;
 }) {
-  const mistakesBody = (
-    <>
-      <span className="text-sm font-medium text-muted-foreground">Mistakes to review</span>
-      <span className="flex items-end justify-between gap-2">
-        <span className={NUMBER}>{mistakes}</span>
-        {mistakes > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary">
-            Review
-            <ChevronRight className="size-4" aria-hidden="true" />
-          </span>
-        )}
-      </span>
-    </>
-  );
-
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,4fr)_minmax(0,1fr)]">
       <nav aria-label="Filter topics by status">
@@ -68,7 +82,7 @@ export function AnalyticsSummaryTiles({
                     <span className="min-w-0 flex-1">{STATUS_LABELS[status]}</span>
                     {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
                   </span>
-                  <span className={NUMBER}>
+                  <span className={TILE_NUMBER}>
                     {counts[status]}
                     <span className="sr-only">
                       {counts[status] === 1 ? " topic" : " topics"}
@@ -81,16 +95,7 @@ export function AnalyticsSummaryTiles({
           })}
         </ul>
       </nav>
-      {mistakes > 0 ? (
-        <Link
-          href={reviewHref}
-          className={cn(TILE, "border-border bg-[linear-gradient(110deg,var(--hero-start),var(--hero-end))] hover:brightness-[0.98]")}
-        >
-          {mistakesBody}
-        </Link>
-      ) : (
-        <div className={cn(TILE, "border-border bg-card")}>{mistakesBody}</div>
-      )}
+      <MistakesTile mistakes={mistakes} reviewHref={reviewHref} />
     </div>
   );
 }

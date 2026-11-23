@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { CountChip } from "@/components/count-chip";
-import { MASTERY_MIN_EVIDENCE, type MasteryStatus, type TopicProgress } from "@/features/progress/progress-schemas";
+import { MASTERY_MIN_EVIDENCE, type MasteryStatus, type TopicMastery, type TopicProgress } from "@/features/progress/progress-schemas";
 import { cn } from "@/lib/class-names";
 import { STATUS_LABELS, analyticsViewHref, masteryDetail, topicAnalyticsHref, type AnalyticsView } from "../analytics-format";
 import { PERCENT_FILL } from "./analytics-status-bar";
@@ -25,10 +25,17 @@ const EMPTY: Record<MasteryStatus, string> = {
  * On track, a 5-step meter for Not enough evidence, nothing for Not
  * assessed (never a 0% bar).
  */
-function TopicMeter({ topic }: { topic: FocusTopic }) {
+export function TopicMeter({
+  topic,
+  className = "w-24 sm:w-32",
+}: {
+  topic: Pick<TopicMastery, "status" | "percent" | "counted">;
+  /** The bar's width (Topic detail stretches it). */
+  className?: string;
+}) {
   if ((topic.status === "weak" || topic.status === "on_track") && topic.percent !== null) {
     return (
-      <span aria-hidden="true" className="relative h-2 w-24 shrink-0 rounded-full bg-border sm:w-32">
+      <span aria-hidden="true" className={cn("relative h-2 shrink-0 rounded-full bg-border", className)}>
         <span className={cn("absolute inset-y-0 left-0 rounded-full", PERCENT_FILL[topic.status])} style={{ width: `${topic.percent}%` }} />
         <span className="absolute -inset-y-1 left-[60%] w-0.5 -translate-x-1/2 rounded-full bg-foreground/70" />
       </span>
@@ -141,7 +148,7 @@ export function AnalyticsTopicsCard({
           {filtered ? EMPTY[view] : "No confirmed topics yet. Upload a material and confirm its topics to see them here."}
         </p>
       ) : (
-        <AnalyticsExpandableList key={view} total={topics.length}>
+        <AnalyticsExpandableList key={view} total={topics.length} noun="topics">
           {topics.map((topic) => (
             <TopicRow key={topic.topicId} topic={topic} heading={headingLevel === "h2" ? "h3" : "h4"} />
           ))}
