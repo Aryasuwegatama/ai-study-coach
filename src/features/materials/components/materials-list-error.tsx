@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
  */
 export function MaterialsListError({ onRetry }: { onRetry: () => void }) {
   return (
-    <Card role="alert" className="mt-6 gap-4 p-6">
+    <Card role="alert" className="mt-8 gap-4 p-6">
       <h3 className="text-card-title text-foreground">We couldn&apos;t load your materials</h3>
       <p className="text-muted-foreground">Your files are still saved. Check your connection and try again.</p>
       <div>

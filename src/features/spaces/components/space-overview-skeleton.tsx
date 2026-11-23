@@ -34,7 +34,7 @@ export function SpaceOverviewSkeleton({ variant = "overview" }: { variant?: "ove
           ))}
         </div>
         {variant === "list" ? (
-          <div className="mt-6 flex flex-col gap-4">
+          <div className="mt-8 flex flex-col gap-4">
             <Skeleton className="h-8 w-48" />
             {[0, 1].map((key) => (
               <Card key={key} className="gap-4 p-6">
