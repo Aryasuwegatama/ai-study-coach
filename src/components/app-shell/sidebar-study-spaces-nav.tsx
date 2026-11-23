@@ -91,8 +91,10 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
 
   return (
     <SidebarMenuItem>
-      <div className="flex w-full items-center gap-1">
-        <SidebarMenuButton render={<Link href="/spaces" />} className="flex-1">
+      {/* Tight gaps, a smaller chevron/"+" and px-3 leave the label enough
+          room in the 15rem sidebar ("Study Spaces" was being cut off). */}
+      <div className="flex w-full items-center gap-0.5">
+        <SidebarMenuButton render={<Link href="/spaces" />} className="min-w-0 flex-1 px-3">
           <FolderOpen />
           <span>Study Spaces</span>
         </SidebarMenuButton>
@@ -101,7 +103,7 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
           aria-label={expanded ? "Collapse Study Spaces" : "Expand Study Spaces"}
-          className="flex size-9 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ChevronRight
             className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -111,13 +113,13 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
         <Link
           href="/spaces?create=1"
           aria-label="Create study space"
-          className="flex size-9 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <Plus className="size-4" aria-hidden="true" />
         </Link>
       </div>
       {expanded && (
-        <SidebarMenuSub>
+        <SidebarMenuSub className="mx-2 px-2">
           {spaces.length === 0 ? (
             <SidebarMenuSubItem>
               <span className="px-2 py-1.5 text-xs text-muted-foreground">
@@ -127,13 +129,15 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
           ) : (
             spaces.map((space) => (
               <SidebarMenuSubItem key={space.id}>
+                {/* Long space names wrap onto a second line instead of
+                    being cut off (the base sub-button truncates its last span). */}
                 <SidebarMenuSubButton
-                  className="gap-2"
+                  className="h-auto min-h-10 gap-2 py-2 leading-snug [&>span:last-child]:break-words [&>span:last-child]:whitespace-normal!"
                   isActive={space.id === activeSpaceId}
                   render={<Link href={`/spaces/${space.id}/overview`} />}
                 >
                   <SpaceMonogram id={space.id} name={space.name} className="size-5 text-[10px]" />
-                  <span className="truncate">{space.name}</span>
+                  <span className="min-w-0">{space.name}</span>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))

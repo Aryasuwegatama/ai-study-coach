@@ -43,7 +43,7 @@ export function AppSidebar({
         <AppLogo />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup className="p-4 group-data-[collapsible=icon]:p-2">
+        <SidebarGroup className="px-2 py-4 group-data-[collapsible=icon]:p-2">
           <SidebarMenu>
             <SidebarMenuItem>
               {/* usePathname() needs runtime URL data; isolated into its
