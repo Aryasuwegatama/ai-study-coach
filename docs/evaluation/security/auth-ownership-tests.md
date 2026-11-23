@@ -13,13 +13,13 @@ The setup sets both application database URLs before application modules load, a
 
 ## Case mapping
 
-T-07a issue #19 currently specifies a catalogue but does not supply its completed case IDs. These IDs are **provisional**, derived directly from #20, and must be reconciled with T-07a before claiming its traceability acceptance criterion is satisfied.
+These IDs match the catalogue proposed in [T-07a PR #51](https://github.com/Aryasuwegatama/ai-study-coach/pull/51). That PR's review is pending; retain the IDs and reconcile any requested catalogue changes before merge.
 
 | ID | Security rule | Coverage |
 | --- | --- | --- |
 | SEC-AUTH-01 | 1, 2 | Valid sessions resolve the correct student |
 | SEC-AUTH-02 | 2, 9 | Missing, forged, expired and signed-out sessions get the exact 401 body for every student API method |
-| SEC-AUTH-03 | 1 | Email/password sign-up and login are disabled |
+| SEC-AUTH-03 | 9 | Email/password sign-up and login are disabled |
 | SEC-AUTH-04 | 1 | Role elevation and user identity tampering fail |
 | SEC-AUTH-05 | 9 | HttpOnly and SameSite session cookie attributes |
 | SEC-AUTH-06 | 2 | Route registry stays in sync with current student API modules |
@@ -31,18 +31,18 @@ T-07a issue #19 currently specifies a catalogue but does not supply its complete
 
 The API registry excludes public `/api/auth/*` endpoints and the signed QStash `/api/jobs/step` callback. Later upload, AI and scoring ownership cases remain T-10/T-13/T-16 scope; only their unauthenticated API boundary is exercised here. Empty IDs are tested by directly invoking the parameterised handler; HTTP `/api/spaces/` resolves to the collection route, not a missing-ID resource route.
 
-## Manual checks still required
+## Protected pages and remaining HTTPS check
 
 Run the app with its own development database and real local credentials. Use two separate browser profiles signed in as Student A and Student B; create a distinctively named space as A.
 
 | ID | Steps | Expected | Result |
 | --- | --- | --- | --- |
-| SEC-PAGE-01 | Signed out, request `/dashboard`, `/spaces`, and `/spaces/<A-space-id>/overview` | Redirect to `/sign-in` | Not run |
-| SEC-PAGE-02 | As B, open A's Overview; inspect the full HTTP response, page title and breadcrumb | Not-found screen; no occurrence of A's space name. Streamed responses may have status 200 | Not run |
-| SEC-PAGE-03 | As A, delete the space; request its Overview again | Not found, no name disclosed | Not run |
+| SEC-PAGE-01 | Signed out, request `/dashboard`, `/spaces`, and `/spaces/<A-space-id>/overview` | Redirect to `/sign-in` | Passed over HTTP, 23 Nov |
+| SEC-PAGE-02 | As B, open A's Overview; inspect the full HTTP response, page title and breadcrumb | Not-found screen; no occurrence of A's space name. Streamed responses may have status 200 | Passed over HTTP with an owner-positive control, 23 Nov |
+| SEC-PAGE-03 | As A, delete the space; request its Overview again | Not found, no name disclosed | Passed over HTTP, 23 Nov |
 | SEC-COOKIE-01 | On an HTTPS Preview deployment, inspect the real Google sign-in response's session Set-Cookie | Secure, HttpOnly, SameSite=Lax or Strict | Not run |
 
-Do not copy real cookies, credentials or personal data into evidence. Record only anonymised pass/fail results. HTTP page assertions remain manual because this checkout has no configured development/test databases or running authenticated app.
+Do not copy real cookies, credentials or personal data into evidence. Record only anonymised pass/fail results. The optional `auth-protected-pages.test.ts` suite starts an owned local production-build server with the test setup's settings and session secret, checks the full HTML/streamed payload, cleans up synthetic users, and stops the server. Run after building with `$env:AUTH_PAGE_TESTS = '1'; pnpm test`; remove that environment flag afterwards. Without the flag those two tests are explicitly skipped because a current build/server is required. The deployed HTTPS cookie check remains manual and unverified.
 
 ## Review and completion
 
@@ -61,3 +61,14 @@ Application code, migrations and `scripts/check-*.ts` are unchanged. The shared 
 | `pnpm check:auth`, `pnpm check:spaces` | Both stopped because the existing app environment variables are missing |
 | Live integration assertions and second-run cleanup | Not verified: no test database configured |
 | Protected pages and HTTPS cookie | Not run; steps above |
+
+## Database verification — 23 November 2026
+
+- Read-only preflight confirmed the server database is the separate `test` database and pgvector is available. Applied the 12 checked-in migrations there; no development/Production database was migrated.
+- All 14 auth/space cases passed twice against it. The API registry now includes current Plan, mistake-check, reporting and flashcard endpoints instead of removed revision endpoints.
+- The two optional protected-page HTTP cases passed using real synthetic sessions and an owned local build server. They assert signed-out redirects, the owner's name-positive control, foreign Overview privacy and immediate post-delete privacy in the entire response.
+- The original auth and space check scripts passed, using the test database and temporary synthetic non-database settings. This included state/PKCE URL generation and rate limiting, not a real Google login.
+- Missing test URL, same database, pooled/direct aliases and a Production environment all refused to run in subprocess checks with synthetic unreachable endpoints. No app database was contacted for those checks.
+- No synthetic test users remained after cleanup. Passwords, connection strings and cookies were not written into evidence; `.env.local` remains ignored.
+- Final combined runs with `AUTH_PAGE_TESTS=1`: **16/16 passed twice**, including the HTTP cases, approximately 35 seconds per run. Lint, TypeScript and the current production build passed. The build used temporary synthetic settings rather than a full developer configuration; no real AI/storage/OAuth calls were needed.
+- Review, case-catalogue approval and the deployed HTTPS cookie check remain outstanding. The automated tests and HTTP verification do not constitute a real Google sign-in or a deployed Secure-cookie check.
