@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import Link from "next/link";
-import { Loader2, UploadCloud } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +14,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
   ACCEPTED_FILE_TYPES,
@@ -28,10 +36,10 @@ import { MaterialsClientError, type MaterialsClient } from "../client/materials-
 
 const ACCEPT_ATTR = ACCEPTED_FILE_TYPES.flatMap((type) => [type.extension, type.mimeType]).join(",");
 
-/** Issue #25, "Validation copy": the Figma heading, with the contract's message under it. */
+/** Issue #25, "Validation copy": a heading, with the contract's message under it. */
 const VALIDATION_HEADINGS: Partial<Record<MaterialApiErrorCode, string>> = {
-  UNSUPPORTED_FILE_TYPE: "Unsupported format",
-  FILE_TOO_LARGE: "File too large",
+  UNSUPPORTED_FILE_TYPE: "This file type isn't supported",
+  FILE_TOO_LARGE: "This file is too large",
 };
 
 type Step =
@@ -230,16 +238,19 @@ export function MaterialUploadDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Upload material</DialogTitle>
+            <DialogDescription>
+              Choose a document. We&apos;ll prepare topic suggestions for you to confirm.
+            </DialogDescription>
           </DialogHeader>
 
           {showLimit && (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">{MATERIAL_API_ERRORS.MATERIAL_LIMIT_REACHED.message}</p>
               <DialogFooter>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => handleOpenChange(false)}>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                   Close
                 </Button>
               </DialogFooter>
@@ -255,13 +266,15 @@ export function MaterialUploadDialog({
                 }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
-                className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center ${
-                  isDragging ? "border-primary bg-secondary" : "border-border"
+                className={`flex flex-col items-start gap-3 rounded-lg border border-dashed p-6 max-sm:p-4 ${
+                  isDragging ? "border-primary bg-accent" : "border-border-strong bg-background"
                 }`}
               >
-                <UploadCloud className="size-8 text-muted-foreground" aria-hidden="true" />
-                <p className="text-sm text-muted-foreground">Drag and drop a file here, or</p>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => inputRef.current?.click()}>
+                <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
+                  <Upload className="size-5" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-semibold text-foreground">Choose a file from your device</p>
+                <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
                   Choose file
                 </Button>
                 <input
@@ -271,32 +284,39 @@ export function MaterialUploadDialog({
                   className="sr-only"
                   onChange={handleInputChange}
                   aria-label="Choose a file to upload"
+                  aria-describedby="upload-file-help"
                 />
-              </div>
-              <p className="text-xs text-muted-foreground">PDF, PPTX or TXT · Maximum 10 MB</p>
-              <div className="flex flex-col gap-1 rounded-xl bg-muted/50 p-3">
-                <p className="text-xs font-semibold text-foreground">How your file is used</p>
-                <p className="text-xs text-muted-foreground">
-                  Your file is stored privately, and only you can see it. To suggest topics and create quizzes
-                  and flashcards, parts of its text are sent to OpenAI and Google through Vercel&apos;s AI
-                  Gateway. Only upload files you&apos;re allowed to use, and leave out anything personal or
-                  confidential.{" "}
-                  <Link href="/privacy" className="font-medium text-primary underline underline-offset-2">
-                    Privacy policy
-                  </Link>
+                <p id="upload-file-help" className="text-sm text-muted-foreground">
+                  PDF, PPTX or TXT · Maximum 10 MB
                 </p>
               </div>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">How your file is used. </span>
+                Your file is stored privately, and only you can see it. To suggest topics and create quizzes and
+                flashcards, parts of its text are sent to OpenAI and Google through Vercel&apos;s AI Gateway. Only
+                upload files you&apos;re allowed to use, and leave out anything personal or confidential. Read how
+                your study content is processed in the{" "}
+                <Link href="/privacy" className="font-semibold text-primary underline underline-offset-4">
+                  privacy policy
+                </Link>
+                .
+              </p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                  Cancel
+                </Button>
+              </DialogFooter>
             </div>
           )}
 
           {step.kind === "validation-error" && (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-destructive">{step.heading}</p>
-                <p className="text-sm text-muted-foreground">{step.message}</p>
-              </div>
+              <Alert variant="destructive">
+                <AlertTitle>{step.heading}</AlertTitle>
+                <AlertDescription>{step.message}</AlertDescription>
+              </Alert>
               <DialogFooter>
-                <Button type="button" variant="outline" className="rounded-full" onClick={resetStep}>
+                <Button type="button" variant="outline" onClick={resetStep}>
                   Choose another file
                 </Button>
               </DialogFooter>
@@ -305,13 +325,13 @@ export function MaterialUploadDialog({
 
           {(step.kind === "uploading" || step.kind === "cancel-confirm") && (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2 rounded-xl bg-muted p-4">
-                <span className="truncate text-sm font-medium text-foreground">{step.file.name}</span>
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-4">
+                <span className="text-sm font-semibold break-words text-foreground">{step.file.name}</span>
                 <Progress value={step.percent} />
-                <span className="text-xs text-muted-foreground">{step.percent}%</span>
+                <span className="text-sm text-muted-foreground">{step.percent}%</span>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" className="rounded-full" onClick={requestCancel}>
+                <Button type="button" variant="outline" onClick={requestCancel}>
                   Cancel upload
                 </Button>
               </DialogFooter>
@@ -320,11 +340,11 @@ export function MaterialUploadDialog({
 
           {step.kind === "finishing" && (
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3 rounded-xl bg-muted p-4">
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-4">
                 <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium text-foreground">{step.fileName}</span>
-                  <span className="text-xs text-muted-foreground">Checking your file</span>
+                  <span className="text-sm font-semibold break-words text-foreground">{step.fileName}</span>
+                  <span className="text-sm text-muted-foreground">Checking your file</span>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">This takes a few seconds.</p>
@@ -333,14 +353,14 @@ export function MaterialUploadDialog({
 
           {step.kind === "processing" && (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-foreground">Preparing your material</p>
-                <p className="text-sm text-muted-foreground">
+              <Alert variant="info">
+                <AlertTitle>Preparing your material</AlertTitle>
+                <AlertDescription>
                   This can take a few minutes. You can keep working while it finishes.
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
               <DialogFooter>
-                <Button type="button" className="rounded-full" onClick={finishAndClose}>
+                <Button type="button" onClick={finishAndClose}>
                   Continue in background
                 </Button>
               </DialogFooter>
@@ -349,12 +369,12 @@ export function MaterialUploadDialog({
 
           {step.kind === "queue-failed" && (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-destructive">Processing failed</p>
-                <p className="text-sm text-muted-foreground">{step.message}</p>
-              </div>
+              <Alert variant="destructive">
+                <AlertTitle>Couldn&apos;t start processing</AlertTitle>
+                <AlertDescription>{step.message}</AlertDescription>
+              </Alert>
               <DialogFooter>
-                <Button type="button" className="rounded-full" onClick={finishAndClose}>
+                <Button type="button" onClick={finishAndClose}>
                   Close
                 </Button>
               </DialogFooter>
@@ -363,12 +383,12 @@ export function MaterialUploadDialog({
 
           {step.kind === "server-error" && (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-destructive">Couldn&apos;t add this file</p>
-                <p className="text-sm text-muted-foreground">{step.message}</p>
-              </div>
+              <Alert variant="destructive">
+                <AlertTitle>Couldn&apos;t add this file</AlertTitle>
+                <AlertDescription>{step.message}</AlertDescription>
+              </Alert>
               <DialogFooter>
-                <Button type="button" variant="outline" className="rounded-full" onClick={resetStep}>
+                <Button type="button" variant="outline" onClick={resetStep}>
                   Choose another file
                 </Button>
               </DialogFooter>
@@ -393,7 +413,7 @@ export function MaterialUploadDialog({
           <AlertDialogFooter>
             <AlertDialogCancel>Keep uploading</AlertDialogCancel>
             <AlertDialogAction
-              className="gap-2 bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/40"
+              variant="destructive"
               onClick={() => {
                 if (step.kind === "cancel-confirm") step.controller.abort();
                 resetStep();

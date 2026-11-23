@@ -8,6 +8,7 @@ import { requireSpace } from "@/server/auth/auth-space-access";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
+import { PageContainer } from "@/components/page-container";
 import { MaterialsPageClient } from "@/features/materials/components/materials-page-client";
 
 // Static title, not the space's name — same reasoning as the Overview
@@ -23,11 +24,11 @@ type MaterialsPageProps = { params: Promise<{ spaceId: string }> };
  * #42) connects them to the real Materials API and Blob upload. */
 export default function MaterialsPage({ params }: MaterialsPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <MaterialsPageContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
