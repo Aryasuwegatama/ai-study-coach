@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { Check, CircleCheck, Info, Layers, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +14,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Card } from "@/components/ui/card";
+import { LabelledProgressBar } from "@/components/labelled-progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FlashcardsClientError, type FlashcardsClient } from "../client/flashcards-client";
 import type { DeckSessionResponse, Rating } from "../flashcards-schemas";
@@ -28,9 +30,8 @@ type Summary = { gotIt: number; again: number };
 const SPACE_IGNORED = "textarea, input, select, button, a, summary, [role='dialog'], [role='alertdialog'], [contenteditable='true']";
 
 /**
- * The flashcard practice screen (Figma nodes 61:25668 front, 61:25852 revealed,
- * 61:26051 rating selected, 61:26257 next card, 72:6957 exit with an unsaved
- * rating, 71:6632 paused practice, 61:26447 completion). One route covers a
+ * The flashcard practice screen (T-18; UI redesign 2026-11-23, following the
+ * quiz attempt screen: the deck's name and Exit, progress, the card, Next). One route covers a
  * first practice, Resume and Practise again: `client.startOrResumePractice`
  * decides which.
  *
@@ -76,7 +77,7 @@ export function PracticeView({ spaceId, setId, client }: { spaceId: string; setI
       })
       .catch((err: unknown) => {
         if (ignore) return;
-        setLoadError(err instanceof FlashcardsClientError ? err.message : "Couldn't load this deck. Try again.");
+        setLoadError(err instanceof FlashcardsClientError ? err.message : "Couldn't load this deck.");
       });
     return () => {
       ignore = true;
@@ -169,89 +170,113 @@ export function PracticeView({ spaceId, setId, client }: { spaceId: string; setI
 
   if (loadError) {
     return (
-      <Card className="rounded-[20px] p-8">
-        <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <AlertTriangle className="size-6" aria-hidden="true" />
-          </span>
-          <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-            {loadError}
-          </p>
-          <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={libraryHref} />}>
+      <Card role="alert" className="mt-6 gap-4 p-6 max-sm:p-4">
+        <h2 className="text-card-title text-foreground">We couldn&apos;t load this deck</h2>
+        <p className="text-muted-foreground">{loadError} Check your connection and try again.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setLoadError(null);
+              setLoadKey((key) => key + 1);
+            }}
+          >
+            <RotateCcw aria-hidden="true" />
+            Try again
+          </Button>
+          <Button variant="ghost" nativeButton={false} render={<Link href={libraryHref} />}>
             Back to flashcards
           </Button>
-        </CardContent>
+        </div>
       </Card>
     );
   }
 
   if (!session) {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-[20px]" />
+      <div className="mt-6 flex flex-col gap-4" aria-busy="true">
+        <p className="sr-only" role="status">
+          Loading this deck.
+        </p>
+        <Skeleton className="h-8 w-64 max-w-full" aria-hidden="true" />
+        <Card className="gap-4 p-6" aria-hidden="true">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-7 w-4/5" />
+          <Skeleton className="h-11 w-40" />
+        </Card>
       </div>
     );
   }
 
   if (summary) {
     return (
-      <Card className="max-w-2xl rounded-[20px] p-8">
-        <CardContent className="flex flex-col gap-5 p-0">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-semibold text-foreground">Practice complete</h2>
-            <p className="text-sm text-muted-foreground">{session.title}</p>
-          </div>
-          <p className="text-2xl font-semibold text-foreground">
-            Got it {summary.gotIt} · Again {summary.again}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Ratings are just for you: they don&apos;t change your mastery or schedule anything.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" className="h-11 rounded-full px-6" onClick={handlePractiseAgain}>
-              Practise again
-            </Button>
-            <Button type="button" variant="outline" className="h-11 rounded-full px-6" nativeButton={false} render={<Link href={libraryHref} />}>
-              Back to flashcards
-            </Button>
-          </div>
-        </CardContent>
+      <Card className="mx-auto mt-6 w-full max-w-[48rem] items-center gap-4 px-6 py-10 text-center max-sm:px-4">
+        <span className="flex size-12 items-center justify-center rounded-lg bg-soft-green text-green">
+          <CircleCheck className="size-5" aria-hidden="true" />
+        </span>
+        <h2 className="text-section text-foreground">Practice complete</h2>
+        <p className="text-muted-foreground">{session.title}</p>
+        <ul className="flex flex-wrap justify-center gap-2">
+          <li>
+            <Badge tone="green">
+              <Check aria-hidden="true" />
+              Got it {summary.gotIt}
+            </Badge>
+          </li>
+          <li>
+            <Badge tone="amber">
+              <RotateCcw aria-hidden="true" />
+              Again {summary.again}
+            </Badge>
+          </li>
+        </ul>
+        <p className="flex items-start gap-2 text-left text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Ratings are just for you: they don&apos;t change your mastery or schedule anything.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button type="button" onClick={handlePractiseAgain}>
+            <RotateCcw aria-hidden="true" />
+            Practise again
+          </Button>
+          <Button variant="outline" nativeButton={false} render={<Link href={libraryHref} />}>
+            Back to flashcards
+          </Button>
+        </div>
       </Card>
     );
   }
 
   if (!card) {
     return (
-      <Card className="rounded-[20px] p-8">
-        <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-          <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-            This deck has no cards to practise.
-          </p>
-          <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={libraryHref} />}>
-            Back to flashcards
-          </Button>
-        </CardContent>
+      <Card className="mt-6 items-center gap-4 px-6 py-10 text-center">
+        <span className="flex size-12 items-center justify-center rounded-lg bg-soft-purple text-purple">
+          <Layers className="size-5" aria-hidden="true" />
+        </span>
+        <h2 className="text-card-title text-foreground">No cards to practise</h2>
+        <p className="max-w-[42rem] text-muted-foreground">This deck&apos;s material was deleted, so it has no cards left to practise.</p>
+        <Button variant="outline" nativeButton={false} render={<Link href={libraryHref} />}>
+          Back to flashcards
+        </Button>
       </Card>
     );
   }
 
   return (
-    <div className="flex max-w-3xl flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="text-xl font-semibold text-foreground">
-            Card {index + 1} of {cards.length}
-          </h2>
-          <p className="truncate text-sm text-muted-foreground">
+    <section aria-labelledby="practice-title" className="mt-6 flex flex-col gap-5">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id="practice-title" className="text-section break-words text-foreground">
             {session.title}
+          </h2>
+          <p className="mt-1 text-muted-foreground">
+            Card {index + 1} of {cards.length}
             {resumed ? " · Continuing where you left off" : ""}
           </p>
         </div>
         <Button
-          type="button"
           variant="outline"
-          className="h-11 rounded-full px-6"
           nativeButton={false}
           render={<Link href={libraryHref} />}
           onClick={(event) => {
@@ -264,9 +289,14 @@ export function PracticeView({ spaceId, setId, client }: { spaceId: string; setI
         >
           Exit
         </Button>
-      </div>
+      </header>
 
-      <Progress value={(index / cards.length) * 100} aria-label={`${index} of ${cards.length} cards done`} />
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-muted-foreground" aria-hidden="true">
+          {index} of {cards.length} rated
+        </p>
+        <LabelledProgressBar value={index} max={cards.length} label={`${index} of ${cards.length} cards rated`} />
+      </div>
 
       <PracticeCardView
         key={card.id}
@@ -282,21 +312,23 @@ export function PracticeView({ spaceId, setId, client }: { spaceId: string; setI
       />
 
       {revealed && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {saveError && (
-            <p role="alert" className="text-sm font-medium text-destructive">
-              {saveError}
-            </p>
+            <Alert variant="destructive">
+              <AlertTitle>We couldn&apos;t save your rating</AlertTitle>
+              <AlertDescription>{saveError} Your choice is kept; press Next again.</AlertDescription>
+            </Alert>
           )}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Your rating is just for you. It doesn&apos;t change your mastery.</p>
             <Button
               type="button"
-              className="h-11 rounded-full px-8 text-base"
+              className="max-sm:w-full"
               disabled={selected === null || saving}
               aria-disabled={selected === null || saving}
               onClick={() => void handleNext()}
             >
-              {saving ? "Saving…" : "Next"}
+              {saving ? "Saving…" : index + 1 >= cards.length ? "Finish" : "Next"}
             </Button>
           </div>
         </div>
@@ -311,11 +343,11 @@ export function PracticeView({ spaceId, setId, client }: { spaceId: string; setI
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogCancel>Keep practising</AlertDialogCancel>
             <AlertDialogAction onClick={() => router.push(libraryHref)}>Leave</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </section>
   );
 }

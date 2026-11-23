@@ -17,6 +17,9 @@ import { z } from "zod";
  *   from it; the wrong id for the kind → 400. Someone else's target → 404
  *   with that resource's code. At most 100 open items → 409 `PLAN_ITEM_LIMIT`.
  * - `PATCH /api/plan/items/:id` `UpdatePlanItemRequest` → `{ item }`.
+ *   `stage` moves a card on the plan board (UI redesign, 2026-11-23):
+ *   `todo` clears both stamps, `doing` stamps `startedAt` and clears
+ *   `doneAt`, `done` stamps `doneAt`. `done: true/false` still works.
  * - `DELETE /api/plan/items/:id` → 204.
  * - Missing, malformed or someone else's item → 404 `PLAN_ITEM_NOT_FOUND`.
  * - `GET /api/plan/suggestions` → `{ suggestions: Suggestion[] }`, all of
@@ -54,6 +57,10 @@ const title = z
   .max(PLAN_TITLE_MAX, `Keep the title to ${PLAN_TITLE_MAX} characters or fewer.`);
 const day = z.iso.date("Choose a valid date.");
 
+/** Plan board columns. Derived from the stamps: `doneAt` → done; else `startedAt` → doing; else to do. */
+export const PLAN_STAGES = ["todo", "doing", "done"] as const;
+export type PlanStage = (typeof PLAN_STAGES)[number];
+
 export const createPlanItemSchema = z
   .object({
     kind: z.enum(PLAN_KINDS, "Choose a valid kind of plan item."),
@@ -87,8 +94,13 @@ export const updatePlanItemSchema = z
     /** A day the student picked, or null to clear it ("Anytime"). */
     plannedOn: day.nullable().optional(),
     done: z.boolean("Done must be true or false.").optional(),
+    /** Move the card to a board column. Can't be sent together with `done`. */
+    stage: z.enum(PLAN_STAGES, "Choose To do, Doing or Done.").optional(),
   })
-  .refine((value) => value.title !== undefined || value.plannedOn !== undefined || value.done !== undefined, { message: "Nothing to change." });
+  .refine((value) => value.done === undefined || value.stage === undefined, { message: "Send either done or stage, not both.", path: ["stage"] })
+  .refine((value) => value.title !== undefined || value.plannedOn !== undefined || value.done !== undefined || value.stage !== undefined, {
+    message: "Nothing to change.",
+  });
 export type UpdatePlanItemRequest = z.infer<typeof updatePlanItemSchema>;
 
 export type PlanItemResponse = {
@@ -103,7 +115,11 @@ export type PlanItemResponse = {
   /** Built on the server from `kind` and the ids; null for an own item or when the target is gone. */
   href: string | null;
   plannedOn: string | null;
+  /** When the card moved to Doing; null when it's in To do. */
+  startedAt: string | null;
   doneAt: string | null;
+  /** The board column, worked out on the server from the two stamps. */
+  stage: PlanStage;
   createdAt: string;
 };
 

@@ -60,6 +60,11 @@ export function createApiQuizzesClient(spaceId: string): QuizzesClient {
       await requestJson<void>(`/api/sets/${setId}`, { method: "DELETE" });
     },
 
+    async renameSet(setId, title) {
+      const data = await requestJson<{ set: SetResponse }>(`/api/sets/${setId}`, jsonInit("PATCH", { title }));
+      return data.set;
+    },
+
     async startOrResumeAttempt(setId) {
       const data = await requestJson<{ attempt: AttemptResponse }>(`/api/sets/${setId}/attempts`, { method: "POST" });
       return data.attempt;

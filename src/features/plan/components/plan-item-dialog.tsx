@@ -62,21 +62,34 @@ export function PlanItemDialog({
       <DialogContent className="sm:max-w-[528px]">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit plan item" : "Add your own"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit item" : "Add your own"}</DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="plan-item-title">What do you want to do?</Label>
-              <span className="text-xs font-medium text-muted-foreground">Required</span>
+              <span className="text-sm text-muted-foreground">Required</span>
             </div>
-            <Input id="plan-item-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={PLAN_TITLE_MAX} disabled={pending} autoFocus />
+            <Input
+              id="plan-item-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={PLAN_TITLE_MAX}
+              disabled={pending}
+              aria-describedby="plan-item-title-help"
+              autoFocus
+            />
+            <p id="plan-item-title-help" className="text-sm text-muted-foreground">
+              Up to {PLAN_TITLE_MAX} characters.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="plan-item-day">Planned for</Label>
             <Input id="plan-item-day" type="date" value={plannedOn} onChange={(event) => setPlannedOn(event.target.value)} disabled={pending} />
-            <p className="text-xs text-muted-foreground">Optional. You pick the day; with no day it&apos;s Anytime.</p>
+            <p className="text-sm text-muted-foreground">
+              Optional. You pick the day; with no day it&apos;s Anytime.{!editing && " New cards go into To do."}
+            </p>
           </div>
 
           {!editing && (
@@ -88,17 +101,17 @@ export function PlanItemDialog({
                 onChange={(event) => setSpaceId(event.target.value)}
                 disabled={pending}
                 className={cn(
-                  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                  "h-11 w-full rounded-sm border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-muted disabled:text-muted-foreground md:text-sm",
                 )}
               >
-                <option value="">None</option>
+                <option value="">No study space</option>
                 {spaces.map((space) => (
                   <option key={space.id} value={space.id}>
                     {space.name}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground">Optional.</p>
+              <p className="text-sm text-muted-foreground">Optional.</p>
             </div>
           )}
 
@@ -109,10 +122,10 @@ export function PlanItemDialog({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => onOpenChange(false)} disabled={pending}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button type="submit" className="gap-2 rounded-full" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               {editing ? "Save" : "Add to my plan"}
             </Button>

@@ -8,6 +8,9 @@ import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import { requireMaterial, toMaterialResponse } from "@/features/materials/server";
 import { getTopicDraft, listTopics } from "@/features/topics/server";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -17,19 +20,19 @@ import { TopicReviewEditor } from "@/features/topics/components/topic-review-edi
 // Materials/Overview pages: another student's URL must not leak details
 // through the tab title while `requireSpace()`/`requireMaterial()` resolve.
 export const metadata: Metadata = {
-  title: "Review topics — AI Study Coach",
+  title: "Confirm topics — AI Study Coach",
 };
 
 type TopicsPageProps = { params: Promise<{ spaceId: string; materialId: string }> };
 
-/** The topic review page (T-09c; Figma nodes 47:18698, 47:18903, 47:18966). */
+/** The Confirm topics page (T-09c; redesigned in the UI redesign, Step 5). */
 export default function TopicsReviewPage({ params }: TopicsPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <TopicsReviewContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -66,17 +69,18 @@ async function TopicsReviewContent({ params }: { params: Promise<{ spaceId: stri
     const message =
       material.status === "ready"
         ? "Topics for this material are already confirmed."
-        : "Topics aren't ready to review yet.";
+        : "Topics aren't ready to confirm yet.";
     return (
       <>
         <SpaceHeader spaceId={space.id} name={space.name} />
         <SpaceOverviewTabs spaceId={space.id} active="materials" />
-        <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-muted-foreground">{message}</p>
-          <Link href={materialsHref} className="text-sm font-medium text-primary underline underline-offset-2">
+        <Card className="mt-8 items-start gap-4 p-6 max-sm:p-4">
+          <h2 className="text-card-title text-foreground">Confirm topics</h2>
+          <p className="text-muted-foreground">{message}</p>
+          <Button variant="outline" nativeButton={false} render={<Link href={materialsHref} />}>
             Return to Materials
-          </Link>
-        </div>
+          </Button>
+        </Card>
       </>
     );
   }

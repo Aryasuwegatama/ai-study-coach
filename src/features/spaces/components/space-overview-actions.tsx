@@ -13,8 +13,8 @@ import { DeleteSpaceDialog } from "./delete-space-dialog";
 import { RenameSpaceDialog } from "./rename-space-dialog";
 
 /**
- * The Overview header's "⋯" menu (plan: "Rename and delete have no
- * Figma design. Put both in a '⋯' menu in the Overview header.").
+ * The space banner's "⋯" menu: **Rename space** and **Delete space**, on
+ * every space page.
  */
 export function SpaceOverviewActions({
   spaceId,
@@ -29,14 +29,14 @@ export function SpaceOverviewActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button type="button" variant="ghost" size="icon" aria-label="Study space actions" />}
+          render={<Button type="button" variant="outline" size="icon" aria-label="Study space actions" />}
         >
           <MoreHorizontal className="size-4" aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setActiveDialog("rename")}>Rename</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setActiveDialog("rename")}>Rename space</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => setActiveDialog("delete")}>
-            Delete
+            Delete space
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

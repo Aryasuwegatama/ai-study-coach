@@ -42,7 +42,8 @@ import { GET as spaceProgressRoute } from "../src/app/api/spaces/[spaceId]/progr
 import { GET as masteryRoute } from "../src/app/api/topics/[id]/mastery/route";
 import { GET as mistakesRoute } from "../src/app/api/revision/mistakes/route";
 import { POST as checkRoute } from "../src/app/api/revision/items/[id]/check/route";
-import { DELETE as deleteSetRoute } from "../src/app/api/sets/[id]/route";
+import { DELETE as deleteSetRoute, PATCH as renameSetRoute } from "../src/app/api/sets/[id]/route";
+import { GET as listSetsRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 import { GET as setsListRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 
 type CheckResult = { name: string; ok: boolean; message: string };
@@ -529,6 +530,30 @@ async function e2e(a: Session, b: Session) {
   check("Delete refused: the quiz, its attempts, mastery and revision items are unchanged", (await setExists(set.id)) && (await record()) === before);
   res = await del(set.id, b);
   check("Delete: someone else's quiz → 404 SET_NOT_FOUND", res.status === 404 && (await errorCode(res)) === "SET_NOT_FOUND");
+
+  // --- Renaming a quiz and its topic tags (UI redesign, 2026-11-23) ------------------------------
+  const rename = (id: string, body: unknown, s: Session | null = a) => renameSetRoute(req(`/api/sets/${id}`, s, "PATCH", body), p({ id }));
+  const titleOf = async (id: string) => (await db.select({ title: studySets.title }).from(studySets).where(eq(studySets.id, id)))[0]?.title;
+  const originalTitle = await titleOf(set.id);
+  res = await rename(set.id, { title: "  Week 4 practice  " });
+  const renamed = ((await res.json()) as { set?: { title: string } }).set;
+  check("Rename: 200, trimmed, even for a quiz with results", res.status === 200 && renamed?.title === "Week 4 practice" && (await titleOf(set.id)) === "Week 4 practice");
+  check("Rename keeps the record: attempts, mastery and revision items unchanged", (await record()) === before);
+  for (const [name, body] of [["a blank name", { title: "   " }], ["a name over 80 characters", { title: "x".repeat(81) }], ["no name", {}]] as const) {
+    res = await rename(set.id, body);
+    check(`Rename validation: ${name} → 400`, res.status === 400 && (await errorCode(res)) === "VALIDATION_ERROR", `${res.status}`);
+  }
+  res = await rename(set.id, { title: "Hijacked" }, b);
+  check("Rename: someone else's quiz → 404 SET_NOT_FOUND, name unchanged", res.status === 404 && (await errorCode(res)) === "SET_NOT_FOUND" && (await titleOf(set.id)) === "Week 4 practice");
+  res = await rename(set.id, { title: "Signed out" }, null);
+  check("Rename: signed out → 401", res.status === 401);
+  res = await listSetsRoute(req(`/api/spaces/${set.spaceId}/sets?kind=quiz`, a), p({ spaceId: set.spaceId }));
+  const listed = ((await res.json()) as { sets: { id: string; topicIds: string[]; topics: { id: string; name: string }[] }[] }).sets.find((x) => x.id === set.id);
+  check(
+    "List: each quiz carries its topics with names, in the chosen order (the card's tags)",
+    !!listed && listed.topics.length > 0 && listed.topics.map((t) => t.id).join() === listed.topicIds.join() && listed.topics.every((t) => t.name.length > 0),
+  );
+  await rename(set.id, { title: originalTitle ?? "Quiz" });
 
   // The first material was deleted above, so new quizzes cite a fresh one.
   const moreId = randomUUID();

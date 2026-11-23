@@ -14,6 +14,7 @@ import {
   type PlanApiErrorCode,
   type PlanItemResponse,
   type PlanKind,
+  type PlanStage,
   type UpdatePlanItemRequest,
 } from "../plan-schemas";
 
@@ -63,7 +64,9 @@ function toResponse({ item, spaceName }: PlanRow): PlanItemResponse {
     materialId: item.materialId,
     href: planItemHref(kind, item),
     plannedOn: item.plannedOn,
+    startedAt: item.startedAt?.toISOString() ?? null,
     doneAt: item.doneAt?.toISOString() ?? null,
+    stage: item.doneAt ? "done" : item.startedAt ? "doing" : "todo",
     createdAt: item.createdAt.toISOString(),
   };
 }
@@ -147,15 +150,32 @@ export async function createPlanItem(user: SessionUser, input: CreatePlanItemReq
   return toResponse(await requirePlanItem(id, user));
 }
 
+/**
+ * The stamps for a board move. Moving to the column a card is already in keeps
+ * its stamps, so a repeated request changes nothing.
+ */
+function stageStamps(stage: PlanStage, item: typeof planItems.$inferSelect): { startedAt: Date | null; doneAt: Date | null } {
+  switch (stage) {
+    case "todo":
+      return { startedAt: null, doneAt: null };
+    case "doing":
+      return { startedAt: item.startedAt ?? new Date(), doneAt: null };
+    case "done":
+      return { startedAt: item.startedAt, doneAt: item.doneAt ?? new Date() };
+  }
+}
+
 export async function updatePlanItem(user: SessionUser, itemId: string, input: UpdatePlanItemRequest): Promise<PlanItemResponse> {
   const current = await requirePlanItem(itemId, user);
+  const stamps = input.stage ? stageStamps(input.stage, current.item) : null;
   await db
     .update(planItems)
     .set({
       title: input.title,
       plannedOn: input.plannedOn,
-      // Marking done stamps the time; Undo clears it. Leaving `done` out leaves it alone.
-      doneAt: input.done === undefined ? undefined : input.done ? (current.item.doneAt ?? new Date()) : null,
+      startedAt: stamps ? stamps.startedAt : undefined,
+      // Marking done stamps the time; Undo clears it. Leaving `done` and `stage` out leaves it alone.
+      doneAt: stamps ? stamps.doneAt : input.done === undefined ? undefined : input.done ? (current.item.doneAt ?? new Date()) : null,
     })
     .where(and(eq(planItems.id, current.item.id), eq(planItems.studentId, user.id)));
   return toResponse(await requirePlanItem(current.item.id, user));

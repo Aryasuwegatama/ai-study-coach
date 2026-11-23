@@ -1,26 +1,23 @@
 import Link from "next/link";
-import { Layers } from "lucide-react";
+import { Layers, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
-/** Figma node 61:24675, "Deck Library, empty". */
+/** No decks in this space yet (same empty-state pattern as Quizzes). */
 export function DecksEmptyState({ spaceId }: { spaceId: string }) {
   return (
-    <Card className="rounded-[20px] p-8">
-      <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-soft-purple text-purple">
-          <Layers className="size-6" aria-hidden="true" />
-        </span>
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold text-foreground">No flashcards yet</h3>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Generate a deck from your Ready materials and confirmed topics to start practising.
-          </p>
-        </div>
-        <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/flashcards/new`} />}>
-          Generate flashcards
-        </Button>
-      </CardContent>
+    <Card className="items-center gap-4 px-6 py-10 text-center">
+      <span className="flex size-12 items-center justify-center rounded-lg bg-soft-purple text-purple">
+        <Layers className="size-5" aria-hidden="true" />
+      </span>
+      <h3 className="text-card-title text-foreground">No flashcards yet</h3>
+      <p className="max-w-[42rem] text-muted-foreground">
+        Create a deck from your ready materials and confirmed topics to start practising.
+      </p>
+      <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/flashcards/new`} />}>
+        <Plus aria-hidden="true" />
+        Create flashcards
+      </Button>
     </Card>
   );
 }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -83,10 +84,11 @@ export function RenameSpaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[528px]">
+      <DialogContent className="sm:max-w-lg">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>Rename study space</DialogTitle>
+            <DialogDescription>The new name appears everywhere you use this space.</DialogDescription>
           </DialogHeader>
           <SpaceNameField
             id="rename-space-name"
@@ -99,15 +101,14 @@ export function RenameSpaceDialog({
             <Button
               type="button"
               variant="outline"
-              className="rounded-full"
               onClick={() => handleOpenChange(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button type="submit" className="rounded-full gap-2" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              Save changes
+              Save name
             </Button>
           </DialogFooter>
         </form>

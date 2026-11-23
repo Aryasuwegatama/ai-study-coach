@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -12,19 +13,19 @@ import { QuizSetupPageClient } from "@/features/quizzes/components/quiz-setup-pa
 
 // Static title, not the space's name — same reasoning as the other space pages.
 export const metadata: Metadata = {
-  title: "Generate quiz — AI Study Coach",
+  title: "Create quiz — AI Study Coach",
 };
 
 type QuizSetupPageProps = { params: Promise<{ spaceId: string }> };
 
-/** The Generate Quiz setup screen (T-12a; issue #46). */
+/** The Create quiz setup screen (T-12a; issue #46; redesign prototype `quiz-new.html`). */
 export default function QuizSetupPage({ params }: QuizSetupPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <QuizSetupPageContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 

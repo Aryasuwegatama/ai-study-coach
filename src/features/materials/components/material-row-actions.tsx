@@ -12,13 +12,13 @@ import {
 import type { MaterialResponse } from "../materials-schemas";
 
 /**
- * Per-row actions (issue #25, "Delete has no Figma design"): "Retry
- * processing" for a failed row and "Review topics" for review_topics
- * (T-09c: now a real link to the review page, not disabled) sit outside
- * the menu as primary actions; Download and Delete sit in the "⋯" menu,
- * the same split as the Study Space header's. Download is blocked only
- * while `uploading` (contract: "Download... While uploading: 409
- * INVALID_MATERIAL_STATE").
+ * Per-row actions: **Confirm topics** (primary) for a `review_topics` row and
+ * **Retry processing** (outline, a direct action with no extra dialog) for a
+ * failed row sit outside the menu; **Download file** and **Delete material**
+ * sit in the "⋯" menu. For a row still `processing` or `uploading` the delete
+ * item reads **Cancel processing & delete** and opens the same delete flow
+ * with its own wording. Download is blocked only while `uploading` (contract:
+ * "Download... While uploading: 409 INVALID_MATERIAL_STATE").
  */
 export function MaterialRowActions({
   spaceId,
@@ -34,30 +34,18 @@ export function MaterialRowActions({
   onDownload: (material: MaterialResponse) => void;
 }) {
   const canDownload = material.status !== "uploading";
+  const inProgress = material.status === "uploading" || material.status === "processing";
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center gap-2 md:justify-end">
       {material.status === "failed" && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="rounded-full"
-          onClick={() => onRetry(material.id)}
-        >
+        <Button type="button" variant="outline" onClick={() => onRetry(material.id)}>
           Retry processing
         </Button>
       )}
       {material.status === "review_topics" && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="rounded-full"
-          nativeButton={false}
-          render={<Link href={`/spaces/${spaceId}/materials/${material.id}/topics`} />}
-        >
-          Review topics
+        <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/materials/${material.id}/topics`} />}>
+          Confirm topics
         </Button>
       )}
       <DropdownMenu>
@@ -66,8 +54,8 @@ export function MaterialRowActions({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
-              aria-label={`Actions for ${material.originalName}`}
+              size="icon"
+              aria-label={`More actions for ${material.originalName}`}
             />
           }
         >
@@ -75,10 +63,10 @@ export function MaterialRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem disabled={!canDownload} onClick={() => canDownload && onDownload(material)}>
-            Download
+            Download file
           </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => onDelete(material)}>
-            Delete
+            {inProgress ? "Cancel processing & delete" : "Delete material"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

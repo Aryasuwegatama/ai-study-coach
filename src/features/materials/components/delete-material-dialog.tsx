@@ -16,10 +16,10 @@ import type { MaterialResponse } from "../materials-schemas";
 import { MaterialsClientError, type MaterialsClient } from "../client/materials-client";
 
 /**
- * Delete has no Figma design (issue #25): the same confirmation pattern
- * as `delete-space-dialog.tsx`, with the wording the issue specifies.
- * "Delete removes for real" (T-06b decision) — on failure the row stays
- * and the student sees the `MATERIAL_DELETE_FAILED` message.
+ * Delete (PRD Section 2 "Materials"). "Delete removes for real" (T-06b
+ * decision) — on failure the row stays and the student sees the
+ * `MATERIAL_DELETE_FAILED` message. A file still processing or uploading gets
+ * its own wording ("Cancel processing and delete?"), but the same API call.
  */
 export function DeleteMaterialDialog({
   material,
@@ -36,6 +36,15 @@ export function DeleteMaterialDialog({
 }) {
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
+  // Keep the wording of the row that opened the dialog, also while it fades
+  // out (the target is cleared on close). Adjusted during render rather than
+  // in an effect.
+  const [inProgress, setInProgress] = useState(false);
+  const [shown, setShown] = useState<MaterialResponse | null>(null);
+  if (material && material !== shown) {
+    setShown(material);
+    setInProgress(material.status === "uploading" || material.status === "processing");
+  }
 
   function handleOpenChange(nextOpen: boolean) {
     if (pending) return;
@@ -59,33 +68,44 @@ export function DeleteMaterialDialog({
     }
   }
 
+  const fileName = (material ?? shown)?.originalName ?? "";
+
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete &quot;{material?.originalName}&quot;?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This removes the file from this space and from future quizzes, cards and mistake reviews. Past quiz
-            results stay.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {/* T-09c, Arya 2026-11-19: a topic found only in this file is
-            deleted with it, unless the student has already made a quiz
-            or flashcards from it — those stay, with their history. */}
-        <p className="text-sm text-muted-foreground">
-          Topics found only in this file are removed. Topics you&apos;ve made quizzes or flashcards from move to
-          &quot;Topics from deleted materials&quot;, and their results stay.
-        </p>
-        {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+      <AlertDialogContent className="data-[size=default]:sm:max-w-md">
+        {inProgress ? (
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel processing and delete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Processing will stop and <strong className="font-semibold break-words text-foreground">{fileName}</strong>{" "}
+              will be removed from this space.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        ) : (
+          <>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete material?</AlertDialogTitle>
+              <p className="font-semibold break-words text-foreground">{fileName}</p>
+              <AlertDialogDescription>
+                The file will no longer be available in this space or for new quizzes and flashcards. Previous quiz
+                results will be kept.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {/* T-09c, Arya 2026-11-19: a topic found only in this file is
+                deleted with it, unless the student has already made a quiz
+                or flashcards from it — those stay, with their history. */}
+            <p className="text-sm text-muted-foreground">
+              Topics used in past practice will move to &lsquo;Topics from deleted materials&rsquo;. Unused topics
+              linked only to this file will be removed.
+            </p>
+          </>
+        )}
+        {error && <p className="text-sm font-semibold text-destructive">{error}</p>}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => void handleDelete()}
-            disabled={pending}
-            className="gap-2 bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/40"
-          >
+          <AlertDialogCancel disabled={pending}>{inProgress ? "Keep processing" : "Keep material"}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => void handleDelete()} disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Delete
+            {inProgress ? "Cancel and delete" : "Delete material"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -14,10 +14,10 @@ import { MaterialsListError } from "./materials-list-error";
 const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 /**
- * Owns the real `MaterialsClient` (T-09b), the polling hook and both
- * dialogs (issue #25 / #42, plan steps 2–4). `?upload=1` opens the upload
- * dialog the same way `/spaces?create=1` opens Create Study Space, so the
- * Overview's "Upload material" button can link straight here.
+ * Owns the real `MaterialsClient` (T-09b), the polling hook and the
+ * upload and delete dialogs (issue #25 / #42, plan steps 2–4). `?upload=1`
+ * opens the upload dialog the same way `/spaces?create=1` opens Create Study
+ * Space, so the Overview's "Upload material" button can link straight here.
  */
 export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
   const [client] = useState(() => createApiMaterialsClient(spaceId));
@@ -69,7 +69,7 @@ export function MaterialsPageClient({ spaceId }: { spaceId: string }) {
   if (error && materials.length === 0 && !loading) {
     return (
       <>
-        <MaterialsListError message={error} onRetry={refresh} />
+        <MaterialsListError onRetry={refresh} />
         <MaterialUploadDialog
           open={uploadOpen}
           onOpenChange={handleUploadOpenChange}

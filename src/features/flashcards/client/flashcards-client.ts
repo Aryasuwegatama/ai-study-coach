@@ -28,6 +28,7 @@ export type FlashcardsClient = {
   getSet(setId: string): Promise<SetDetailResponse>;
   createDeck(request: CreateDeckRequest): Promise<SetResponse>;
   deleteDeck(setId: string): Promise<void>;
+  renameDeck(setId: string, title: string): Promise<SetResponse>;
   startOrResumePractice(setId: string): Promise<DeckSessionResponse>;
   rateCard(cardId: string, request: RateCardRequest): Promise<RatingResponse["session"]>;
 };

@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -12,19 +13,19 @@ import { DeckSetupPageClient } from "@/features/flashcards/components/deck-setup
 
 // Static title, not the space's name — same reasoning as the other space pages.
 export const metadata: Metadata = {
-  title: "Generate flashcards — AI Study Coach",
+  title: "Create flashcards — AI Study Coach",
 };
 
 type DeckSetupPageProps = { params: Promise<{ spaceId: string }> };
 
-/** The Generate Flashcards setup screen (T-18). */
+/** The Create flashcards setup screen (T-18; UI redesign 2026-11-23). */
 export default function DeckSetupPage({ params }: DeckSetupPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <DeckSetupPageContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 

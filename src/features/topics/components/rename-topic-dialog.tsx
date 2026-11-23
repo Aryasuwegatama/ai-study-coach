@@ -102,13 +102,12 @@ export function RenameTopicDialog({
             <Button
               type="button"
               variant="outline"
-              className="rounded-full"
               onClick={() => handleOpenChange(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button type="submit" className="gap-2 rounded-full" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               Save changes
             </Button>

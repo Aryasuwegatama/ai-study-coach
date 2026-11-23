@@ -62,3 +62,56 @@ export function masteryFrom(counted: number, correct: number): Pick<TopicMastery
   const percent = Math.round((correct / counted) * 100);
   return { status: correct * 100 < WEAK_BELOW_PERCENT * counted ? "weak" : "on_track", percent, needed: 0 };
 }
+
+/**
+ * Study activity for the Analytics "Your activity" card (UI redesign, Arya,
+ * 2026-11-23). Counts and individual results only: never an average, an
+ * overall score, a streak or a goal. Weeks start on Monday in the student's
+ * own time zone and are worked out in SQL.
+ */
+export const ACTIVITY_WEEKS = 8;
+/** How many of the latest quiz attempts and finished practice sessions are charted. */
+export const ACTIVITY_LATEST = 10;
+
+export type ActivityWeek = {
+  /** Monday of that week, `YYYY-MM-DD`, in the student's time zone. */
+  weekStart: string;
+  quizzes: number;
+  flashcardSessions: number;
+  /** Cards rated in the practice sessions finished that week. */
+  cardsRated: number;
+};
+
+/** One submitted quiz attempt, as its own result (never averaged). */
+export type QuizAttemptPoint = {
+  attemptId: string;
+  setId: string;
+  spaceId: string;
+  title: string;
+  spaceName: string;
+  submittedAt: string;
+  score: number;
+  total: number;
+  percent: number;
+};
+
+/** One finished flashcard practice session: how the student rated their cards. */
+export type DeckSessionPoint = {
+  sessionId: string;
+  setId: string;
+  spaceId: string;
+  title: string;
+  spaceName: string;
+  finishedAt: string;
+  gotIt: number;
+  again: number;
+};
+
+export type ActivityResponse = {
+  /** The last `ACTIVITY_WEEKS` weeks, oldest first, including weeks with nothing. */
+  weeks: ActivityWeek[];
+  /** The latest `ACTIVITY_LATEST` submitted attempts, oldest first. */
+  quizAttempts: QuizAttemptPoint[];
+  /** The latest `ACTIVITY_LATEST` finished practice sessions, oldest first. */
+  deckSessions: DeckSessionPoint[];
+};

@@ -27,3 +27,21 @@ export function sortDraftTopics(items: DraftTopicResponse[]): DraftTopicResponse
   const manual = items.filter((topic) => topic.origin === "manual");
   return [...ai, ...manual];
 }
+
+/**
+ * Where the AI found a topic, for the suggestion card: "Page 3" or "Pages
+ * 2–3" (consecutive pages join into a range, others are listed: "Pages 1, 3").
+ * `null` for a topic with no pages (a manual one).
+ */
+export function formatDraftPages(pages: number[]): string | null {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const ranges: [number, number][] = [];
+  for (const page of sorted) {
+    const last = ranges.at(-1);
+    if (last && page === last[1] + 1) last[1] = page;
+    else ranges.push([page, page]);
+  }
+  const text = ranges.map(([from, to]) => (from === to ? `${from}` : `${from}–${to}`)).join(", ");
+  return `${sorted.length === 1 ? "Page" : "Pages"} ${text}`;
+}

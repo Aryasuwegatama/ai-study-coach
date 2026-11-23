@@ -7,6 +7,7 @@ import { safeTimeZone } from "@/lib/time-zone";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
 import { getTopicMastery } from "@/features/progress/server";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -18,14 +19,14 @@ export const metadata: Metadata = {
 
 type TopicAnalyticsPageProps = { params: Promise<{ spaceId: string; topicId: string }> };
 
-/** Topic detail (T-15; Figma 65:43925 and 65:44284). */
+/** Topic detail (T-15; redesign prototype `topic-detail.html`). */
 export default function TopicAnalyticsPage({ params }: TopicAnalyticsPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <TopicAnalyticsContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 

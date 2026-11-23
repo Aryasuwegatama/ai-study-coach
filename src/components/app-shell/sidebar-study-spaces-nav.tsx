@@ -22,10 +22,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
+import { cn } from "@/lib/class-names";
 import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 
 /**
- * "My Study Spaces" nav item: the expandable disclosure in the expanded
+ * "Study Spaces" nav item: the expandable disclosure in the expanded
  * sidebar (Figma node 80:6946) and the flyout from the collapsed icon
  * rail (Figma node 27:720). T-05 replaces the `dashboard-sample-spaces`
  * fixture this used to read with the student's real spaces, passed down
@@ -41,24 +42,26 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
   const collapsedRail = state === "collapsed" && !isMobile;
   const pathname = usePathname();
   const activeSpaceId = pathname.match(SPACE_ID_PATTERN)?.[1];
+  // Active on the Study Spaces list page itself; on a space's own pages that space's row is active instead.
+  const onSpacesPage = pathname === "/spaces";
 
   if (collapsedRail) {
     return (
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="My Study Spaces" />}>
+          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="Study Spaces" isActive={onSpacesPage} />}>
             <FolderOpen />
-            <span>My Study Spaces</span>
+            <span>Study Spaces</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-56">
             {/* Base UI's `Menu.GroupLabel` (what `DropdownMenuLabel`
                 wraps) throws at runtime unless it's inside a
                 `Menu.Group` — see the same fix in sidebar-account-menu. */}
             <DropdownMenuGroup>
-              <DropdownMenuLabel>My Study Spaces</DropdownMenuLabel>
+              <DropdownMenuLabel>Study Spaces</DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuItem render={<Link href="/spaces" />}>
-              Open My Study Spaces
+              Open Study Spaces
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {spaces.length === 0 ? (
@@ -81,7 +84,7 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2" render={<Link href="/spaces?create=1" />}>
               <Plus className="size-4" aria-hidden="true" />
-              New study space
+              Create study space
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -91,17 +94,34 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
 
   return (
     <SidebarMenuItem>
-      <div className="flex w-full items-center gap-1">
-        <SidebarMenuButton render={<Link href="/spaces" />} className="flex-1">
+      {/* The whole row (link, chevron and "+") is one highlight, like the
+          other menu items: hover and the active state live on the row, and
+          the link inside stays transparent. The link keeps the standard left
+          padding so its icon lines up with Dashboard; only its right padding
+          shrinks, which leaves "Study Spaces" room in the 15rem sidebar. */}
+      <div
+        className={cn(
+          "flex w-full items-center gap-0.5 rounded-sm pr-1 text-sidebar-foreground hover:bg-surface-hover",
+          onSpacesPage &&
+            "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--sidebar-primary)] hover:bg-sidebar-accent",
+        )}
+      >
+        <SidebarMenuButton
+          render={<Link href="/spaces" aria-current={onSpacesPage ? "page" : undefined} />}
+          className={cn(
+            "min-w-0 flex-1 pr-1 hover:bg-transparent active:bg-transparent",
+            onSpacesPage && "font-semibold text-sidebar-accent-foreground",
+          )}
+        >
           <FolderOpen />
-          <span>My Study Spaces</span>
+          <span>Study Spaces</span>
         </SidebarMenuButton>
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
-          aria-label={expanded ? "Collapse My Study Spaces" : "Expand My Study Spaces"}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label={expanded ? "Collapse Study Spaces" : "Expand Study Spaces"}
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-current outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ChevronRight
             className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -110,14 +130,14 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
         </button>
         <Link
           href="/spaces?create=1"
-          aria-label="New study space"
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label="Create study space"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-current outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <Plus className="size-4" aria-hidden="true" />
         </Link>
       </div>
       {expanded && (
-        <SidebarMenuSub>
+        <SidebarMenuSub className="mx-2 px-2">
           {spaces.length === 0 ? (
             <SidebarMenuSubItem>
               <span className="px-2 py-1.5 text-xs text-muted-foreground">
@@ -127,13 +147,15 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
           ) : (
             spaces.map((space) => (
               <SidebarMenuSubItem key={space.id}>
+                {/* Long space names wrap onto a second line instead of
+                    being cut off (the base sub-button truncates its last span). */}
                 <SidebarMenuSubButton
-                  className="gap-2"
+                  className="h-auto min-h-10 gap-2 py-2 leading-snug [&>span:last-child]:break-words [&>span:last-child]:whitespace-normal!"
                   isActive={space.id === activeSpaceId}
                   render={<Link href={`/spaces/${space.id}/overview`} />}
                 >
                   <SpaceMonogram id={space.id} name={space.name} className="size-5 text-[10px]" />
-                  <span className="truncate">{space.name}</span>
+                  <span className="min-w-0">{space.name}</span>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))

@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
@@ -22,11 +23,11 @@ type QuizzesPageProps = { params: Promise<{ spaceId: string }> };
 /** The Quizzes tab (T-12a; issue #46) on labelled example data. */
 export default function QuizzesPage({ params }: QuizzesPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <QuizzesPageContent params={params} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 

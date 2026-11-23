@@ -15,6 +15,7 @@ import {
   type CardStyle,
   type CreateSetRequest,
   type LatestAttemptSummary,
+  type RenameSetRequest,
   type QuizApiErrorCode,
   type SetDetailResponse,
   type SetFailureCode,
@@ -88,8 +89,15 @@ export async function createSet(user: SessionUser, spaceId: string, input: Creat
   if (input.topicIds.length > input.count) throw quizError("TOO_MANY_TOPICS", isDeck ? TOO_MANY_TOPICS_DECK_MESSAGE : undefined);
   const jobKind = isDeck ? "generate_deck" : "generate_quiz";
 
-  const names = input.topicIds.map((id) => linked.find((t) => t.id === id)!.name);
-  const title = names.length <= 2 ? names.join(" & ") : `${names[0]}, ${names[1]} +${names.length - 2}`;
+  // The student's own name, or "Quiz N" / "Deck N" (its topics show as tags, not in the name).
+  let title = input.title;
+  if (!title) {
+    const [{ existing }] = await db
+      .select({ existing: count() })
+      .from(studySets)
+      .where(and(eq(studySets.spaceId, space.id), eq(studySets.kind, input.kind)));
+    title = `${input.kind === "quiz" ? "Quiz" : "Deck"} ${existing + 1}`;
+  }
   const tz = safeTimeZone(user.timeZone);
 
   const job = await db.transaction(async (tx) => {
@@ -195,6 +203,13 @@ export async function listSets(user: SessionUser, spaceId: string, kind: "quiz" 
     .groupBy(learningItems.setId);
   const activeBySetId = new Map(activeCounts.map((r) => [r.setId, r.active]));
 
+  // Current topic names for the tags (a rename shows the new name).
+  const allTopicIds = [...new Set(rows.flatMap((r) => r.topicIds))];
+  const topicRows = allTopicIds.length
+    ? await db.select({ id: topics.id, name: topics.name }).from(topics).where(inArray(topics.id, allTopicIds))
+    : [];
+  const topicNameById = new Map(topicRows.map((t) => [t.id, t.name]));
+
   return rows.map((row) => {
     const setAttempts = attemptsBySet.get(row.id) ?? [];
     const latest = setAttempts[0];
@@ -214,8 +229,19 @@ export async function listSets(user: SessionUser, spaceId: string, kind: "quiz" 
       const score = latest.score ?? 0;
       latestAttempt = { status: "submitted", attemptId: latest.id, score, total, percent: total ? Math.round((score / total) * 100) : 0 };
     }
-    return { ...toSetResponse(row), latestAttempt, hasResults, activeCount: activeBySetId.get(row.id) ?? 0 };
+    const setTopics = row.topicIds.flatMap((id) => {
+      const name = topicNameById.get(id);
+      return name ? [{ id, name }] : [];
+    });
+    return { ...toSetResponse(row), latestAttempt, hasResults, activeCount: activeBySetId.get(row.id) ?? 0, topics: setTopics };
   });
+}
+
+/** Renames one of the student's own sets. The name is the only thing a student can edit. */
+export async function renameSet(user: SessionUser, setId: string, input: RenameSetRequest): Promise<SetResponse> {
+  const set = await requireSet(setId, user);
+  const [row] = await db.update(studySets).set({ title: input.title }).where(eq(studySets.id, set.id)).returning();
+  return toSetResponse(row);
 }
 
 export async function getSet(user: SessionUser, setId: string): Promise<SetDetailResponse> {

@@ -1,11 +1,14 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/class-names";
 import { OPTION_LETTERS, type AttemptQuestion } from "../attempts-schemas";
 
 /**
- * One attempt question (issue #46; Figma node 49:18898, MCQ attempt).
+ * One attempt question (issue #46; redesign prototype `quiz-attempt.html`):
+ * the prompt and four lettered options. The picked option has a filled
+ * letter, a thicker border and a check mark, so it never relies on colour.
  * No "View source" here (security rule: no sources before submission).
  * Keyboard (PRD Section 2, Accessibility): arrow keys move between
  * options (`RadioGroup`'s own roving focus); Enter on a focused, not-yet
@@ -21,36 +24,51 @@ export function AttemptQuestionCard({
   onSelect: (index: number) => void;
   onAdvance: () => void;
 }) {
+  const promptId = `prompt-${question.itemId}`;
   return (
     <div className="flex flex-col gap-4">
-      <span className="inline-flex h-6 w-fit shrink-0 items-center rounded-full bg-soft-purple px-2.5 text-xs font-semibold text-purple">
-        {question.topicName}
-      </span>
-      <p className="text-lg font-medium text-foreground">{question.prompt}</p>
+      <p id={promptId} className="text-card-title break-words text-foreground">
+        {question.prompt}
+      </p>
       {/* `null` (not `undefined`) for an unanswered question keeps the
           group controlled for its whole lifetime: `undefined` would hand
           the selection to Base UI's own state, which then shows the
           previous question's answer. */}
-      <RadioGroup value={question.selectedIndex} onValueChange={(value) => onSelect(Number(value))}>
-        {question.options.map((option, index) => (
-          <label
-            key={index}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (question.selectedIndex !== index) onSelect(index);
-              else onAdvance();
-            }}
-            className={cn(
-              "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm text-foreground",
-              question.selectedIndex === index ? "border-primary bg-soft-purple/30" : "border-border hover:bg-muted",
-            )}
-          >
-            <RadioGroupItem value={index} />
-            <span className="w-4 shrink-0 font-semibold text-muted-foreground">{OPTION_LETTERS[index]}</span>
-            <span className="min-w-0">{option}</span>
-          </label>
-        ))}
+      <RadioGroup aria-labelledby={promptId} value={question.selectedIndex} onValueChange={(value) => onSelect(Number(value))}>
+        {question.options.map((option, index) => {
+          const picked = question.selectedIndex === index;
+          return (
+            <label
+              key={index}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                if (question.selectedIndex !== index) onSelect(index);
+                else onAdvance();
+              }}
+              className={cn(
+                "flex min-h-11 cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border p-4 text-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+                picked ? "border-primary bg-accent shadow-[inset_0_0_0_1px_var(--primary)]" : "border-input bg-card hover:bg-surface-hover",
+              )}
+            >
+              {/* The real radio stays focusable for the keyboard; its ring shows on the whole row. */}
+              <span className="sr-only">
+                <RadioGroupItem value={index} />
+              </span>
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "grid size-8 shrink-0 place-items-center rounded-full border text-sm font-semibold",
+                  picked ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                )}
+              >
+                {OPTION_LETTERS[index]}
+              </span>
+              <span className="min-w-[12rem] flex-1 break-words">{option}</span>
+              {picked && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+            </label>
+          );
+        })}
       </RadioGroup>
     </div>
   );

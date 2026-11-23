@@ -1,9 +1,10 @@
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/db-client";
-import { attempts, studySpaces } from "@/server/db/schema";
+import { attempts, materials, studySpaces } from "@/server/db/schema";
 import type { SessionUser } from "@/server/auth/auth-session";
 import { getSuggestions, getUnfinishedDecks, getUnfinishedQuizzes, type Suggestion, type UnfinishedDeck, type UnfinishedQuiz } from "@/features/plan/server";
 import { getAllProgress } from "@/features/progress/server";
+import { listSpaceSummaries, type SpaceSummary } from "@/features/spaces/server";
 
 export const DASHBOARD_SUGGESTIONS = 3;
 
@@ -23,10 +24,17 @@ export type DashboardSummary = {
   /** Whichever unfinished quiz or deck was touched last; `kind` says which. */
   resume: UnfinishedQuiz | UnfinishedDeck | null;
   suggestions: Suggestion[];
+  /** One card of counts per Study Space, newest first. */
+  spaces: SpaceSummary[];
+  /** Materials whose suggested topics are ready to confirm ("Topics ready"), in spaces that aren't deleted. */
+  topicsReady: { count: number; latest: TopicsReadyMaterial | null };
 };
 
+/** The most recent material with topics ready to confirm. */
+export type TopicsReadyMaterial = { spaceId: string; spaceName: string; materialId: string; fileName: string };
+
 export async function getDashboardSummary(user: SessionUser): Promise<DashboardSummary> {
-  const [progress, unfinished, unfinishedDecks, [{ completed }]] = await Promise.all([
+  const [progress, unfinished, unfinishedDecks, [{ completed }], topicsReadyRows] = await Promise.all([
     getAllProgress(user),
     getUnfinishedQuizzes(user),
     getUnfinishedDecks(user),
@@ -35,7 +43,21 @@ export async function getDashboardSummary(user: SessionUser): Promise<DashboardS
       .from(attempts)
       .innerJoin(studySpaces, eq(studySpaces.id, attempts.spaceId))
       .where(and(eq(attempts.studentId, user.id), eq(attempts.status, "submitted"), eq(studySpaces.ownerId, user.id), isNull(studySpaces.deletedAt))),
+    db
+      .select({
+        spaceId: studySpaces.id,
+        spaceName: studySpaces.name,
+        materialId: materials.id,
+        fileName: materials.originalName,
+        total: sql<number>`count(*) over ()::int`,
+      })
+      .from(materials)
+      .innerJoin(studySpaces, eq(studySpaces.id, materials.spaceId))
+      .where(and(eq(studySpaces.ownerId, user.id), isNull(studySpaces.deletedAt), eq(materials.status, "review_topics")))
+      .orderBy(desc(materials.updatedAt))
+      .limit(1),
   ]);
+  const spaces = await listSpaceSummaries(user, { progress, unfinished });
   const topics = progress.flatMap((space) => space.topics);
   const suggestions = await getSuggestions(user, { progress, unfinished, unfinishedDecks });
   const resume = [unfinished[0], unfinishedDecks[0]]
@@ -49,5 +71,17 @@ export async function getDashboardSummary(user: SessionUser): Promise<DashboardS
     openMistakes: topics.reduce((sum, t) => sum + t.mistakes, 0),
     resume: resume ?? null,
     suggestions: suggestions.slice(0, DASHBOARD_SUGGESTIONS),
+    spaces,
+    topicsReady: {
+      count: topicsReadyRows[0]?.total ?? 0,
+      latest: topicsReadyRows[0]
+        ? {
+            spaceId: topicsReadyRows[0].spaceId,
+            spaceName: topicsReadyRows[0].spaceName,
+            materialId: topicsReadyRows[0].materialId,
+            fileName: topicsReadyRows[0].fileName,
+          }
+        : null,
+    },
   };
 }

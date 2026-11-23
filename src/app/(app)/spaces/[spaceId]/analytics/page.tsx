@@ -5,11 +5,14 @@ import { connection } from "next/server";
 import { ApiError } from "@/lib/api-errors";
 import { getCurrentUser } from "@/server/auth/auth-session";
 import { requireSpace } from "@/server/auth/auth-space-access";
-import { getSpaceProgress } from "@/features/progress/server";
+import { getActivity, getSpaceProgress } from "@/features/progress/server";
+import { safeTimeZone } from "@/lib/time-zone";
+import { PageContainer } from "@/components/page-container";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewSkeleton } from "@/features/spaces/components/space-overview-skeleton";
 import { SpaceOverviewTabs } from "@/features/spaces/components/space-overview-tabs";
-import { SpaceAnalyticsView, type AnalyticsView } from "@/features/analytics/components/space-analytics-view";
+import { SpaceAnalyticsView } from "@/features/analytics/components/space-analytics-view";
+import { parseAnalyticsView } from "@/features/analytics/analytics-format";
 
 // Static title, not the space's name: another student's URL must not leak a
 // name through the tab title while `requireSpace()` resolves.
@@ -22,14 +25,14 @@ type SpaceAnalyticsPageProps = {
   searchParams: Promise<{ view?: string }>;
 };
 
-/** The Analytics tab (T-15; Figma 65:43673, weak view 65:44105). */
+/** The Analytics tab (T-15; redesign prototype `space-analytics.html`). */
 export default function SpaceAnalyticsPage({ params, searchParams }: SpaceAnalyticsPageProps) {
   return (
-    <div className="flex flex-col gap-7 px-6 py-8 sm:px-12 sm:py-10">
-      <Suspense fallback={<SpaceOverviewSkeleton />}>
+    <PageContainer>
+      <Suspense fallback={<SpaceOverviewSkeleton variant="list" />}>
         <SpaceAnalyticsContent params={params} searchParams={searchParams} />
       </Suspense>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -56,14 +59,14 @@ async function SpaceAnalyticsContent({ params, searchParams }: SpaceAnalyticsPag
     notFound();
   }
 
-  const progress = await getSpaceProgress(user, space.id);
-  const view: AnalyticsView = query.view === "weak" ? "weak" : "all";
+  const [progress, activity] = await Promise.all([getSpaceProgress(user, space.id), getActivity(user, space.id)]);
+  const view = parseAnalyticsView(query.view);
 
   return (
     <>
       <SpaceHeader spaceId={space.id} name={space.name} />
       <SpaceOverviewTabs spaceId={space.id} active="analytics" />
-      <SpaceAnalyticsView progress={progress} view={view} />
+      <SpaceAnalyticsView progress={progress} view={view} activity={activity} timeZone={safeTimeZone(user.timeZone)} />
     </>
   );
 }

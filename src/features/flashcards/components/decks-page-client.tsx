@@ -8,6 +8,7 @@ import { useDecksList } from "../hooks/use-decks-list";
 import { DeckLibrary } from "./deck-library";
 import { DecksListError } from "./decks-list-error";
 import { DeleteDeckDialog } from "./delete-deck-dialog";
+import { RenameSetDialog } from "@/features/quizzes/components/rename-set-dialog";
 
 const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
@@ -17,6 +18,7 @@ export function DecksPageClient({ spaceId }: { spaceId: string }) {
   const [client] = useState(() => createApiFlashcardsClient(spaceId));
   const { decks, loading, error, refresh } = useDecksList(client);
   const [deleteTarget, setDeleteTarget] = useState<DeckListItemResponse | null>(null);
+  const [renameTarget, setRenameTarget] = useState<DeckListItemResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   function handleDeleteDialogClose(open: boolean) {
@@ -39,6 +41,20 @@ export function DecksPageClient({ spaceId }: { spaceId: string }) {
           setActionError(null);
           setDeleteTarget(deck);
         }}
+        onRename={(deck) => {
+          setActionError(null);
+          setRenameTarget(deck);
+        }}
+      />
+      <RenameSetDialog
+        set={renameTarget}
+        noun="deck"
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+        rename={client.renameDeck}
+        onRenamed={() => void refresh()}
       />
       <DeleteDeckDialog
         deck={deleteTarget}

@@ -1,0 +1,1 @@
+ALTER TABLE "plan_items" ADD COLUMN "started_at" timestamp with time zone;

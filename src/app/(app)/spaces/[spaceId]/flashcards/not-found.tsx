@@ -14,7 +14,7 @@ export default function FlashcardsNotFound() {
         It may have been deleted, or it might belong to someone else.
       </p>
       <Link href="/spaces" className="text-sm font-medium text-primary underline underline-offset-2">
-        Back to My Study Spaces
+        Back to Study Spaces
       </Link>
     </div>
   );

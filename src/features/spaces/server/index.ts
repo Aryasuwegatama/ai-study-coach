@@ -4,5 +4,5 @@
 // server adapter, not spaces-internal — later features import it
 // directly from `@/server/auth/auth-space-access`, the same way every
 // feature already imports `requireUser()`.
-export { listSpaces, createSpace, renameSpace, deleteSpace } from "./spaces-service";
-export type { SpaceResponse } from "../spaces-schemas";
+export { listSpaces, listSpaceSummaries, getSpaceCounts, createSpace, renameSpace, deleteSpace } from "./spaces-service";
+export type { SpaceCounts, SpaceResponse, SpaceSummary } from "../spaces-schemas";

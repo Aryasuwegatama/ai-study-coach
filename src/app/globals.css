@@ -46,15 +46,43 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Status badges (Figma "Light · reusable UI", node 11:2) — not used by
-     this screen, but established here so T-04b/T-05 study-space cards and
-     progress badges can reuse them (e.g. bg-soft-green text-green). */
+  /* Status tones used by Badge, Alert and the mastery/material pills
+     (e.g. bg-soft-green text-green). info/success/warning reuse the
+     slate-blue, green and amber pairs, so they have no names of their own. */
   --color-soft-green: var(--soft-green);
   --color-green: var(--green);
   --color-soft-amber: var(--soft-amber);
   --color-amber: var(--amber);
   --color-soft-purple: var(--soft-purple);
   --color-purple: var(--purple);
+  --color-soft-red: var(--soft-red);
+  --color-primary-hover: var(--primary-hover);
+  --color-surface-hover: var(--surface-hover);
+  --color-border-strong: var(--border-strong);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-hero-start: var(--hero-start);
+  --color-hero-end: var(--hero-end);
+  --color-backdrop: var(--backdrop);
+  --shadow-card: var(--shadow-card);
+  --shadow-popover: var(--shadow-popover);
+  /* Type scale from the redesign prototype (page title, section heading,
+     card title). Body (text-base) and small (text-sm) already match. */
+  --text-page: 2rem;
+  --text-page--line-height: 1.25;
+  --text-page--font-weight: 700;
+  --text-page--letter-spacing: -0.025em;
+  --text-section: 1.375rem;
+  --text-section--line-height: 1.364;
+  --text-section--font-weight: 600;
+  --text-section--letter-spacing: -0.025em;
+  --text-card-title: 1.125rem;
+  --text-card-title--line-height: 1.5;
+  --text-card-title--font-weight: 600;
+  --text-card-title--letter-spacing: -0.025em;
+  --text-page-mobile: 1.75rem;
+  --text-page-mobile--line-height: 1.25;
+  --text-page-mobile--font-weight: 700;
+  --text-page-mobile--letter-spacing: -0.025em;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 0.75rem;
@@ -65,10 +93,15 @@
 }
 
 /*
- * Design tokens from the Capstone 1 Figma file ("Light · reusable UI",
- * node 11:2, plus the Authentication — Sign in screen, node 98:8440).
- * See T-04a plan issue for the Figma-variable -> token mapping table.
+ * Design tokens from the UI redesign prototype (design/prototype/tokens.css,
+ * "Sand / Cream / Slate Blue"). Variable names are unchanged from the earlier
+ * Figma-based set, so existing components pick the new values up directly.
  * Light theme only — there is no corresponding `.dark` block.
+ *
+ * Border split: the prototype's strong outline colour (#807863) is for
+ * control outlines only. `--border` stays the soft decorative line because
+ * `* { border-border }` below applies it to every element, and cards,
+ * tables and separators all use it.
  */
 :root {
   /* Tells the browser this page is light-only, so Chrome/Edge's OS-driven
@@ -78,47 +111,55 @@
      inverted approximation on top of it. No `dark` value is listed
      because there is no dark theme in Core (PRD Section 2). */
   color-scheme: light;
-  --background: #f7f8fa; /* color-canvas */
-  --foreground: #202a3b; /* color-ink */
-  --card: #ffffff; /* color-surface */
-  --card-foreground: #202a3b;
-  --popover: #ffffff;
-  --popover-foreground: #202a3b;
-  --primary: #215dcb; /* color-blue */
-  --primary-foreground: #ffffff;
-  --secondary: #e9f0ff; /* color-softBlue */
-  --secondary-foreground: #215dcb;
-  /* Not a literal Figma variable (the design only names muted TEXT and
-     border, not a muted background) — interpolated between canvas and
-     border for a neutral fill shadcn's components need. */
-  --muted: #eef1f5;
-  --muted-foreground: #596579; /* color-muted */
-  --accent: #e9f0ff;
-  --accent-foreground: #215dcb;
-  --destructive: #dc2626;
-  --border: #e3e7ed; /* color-border */
-  --input: #e3e7ed;
-  --ring: #1b50b3; /* color-focus */
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #eee8d4;
+  --foreground: #2c2c2c;
+  --card: #fdf8ec;
+  --card-foreground: #2c2c2c;
+  --popover: #fdf8ec;
+  --popover-foreground: #2c2c2c;
+  --primary: #3d5a80;
+  --primary-foreground: #fdf8ec;
+  --secondary: #e5dec6;
+  --secondary-foreground: #494538;
+  --muted: #e5dec6;
+  --muted-foreground: #5f5a4f;
+  --accent: #e4ebf2;
+  --accent-foreground: #2f4766;
+  --destructive: #a43d24;
+  --border: #d8cfaf; /* decorative lines: cards, tables, separators */
+  --input: #807863; /* control outlines */
+  --border-strong: #807863; /* other controls that need a strong boundary */
+  --ring: #3d5a80;
+  --chart-1: #3d5a80;
+  --chart-2: #426d4b;
+  --chart-3: #8f5608;
+  --chart-4: #71538e;
+  --chart-5: #a43d24;
   --radius: 0.75rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #202a3b;
-  --sidebar-primary: #215dcb;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9f0ff;
-  --sidebar-accent-foreground: #215dcb;
-  --sidebar-border: #e3e7ed;
-  --sidebar-ring: #1b50b3;
-  --soft-green: #e7f5f0;
-  --green: #187765;
-  --soft-amber: #fff3df;
-  --amber: #89500c;
-  --soft-purple: #f0edfb;
-  --purple: #6453b3;
+  --sidebar: #fdf8ec;
+  --sidebar-foreground: #494538;
+  --sidebar-primary: #3d5a80;
+  --sidebar-primary-foreground: #fdf8ec;
+  --sidebar-accent: #e4ebf2;
+  --sidebar-accent-foreground: #2f4766;
+  --sidebar-border: #d8cfaf;
+  --sidebar-ring: #3d5a80;
+  --soft-green: #e6efe8;
+  --green: #32573e;
+  --soft-amber: #fbf0dc;
+  --amber: #8f5608;
+  --soft-purple: #eee7f4;
+  --purple: #65477e;
+  --soft-red: #f7e8e2;
+  --primary-hover: #2f4766;
+  --surface-hover: #f5efdf;
+  --destructive-foreground: #fdf8ec;
+  --hero-start: #f9f3e4;
+  --hero-end: #f1e7cb;
+  /* Dialog and sheet backdrop (prototype tokens.css). */
+  --backdrop: rgba(44, 44, 44, 0.42);
+  --shadow-card: 0 2px 5px rgba(57, 48, 34, 0.04), 0 10px 24px rgba(57, 48, 34, 0.04);
+  --shadow-popover: 0 12px 36px rgba(57, 48, 34, 0.16);
 }
 
 @layer base {

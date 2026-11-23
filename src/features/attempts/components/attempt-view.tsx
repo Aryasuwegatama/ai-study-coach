@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ListChecks, Plus, RotateCcw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuizzesClientError, type QuizzesClient } from "@/features/quizzes/client/quizzes-client";
 import type { AttemptResponse } from "../attempts-schemas";
@@ -20,19 +22,21 @@ const AUTOSAVE_LABEL: Record<AutosaveStatus, string> = {
   saving: "Saving…",
   saved: "Saved",
   retrying: "Couldn't save, retrying…",
-  error: "Couldn't save your answer. Check your connection and try again.",
+  error: "Couldn't save your answer. Check your connection and choose the answer again to retry.",
 };
 
 /**
- * The quiz attempt screen (issue #46; Figma node 49:18898 MCQ, 72:6624
- * saved at first question, 71:6451 saved attempt/Resume, 49:19295
- * submit confirmation). One route covers a fresh attempt, Resume and
- * Retake — `client.startOrResumeAttempt` decides which.
+ * The quiz attempt screen (issue #46; redesign prototype `quiz-attempt.html`).
+ * One route covers a fresh attempt, Resume and Retake —
+ * `client.startOrResumeAttempt` decides which. The quiz's title comes from
+ * `getSet`, loaded alongside; the screen works without it.
  */
 export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId: string; client: QuizzesClient }) {
   const router = useRouter();
   const [attempt, setAttempt] = useState<AttemptResponse | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ code: string | null; message: string } | null>(null);
+  const [title, setTitle] = useState<string | null>(null);
+  const [loadRound, setLoadRound] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -56,12 +60,22 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
       })
       .catch((err: unknown) => {
         if (ignore) return;
-        setLoadError(err instanceof QuizzesClientError ? err.message : "Couldn't load this quiz. Try again.");
+        setLoadError(
+          err instanceof QuizzesClientError ? { code: err.code, message: err.message } : { code: null, message: "Couldn't load this quiz." },
+        );
+      });
+    client
+      .getSet(setId)
+      .then((detail) => {
+        if (!ignore) setTitle(detail.set.title);
+      })
+      .catch(() => {
+        // The title is only a heading; the attempt works without it.
       });
     return () => {
       ignore = true;
     };
-  }, [client, setId]);
+  }, [client, setId, loadRound]);
 
   const questions = useMemo(() => attempt?.questions ?? [], [attempt]);
   const current = questions[currentIndex];
@@ -205,83 +219,136 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
     }
   }
 
+  if (loadError?.code === "SET_NO_ACTIVE_QUESTIONS") {
+    return (
+      <Card className="mt-6 items-center gap-4 px-6 py-10 text-center">
+        <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
+          <ListChecks className="size-5" aria-hidden="true" />
+        </span>
+        <h2 className="text-card-title text-foreground">No questions available</h2>
+        <p className="max-w-[42rem] text-muted-foreground">
+          All questions in this quiz have been removed from future practice. You can create a new quiz from confirmed topics.
+        </p>
+        <Button nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes/new`} />}>
+          <Plus aria-hidden="true" />
+          Create quiz
+        </Button>
+      </Card>
+    );
+  }
+
   if (loadError) {
     return (
-      <Card className="rounded-[20px] p-8">
-        <CardContent className="flex flex-col items-center gap-4 p-0 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <AlertTriangle className="size-6" aria-hidden="true" />
-          </span>
-          <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-            {loadError}
-          </p>
-          <Button type="button" className="rounded-full" nativeButton={false} render={<Link href={`/spaces/${spaceId}/quizzes`} />}>
+      <Card role="alert" className="mt-6 gap-4 p-6 max-sm:p-4">
+        <h2 className="text-card-title text-foreground">We couldn&apos;t load this quiz</h2>
+        <p className="text-muted-foreground">{loadError.message} Check your connection and try again.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setLoadError(null);
+              setLoadRound((round) => round + 1);
+            }}
+          >
+            <RotateCcw aria-hidden="true" />
+            Try again
+          </Button>
+          <Button variant="ghost" nativeButton={false} render={<Link href={quizzesHref} />}>
             Return to quizzes
           </Button>
-        </CardContent>
+        </div>
       </Card>
     );
   }
 
   if (!attempt || !current) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-[20px]" />
+      <div className="mt-6 flex flex-col gap-4" aria-busy="true">
+        <p className="sr-only" role="status">
+          Loading this quiz.
+        </p>
+        <Skeleton className="h-8 w-64 max-w-full" aria-hidden="true" />
+        <Card className="gap-4 p-6" aria-hidden="true">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-6 w-4/5" />
+          {[0, 1, 2, 3].map((key) => (
+            <Skeleton key={key} className="h-14 w-full" />
+          ))}
+        </Card>
       </div>
     );
   }
 
+  const selected = current.selectedIndex !== null;
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-foreground">
-          Question {currentIndex + 1} of {questions.length}
-        </h2>
-      </div>
+    <section aria-labelledby="attempt-title" className="mt-6 flex flex-col gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id="attempt-title" className="text-section break-words text-foreground">
+            {title ?? "Quiz"}
+          </h2>
+          <p className="mt-1 text-muted-foreground">
+            {questions.length} multiple-choice question{questions.length === 1 ? "" : "s"} · Answers shown after submission
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          aria-disabled={exitState === "waiting"}
+          nativeButton={false}
+          render={<Link href={quizzesHref} />}
+          onClick={(event) => void handleSaveAndExit(event)}
+        >
+          {exitState === "waiting" ? "Saving…" : exitState === "failed" ? "Exit without saving" : "Save & exit"}
+        </Button>
+      </header>
+
+      {exitState === "failed" && (
+        <Alert variant="destructive">
+          <AlertTitle>Some answers couldn&apos;t be saved</AlertTitle>
+          <AlertDescription>Choose them again to retry. If you leave now, your latest changes may be lost.</AlertDescription>
+        </Alert>
+      )}
 
       <AttemptQuestionNav questions={questions} currentIndex={currentIndex} onSelect={goTo} />
 
-      <Card className="rounded-[20px] p-6">
-        <CardContent className="p-0">
-          <AttemptQuestionCard key={current.itemId} question={current} onSelect={handleSelect} onAdvance={() => goTo(currentIndex + 1)} />
-        </CardContent>
+      <Card className="gap-5 p-6 max-sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 id="question-heading" className="text-card-title text-foreground">
+            Question {currentIndex + 1} of {questions.length}
+          </h3>
+          <Badge tone="purple">{current.topicName}</Badge>
+        </div>
+        <AttemptQuestionCard key={current.itemId} question={current} onSelect={handleSelect} onAdvance={() => goTo(currentIndex + 1)} />
+        <p className="text-sm text-muted-foreground">Choose one answer. You can change it before submitting.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" disabled={currentIndex === 0} onClick={() => goTo(currentIndex - 1)}>
+              <ArrowLeft aria-hidden="true" />
+              Back
+            </Button>
+            <Button type="button" variant="outline" disabled={currentIndex === questions.length - 1} onClick={() => goTo(currentIndex + 1)}>
+              Next
+              <ArrowRight aria-hidden="true" />
+            </Button>
+          </div>
+          {selected && (
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              <Check className="size-4 text-green" aria-hidden="true" />
+              Answer selected
+            </span>
+          )}
+        </div>
       </Card>
 
-      <p aria-live="polite" className="h-4 text-xs text-muted-foreground">
-        {AUTOSAVE_LABEL[autosaveStatus]}
-      </p>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" className="rounded-full" disabled={currentIndex === 0} onClick={() => goTo(currentIndex - 1)}>
-            Back
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={currentIndex === questions.length - 1}
-            onClick={() => goTo(currentIndex + 1)}
-          >
-            Next
-          </Button>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="rounded-full"
-            aria-disabled={exitState === "waiting"}
-            nativeButton={false}
-            render={<Link href={quizzesHref} />}
-            onClick={(event) => void handleSaveAndExit(event)}
-          >
-            {exitState === "waiting" ? "Saving…" : exitState === "failed" ? "Exit without saving" : "Save & exit"}
-          </Button>
-          <Button type="button" className="rounded-full" onClick={() => setSubmitOpen(true)}>
-            Submit
-          </Button>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          {AUTOSAVE_LABEL[autosaveStatus] || "Answers save automatically."}
+        </p>
+        <Button type="button" onClick={() => setSubmitOpen(true)}>
+          Submit quiz
+        </Button>
       </div>
 
       <SubmitConfirmationDialog
@@ -292,6 +359,6 @@ export function AttemptView({ spaceId, setId, client }: { spaceId: string; setId
         submitError={submitError}
         onConfirm={() => void handleSubmit()}
       />
-    </div>
+    </section>
   );
 }

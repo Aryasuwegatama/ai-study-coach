@@ -72,14 +72,14 @@ export function DeleteDeckDialog({
         </AlertDialogHeader>
         {error && <p className="text-sm font-medium text-destructive">{error}</p>}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>Keep deck</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => void handleDelete()}
             disabled={pending}
-            className="gap-2 bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/40"
+            variant="destructive"
           >
-            {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Delete
+            {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Delete deck
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

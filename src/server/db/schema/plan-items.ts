@@ -33,6 +33,12 @@ export const planItems = pgTable(
     setId: uuid("set_id").references(() => studySets.id, { onDelete: "set null" }),
     materialId: uuid("material_id").references(() => materials.id, { onDelete: "set null" }),
     plannedOn: date("planned_on", { mode: "string" }),
+    /**
+     * When the student moved the card to "Doing" on their plan board (UI
+     * redesign, 2026-11-23). Null with no `done_at` means "To do"; a set
+     * `done_at` means "Done" whatever this holds. Never compared with today.
+     */
+    startedAt: timestamp("started_at", { withTimezone: true }),
     doneAt: timestamp("done_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

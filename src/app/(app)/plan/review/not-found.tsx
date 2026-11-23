@@ -13,7 +13,7 @@ export default function ReviewMistakesNotFound() {
         The topic or study space may have been removed, or it might belong to someone else.
       </p>
       <Link href="/analytics" className="text-sm font-medium text-primary underline underline-offset-2">
-        Back to My Analytics
+        Back to Analytics
       </Link>
     </div>
   );

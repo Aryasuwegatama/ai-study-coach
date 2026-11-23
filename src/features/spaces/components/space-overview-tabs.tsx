@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { CountChip } from "@/components/count-chip";
 import { cn } from "@/lib/class-names";
+import { loadSpaceCounts } from "../server/load-space-counts";
 
 type SpaceTabKey = "overview" | "materials" | "quizzes" | "flashcards" | "analytics";
 
 /**
- * Study Space contextual navigation (Figma node 14:273), shared between
- * Overview and Materials (T-09a plan step 2). Overview, Materials, Quizzes
- * (T-12a), Flashcards (T-18) and Analytics (T-15; the old "Progress" tab,
- * renamed after lecturer feedback) are real links.
+ * Study Space section navigation (`.section-tabs` in the redesign
+ * prototype), shared by every space page. These are page links, not ARIA
+ * tabs: a `<nav>` of links with `aria-current="page"` on the active one. The
+ * tabs wrap on narrow screens instead of scrolling sideways, and the active
+ * underline sits inside the tab. The Materials tab shows a count chip while
+ * any material has topics ready to confirm.
  */
 const TABS: ReadonlyArray<{ key: SpaceTabKey; label: string }> = [
   { key: "overview", label: "Overview" },
@@ -17,30 +21,47 @@ const TABS: ReadonlyArray<{ key: SpaceTabKey; label: string }> = [
   { key: "analytics", label: "Analytics" },
 ];
 
-export function SpaceOverviewTabs({ spaceId, active }: { spaceId: string; active: SpaceTabKey }) {
+export async function SpaceOverviewTabs({ spaceId, active }: { spaceId: string; active: SpaceTabKey }) {
+  const { topicsReadyCount } = await loadSpaceCounts(spaceId);
+  return <SpaceTabs spaceId={spaceId} active={active} topicsReadyCount={topicsReadyCount} />;
+}
+
+/** The tab links themselves, with the count passed in (no data reads here). */
+export function SpaceTabs({
+  spaceId,
+  active,
+  topicsReadyCount,
+}: {
+  spaceId: string;
+  active: SpaceTabKey;
+  topicsReadyCount: number;
+}) {
   return (
-    <div
-      role="tablist"
-      aria-label="Study space sections"
-      className="flex items-center gap-1 overflow-x-auto border-b border-border"
-    >
+    <nav aria-label="Study space sections" className="mt-4 flex flex-wrap items-stretch gap-1 border-b border-border">
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         return (
           <Link
-            key={tab.label}
+            key={tab.key}
             href={`/spaces/${spaceId}/${tab.key}`}
-            role="tab"
-            aria-selected={isActive}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
-              "shrink-0 px-3 py-2 text-sm font-medium",
-              isActive ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground",
+              "relative inline-flex min-h-11 items-center gap-2 px-4 py-2 text-sm whitespace-nowrap outline-none hover:bg-surface-hover hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:px-3",
+              isActive
+                ? "font-semibold text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-sm after:bg-primary"
+                : "font-medium text-muted-foreground",
             )}
           >
             {tab.label}
+            {tab.key === "materials" && topicsReadyCount > 0 && (
+              <>
+                <CountChip count={topicsReadyCount} />
+                <span className="sr-only">with topics ready</span>
+              </>
+            )}
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }
