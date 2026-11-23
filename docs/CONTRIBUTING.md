@@ -31,6 +31,7 @@ pnpm dev                  # run the app locally
 pnpm exec eslint .        # lint
 pnpm exec tsc --noEmit    # typecheck
 pnpm build                # production build
+pnpm test                 # integration tests; requires a dedicated DATABASE_URL_TEST
 pnpm run db:generate      # generate a Drizzle migration from schema changes
 pnpm run db:migrate       # apply pending migrations (uses DATABASE_URL_UNPOOLED)
 pnpm run auth:generate    # regenerate the Better Auth Drizzle schema after
@@ -43,8 +44,9 @@ pnpm run check:spaces       # verify Study Space CRUD, ownership and validation
 
 `pnpm run vercel-build` (`drizzle-kit migrate && next build`) is what Vercel
 runs on every deploy, not something you run locally — it migrates whichever
-database that deployment's environment points at before building. Test
-commands will be added here once their scripts exist.
+database that deployment's environment points at before building. Integration
+test setup and remaining manual checks are documented in
+[`docs/evaluation/security/auth-ownership-tests.md`](evaluation/security/auth-ownership-tests.md).
 
 ## Ownership
 
