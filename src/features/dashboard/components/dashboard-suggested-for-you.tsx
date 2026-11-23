@@ -12,7 +12,7 @@ import type { Suggestion } from "@/features/plan/server";
  */
 export function DashboardSuggestedForYou({ suggestions }: { suggestions: Suggestion[] }) {
   return (
-    <Card role="region" aria-labelledby="suggested-title" className="gap-0 border-primary bg-accent p-0">
+    <Card role="region" aria-labelledby="suggested-title" className="gap-0 border-border bg-[linear-gradient(110deg,var(--hero-start),var(--hero-end))] p-0">
       <div className="p-6 max-[420px]:p-4">
         <h2 id="suggested-title" className="text-card-title text-foreground">
           Suggested for you

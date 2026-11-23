@@ -1,6 +1,5 @@
 "use client";
 
-import type { Ref } from "react";
 import Link from "next/link";
 import { Check, Circle, CircleCheck, CircleDashed, KanbanSquare, Play, Plus, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,21 +52,19 @@ export function PlanOverviewCard({
   onMove,
   onAdd,
   className,
-  ref,
 }: {
   items: PlanItemResponse[];
   busy: boolean;
   onMove: (item: PlanItemResponse, stage: PlanStage) => void;
   onAdd: () => void;
   className?: string;
-  ref?: Ref<HTMLDivElement>;
 }) {
   const columns = itemsByStage(items);
   const open = columns.todo.length + columns.doing.length;
   const moreTodo = columns.todo.length - UP_NEXT;
 
   return (
-    <Card ref={ref} className={cn("gap-0 p-0", className)}>
+    <Card className={cn("gap-0 p-0", className)}>
       <header className="flex flex-col gap-4 p-6 max-sm:p-4">
         <div>
           <h2 id="plan-heading" className="flex items-center gap-2 text-section text-foreground">

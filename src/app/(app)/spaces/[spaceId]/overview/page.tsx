@@ -11,6 +11,7 @@ import { getUnfinishedDecks, getUnfinishedQuizzes } from "@/features/plan/server
 import { getSpaceProgress } from "@/features/progress/server";
 import { listSets } from "@/features/quizzes/server";
 import { listTopics } from "@/features/topics/server";
+import { StickyEndColumn } from "@/components/sticky-end-column";
 import { SpaceHeader } from "@/features/spaces/components/space-header";
 import { SpaceOverviewEmptyState } from "@/features/spaces/components/space-overview-empty-state";
 import { SpaceOverviewMetrics } from "@/features/spaces/components/space-overview-metrics";
@@ -126,25 +127,27 @@ async function SpaceOverviewContent({ params }: { params: Promise<{ spaceId: str
         <SpaceOverviewNotice spaceId={space.id} materials={materials} />
         <SpaceOverviewMetrics spaceId={space.id} materials={materials} topics={progress.topics} sets={sets} />
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <div className="flex min-w-0 flex-col gap-6">
+          <StickyEndColumn className="flex flex-col gap-6">
             <SpaceOverviewResume spaceId={space.id} resume={resume} />
             <MaterialsOverviewCard spaceId={space.id} materials={materials} />
             <SpaceOverviewMistakes spaceId={space.id} mistakes={mistakes} />
-          </div>
+          </StickyEndColumn>
           {/* `key` forces a remount when the server data changes. With
               `cacheComponents`, Activity keeps a hidden route's client
               components mounted and reuses them on return (see
               node_modules/next/dist/docs/.../cacheComponents.md, "Navigation
               with Activity"), so new props alone wouldn't refresh this
               card's `useState`-copied lists (Codex review, T-09c #44). */}
-          <ConfirmedTopicsCard
-            key={[...linkedTopics, ...unlinkedTopics].map((topic) => `${topic.id}:${topic.updatedAt}`).join(",")}
-            spaceId={space.id}
-            initialLinkedTopics={linkedTopics}
-            initialUnlinkedTopics={unlinkedTopics}
-            progressByTopic={progressByTopic}
-            hasMaterialAwaitingReview={hasMaterialAwaitingReview}
-          />
+          <StickyEndColumn>
+            <ConfirmedTopicsCard
+              key={[...linkedTopics, ...unlinkedTopics].map((topic) => `${topic.id}:${topic.updatedAt}`).join(",")}
+              spaceId={space.id}
+              initialLinkedTopics={linkedTopics}
+              initialUnlinkedTopics={unlinkedTopics}
+              progressByTopic={progressByTopic}
+              hasMaterialAwaitingReview={hasMaterialAwaitingReview}
+            />
+          </StickyEndColumn>
         </div>
       </div>
     </>

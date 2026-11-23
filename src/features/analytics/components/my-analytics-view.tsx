@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountChip } from "@/components/count-chip";
 import { PageHead } from "@/components/page-container";
+import { StickyEndColumn } from "@/components/sticky-end-column";
 import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
 import type { MasteryStatus, SpaceProgress } from "@/features/progress/progress-schemas";
 import {
@@ -107,7 +108,8 @@ function SpaceCard({ space }: { space: SpaceProgress }) {
  * Analytics (redesign prototype `analytics.html`): one card per Study Space
  * with its topic counts by status, its weakest topics and its open mistakes,
  * plus a comparison of open mistakes per space and the status rules.
- * Deliberately no overall score and no average across topics, and no trend
+ * On wide screens the shorter column stays in view while the other scrolls
+ * (`StickyEndColumn`). Deliberately no overall score and no average across topics, and no trend
  * chart, attempt counts, flashcards card or period selector (no data behind
  * them yet).
  */
@@ -139,53 +141,57 @@ export function MyAnalyticsView({ spaces }: { spaces: SpaceProgress[] }) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(17rem,1fr)]">
-          <section aria-labelledby="spaces-heading" className="flex min-w-0 flex-col gap-4">
-            <h2 id="spaces-heading" className="flex items-center gap-2 text-section text-foreground">
-              Your Study Spaces <CountChip count={spaces.length} />
-            </h2>
-            {!anyAssessed && (
-              <Card className="gap-1 p-6 max-sm:p-4">
-                <h3 className="text-card-title text-foreground">No results yet</h3>
-                <p className="text-sm text-muted-foreground">
-                  Take a quiz and your topic mastery shows up here. You need 5 answered questions in a topic to get a
-                  percentage.
-                </p>
-              </Card>
-            )}
-            <ul className="flex flex-col gap-4">
-              {spaces.map((space) => (
-                <li key={space.spaceId}>
-                  <SpaceCard space={space} />
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <aside aria-label="Across your Study Spaces" className="flex min-w-0 flex-col gap-6">
-            <Card className="gap-4 p-6 max-sm:p-4">
-              <div>
-                <h2 className="text-card-title text-foreground">Mistakes to review</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Open mistakes in each Study Space. This is a count of questions to revisit, not a score.
-                </p>
-              </div>
-              <AnalyticsMistakesChart
-                spaces={spaces.map((s) => ({ spaceId: s.spaceId, name: s.spaceName, mistakes: totalMistakes(s.topics) }))}
-              />
-            </Card>
-            <Card className="gap-4 p-6 max-sm:p-4">
-              <h2 className="text-card-title text-foreground">How mastery works</h2>
+          <StickyEndColumn>
+            <section aria-labelledby="spaces-heading" className="flex min-w-0 flex-col gap-4">
+              <h2 id="spaces-heading" className="flex items-center gap-2 text-section text-foreground">
+                Your Study Spaces <CountChip count={spaces.length} />
+              </h2>
+              {!anyAssessed && (
+                <Card className="gap-1 p-6 max-sm:p-4">
+                  <h3 className="text-card-title text-foreground">No results yet</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Take a quiz and your topic mastery shows up here. You need 5 answered questions in a topic to get a
+                    percentage.
+                  </p>
+                </Card>
+              )}
               <ul className="flex flex-col gap-4">
-                {RULES_ORDER.map((status) => (
-                  <li key={status} className="flex flex-col items-start gap-1">
-                    <MasteryPill status={status} />
-                    <span className="text-sm text-muted-foreground">{RULES[status]}</span>
+                {spaces.map((space) => (
+                  <li key={space.spaceId}>
+                    <SpaceCard space={space} />
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-muted-foreground">Each topic uses your latest 10 answered questions in that topic.</p>
-            </Card>
-          </aside>
+            </section>
+          </StickyEndColumn>
+
+          <StickyEndColumn>
+            <aside aria-label="Across your Study Spaces" className="flex min-w-0 flex-col gap-6">
+              <Card className="gap-4 p-6 max-sm:p-4">
+                <div>
+                  <h2 className="text-card-title text-foreground">Mistakes to review</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Open mistakes in each Study Space. This is a count of questions to revisit, not a score.
+                  </p>
+                </div>
+                <AnalyticsMistakesChart
+                  spaces={spaces.map((s) => ({ spaceId: s.spaceId, name: s.spaceName, mistakes: totalMistakes(s.topics) }))}
+                />
+              </Card>
+              <Card className="gap-4 p-6 max-sm:p-4">
+                <h2 className="text-card-title text-foreground">How mastery works</h2>
+                <ul className="flex flex-col gap-4">
+                  {RULES_ORDER.map((status) => (
+                    <li key={status} className="flex flex-col items-start gap-1">
+                      <MasteryPill status={status} />
+                      <span className="text-sm text-muted-foreground">{RULES[status]}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-muted-foreground">Each topic uses your latest 10 answered questions in that topic.</p>
+              </Card>
+            </aside>
+          </StickyEndColumn>
         </div>
       )}
     </>

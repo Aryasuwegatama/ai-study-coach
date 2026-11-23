@@ -13,7 +13,7 @@ export function SpaceOverviewMistakes({ spaceId, mistakes }: { spaceId: string; 
   if (mistakes <= 0) return null;
 
   return (
-    <Card role="region" aria-labelledby="mistakes-title" className="gap-2 border-primary bg-accent p-6 max-sm:p-4">
+    <Card role="region" aria-labelledby="mistakes-title" className="gap-2 border-border bg-[linear-gradient(110deg,var(--hero-start),var(--hero-end))] p-6 max-sm:p-4">
       <h2 id="mistakes-title" className="font-semibold text-foreground">
         Revisit your mistakes
       </h2>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Lightbulb } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountChip } from "@/components/count-chip";
 import { PageHead } from "@/components/page-container";
+import { StickyEndColumn } from "@/components/sticky-end-column";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 import { PlanClientError, type PlanClient } from "../client/plan-client";
@@ -15,7 +16,6 @@ import type { PlanItemResponse, PlanStage, Suggestion } from "../plan-schemas";
 import { isInPlan } from "../plan-format";
 import { PlanItemDialog, type PlanItemFormValues } from "./plan-item-dialog";
 import { PlanOverviewCard } from "./plan-overview-card";
-import { usePlanStickyEnd } from "./plan-sticky-end";
 import { SuggestionRow } from "./suggestion-row";
 
 const SUGGESTIONS_SHOWN = 8;
@@ -27,8 +27,6 @@ type LoadState = { status: "loading" } | { status: "error"; message: string } | 
 
 /** Two columns from `lg`: the student's plan on the left, suggestions on the right. */
 const LAYOUT = "grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(20rem,1fr)]";
-/** The plan card stays in view while the suggestions scroll (see `usePlanStickyEnd`). */
-const STICKY_END = "lg:sticky lg:top-[min(1.5rem,calc(100vh_-_var(--sticky-height,0px)_-_1.5rem))]";
 
 /**
  * My Plan (T-15; redesign prototype `my-plan.html`): the student's own plan at
@@ -47,8 +45,6 @@ export function MyPlanView({ client }: { client: PlanClient }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [adding, setAdding] = useState(false);
-  const planCard = useRef<HTMLDivElement>(null);
-  usePlanStickyEnd(planCard);
 
   useEffect(() => {
     let ignore = false;
@@ -167,55 +163,57 @@ export function MyPlanView({ client }: { client: PlanClient }) {
         </Alert>
       )}
       <div className={LAYOUT}>
-        <PlanOverviewCard
-          ref={planCard}
-          className={STICKY_END}
-          items={items}
-          busy={busy}
-          onMove={(item, stage: PlanStage) => void mutate(() => client.updateItem(item.id, { stage }))}
-          onAdd={() => setAdding(true)}
-        />
+        <StickyEndColumn>
+          <PlanOverviewCard
+            items={items}
+            busy={busy}
+            onMove={(item, stage: PlanStage) => void mutate(() => client.updateItem(item.id, { stage }))}
+            onAdd={() => setAdding(true)}
+          />
+        </StickyEndColumn>
 
-        <section aria-labelledby="suggested-heading" className="flex min-w-0 flex-col gap-4">
-          <div>
-            <h2 id="suggested-heading" className="flex items-center gap-2 text-section text-foreground">
-              Suggested for you <CountChip count={suggestions.length} />
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Most useful first. Nothing here is required. Add one and it goes into To do.</p>
-          </div>
-          {suggestions.length === 0 ? (
-            <Card className="items-center gap-3 px-6 py-10 text-center">
-              <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
-                <Lightbulb className="size-5" aria-hidden="true" />
-              </span>
-              <h3 className="text-card-title text-foreground">No suggestions yet</h3>
-              <p className="text-muted-foreground">No suggestions yet. Take a quiz to get some.</p>
-              <Button variant="outline" nativeButton={false} render={<Link href="/spaces" />}>
-                Go to Study Spaces
-              </Button>
-            </Card>
-          ) : (
-            <>
-              <ul className="flex flex-col gap-4">
-                {shown.map((suggestion) => (
-                  <li key={suggestion.key}>
-                    <SuggestionRow
-                      suggestion={suggestion}
-                      inPlan={isInPlan(suggestion.plan, items)}
-                      busy={busy}
-                      onAdd={(s) => void mutate(() => client.createItem({ ...s.plan, title: s.title }))}
-                    />
-                  </li>
-                ))}
-              </ul>
-              {suggestions.length > SUGGESTIONS_SHOWN && (
-                <Button type="button" variant="outline" className="w-fit" onClick={() => setShowAll((value) => !value)}>
-                  {showAll ? "Show fewer" : `Show all (${suggestions.length})`}
+        <StickyEndColumn>
+          <section aria-labelledby="suggested-heading" className="flex min-w-0 flex-col gap-4">
+            <div>
+              <h2 id="suggested-heading" className="flex items-center gap-2 text-section text-foreground">
+                Suggested for you <CountChip count={suggestions.length} />
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">Most useful first. Nothing here is required. Add one and it goes into To do.</p>
+            </div>
+            {suggestions.length === 0 ? (
+              <Card className="items-center gap-3 px-6 py-10 text-center">
+                <span className="flex size-12 items-center justify-center rounded-lg bg-accent text-primary">
+                  <Lightbulb className="size-5" aria-hidden="true" />
+                </span>
+                <h3 className="text-card-title text-foreground">No suggestions yet</h3>
+                <p className="text-muted-foreground">No suggestions yet. Take a quiz to get some.</p>
+                <Button variant="outline" nativeButton={false} render={<Link href="/spaces" />}>
+                  Go to Study Spaces
                 </Button>
-              )}
-            </>
-          )}
-        </section>
+              </Card>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-4">
+                  {shown.map((suggestion) => (
+                    <li key={suggestion.key}>
+                      <SuggestionRow
+                        suggestion={suggestion}
+                        inPlan={isInPlan(suggestion.plan, items)}
+                        busy={busy}
+                        onAdd={(s) => void mutate(() => client.createItem({ ...s.plan, title: s.title }))}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                {suggestions.length > SUGGESTIONS_SHOWN && (
+                  <Button type="button" variant="outline" className="w-fit" onClick={() => setShowAll((value) => !value)}>
+                    {showAll ? "Show fewer" : `Show all (${suggestions.length})`}
+                  </Button>
+                )}
+              </>
+            )}
+          </section>
+        </StickyEndColumn>
       </div>
 
       {adding && (
