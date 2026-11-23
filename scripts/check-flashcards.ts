@@ -35,7 +35,7 @@ import type { PlanItemResponse, Suggestion } from "../src/features/plan/plan-sch
 import { getDashboardSummary } from "../src/features/dashboard/server/dashboard-service";
 import { POST as practiceRoute } from "../src/app/api/sets/[id]/practice/route";
 import { POST as ratingRoute } from "../src/app/api/items/[id]/rating/route";
-import { DELETE as deleteSetRoute } from "../src/app/api/sets/[id]/route";
+import { DELETE as deleteSetRoute, PATCH as renameSetRoute } from "../src/app/api/sets/[id]/route";
 import { GET as listRoute } from "../src/app/api/spaces/[spaceId]/sets/route";
 import { POST as startAttemptRoute } from "../src/app/api/sets/[id]/attempts/route";
 import { PATCH as answerRoute } from "../src/app/api/attempts/[id]/answers/route";
@@ -328,6 +328,17 @@ async function e2e(a: Session, b: Session, userA: SessionUser) {
   const listedOther2 = decks.find((d) => d.id === other.set.id)!;
   check("List: in progress shows ratedCount 2 of 4", listedMain2.latestSession.status === "in_progress" && listedMain2.latestSession.ratedCount === 2 && listedMain2.latestSession.totalCount === 4);
   check("List: a completed deck shows Got it 1 · Again 1 of 2", listedOther2.latestSession.status === "completed" && listedOther2.latestSession.gotIt === 1 && listedOther2.latestSession.again === 1 && listedOther2.latestSession.total === 2);
+  // Topic tags and renaming a deck (UI redesign, 2026-11-23).
+  check(
+    "List: each deck carries its topics with names, in the chosen order (the card's tags)",
+    listedMain.topics.length > 0 && listedMain.topics.map((t) => t.id).join() === listedMain.topicIds.join() && listedMain.topics.every((t) => t.name.length > 0),
+  );
+  let renameRes = await renameSetRoute(req(`/api/sets/${main.set.id}`, a, "PATCH", { title: "  Keys deck  " }), p({ id: main.set.id }));
+  check("Rename a deck: 200, trimmed", renameRes.status === 200 && ((await renameRes.json()) as { set: { title: string } }).set.title === "Keys deck");
+  renameRes = await renameSetRoute(req(`/api/sets/${main.set.id}`, b, "PATCH", { title: "Hijacked" }), p({ id: main.set.id }));
+  check("Rename a deck: someone else's → 404 SET_NOT_FOUND", renameRes.status === 404 && (await errorCode(renameRes)) === "SET_NOT_FOUND");
+  renameRes = await renameSetRoute(req(`/api/sets/${main.set.id}`, a, "PATCH", { title: "Keys and indexes" }), p({ id: main.set.id }));
+  check("Rename a deck: back to its original name", renameRes.status === 200);
   check("List: another student sees none of these decks, and their own space is 404 to us", (await (await listRoute(req(`/api/spaces/${space.id}/sets?kind=deck`, b), p({ spaceId: space.id }))).status) === 404);
 
   // --- Cards from a deleted material leave practice -----------------------------------------------

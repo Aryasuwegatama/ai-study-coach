@@ -5,7 +5,7 @@ import { createApiQuizzesClient } from "../client/api-quizzes-client";
 import { QuizzesClientError } from "../client/quizzes-client";
 import type { SetListItemResponse } from "../quizzes-schemas";
 import { useQuizzesList } from "../hooks/use-quizzes-list";
-import { RenameQuizDialog } from "./rename-quiz-dialog";
+import { RenameSetDialog } from "./rename-set-dialog";
 import { DeleteQuizDialog } from "./delete-quiz-dialog";
 import { QuizLibrary } from "./quiz-library";
 import { QuizzesListError } from "./quizzes-list-error";
@@ -55,13 +55,14 @@ export function QuizzesPageClient({ spaceId }: { spaceId: string }) {
           setRenameTarget(quiz);
         }}
       />
-      <RenameQuizDialog
-        quiz={renameTarget}
+      <RenameSetDialog
+        set={renameTarget}
+        noun="quiz"
         open={renameTarget !== null}
         onOpenChange={(open) => {
           if (!open) setRenameTarget(null);
         }}
-        client={client}
+        rename={client.renameSet}
         onRenamed={() => void refresh()}
       />
       <DeleteQuizDialog

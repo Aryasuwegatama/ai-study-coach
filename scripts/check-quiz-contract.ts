@@ -47,6 +47,8 @@ async function main() {
   check("Quiz name: optional (left out is valid)", createSetSchema.safeParse(quiz({})).success);
   const named = createSetSchema.safeParse(quiz({ title: "  Week 4 practice  " }));
   check("Quiz name: trimmed", named.success && named.data.kind === "quiz" && named.data.title === "Week 4 practice");
+  const deckNamed = createSetSchema.safeParse({ kind: "deck", materialIds: [id()], topicIds: [id()], cardStyle: "recall", count: 5, title: " Key terms " });
+  check("Deck name: optional and trimmed", deckNamed.success && deckNamed.data.kind === "deck" && deckNamed.data.title === "Key terms");
   check("Quiz name: blank or over 80 characters is invalid", !createSetSchema.safeParse(quiz({ title: "   " })).success && !createSetSchema.safeParse(quiz({ title: "x".repeat(81) })).success);
   check("Quiz: a card style on a quiz request is stripped, count rules unchanged", (() => {
     const r = createSetSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 5, cardStyle: "recall" });

@@ -7,36 +7,44 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SET_TITLE_MAX, type SetListItemResponse } from "../quizzes-schemas";
-import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client";
+import { SET_TITLE_MAX } from "../quizzes-schemas";
+
+/** What each kind of set is called, and what renaming leaves untouched. */
+const WORDS = {
+  quiz: { title: "Rename quiz", label: "Quiz name", empty: "Give this quiz a name.", kept: "Your results and questions stay the same." },
+  deck: { title: "Rename deck", label: "Deck name", empty: "Give this deck a name.", kept: "Your cards and ratings stay the same." },
+} as const;
 
 /**
- * Rename a quiz (UI redesign, Arya, 2026-11-23): the name is the only thing
- * a student can change. Same layout as `RenameTopicDialog`. Its results,
- * questions and topics stay as they are.
+ * Rename a quiz or a deck (UI redesign, Arya, 2026-11-23): the name is the
+ * only thing a student can change. Same layout as `RenameTopicDialog`.
+ * `rename` calls the screen's own client; a client error's message is shown.
  */
-export function RenameQuizDialog({
-  quiz,
+export function RenameSetDialog({
+  set: target,
+  noun,
   open,
   onOpenChange,
-  client,
+  rename,
   onRenamed,
 }: {
-  quiz: SetListItemResponse | null;
+  set: { id: string; title: string } | null;
+  noun: keyof typeof WORDS;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  client: QuizzesClient;
+  rename: (setId: string, title: string) => Promise<unknown>;
   onRenamed: () => void;
 }) {
-  const [name, setName] = useState(quiz?.title ?? "");
+  const words = WORDS[noun];
+  const [name, setName] = useState(target?.title ?? "");
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
 
-  // Re-sync the field when a different quiz opens the dialog (adjusted during render, as in RenameTopicDialog).
-  const [prevQuizId, setPrevQuizId] = useState(quiz?.id ?? null);
-  if ((quiz?.id ?? null) !== prevQuizId) {
-    setPrevQuizId(quiz?.id ?? null);
-    setName(quiz?.title ?? "");
+  // Re-sync the field when a different quiz or deck opens the dialog (adjusted during render, as in RenameTopicDialog).
+  const [prevTargetId, setPrevTargetId] = useState(target?.id ?? null);
+  if ((target?.id ?? null) !== prevTargetId) {
+    setPrevTargetId(target?.id ?? null);
+    setName(target?.title ?? "");
     setError(undefined);
   }
 
@@ -47,10 +55,10 @@ export function RenameQuizDialog({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!quiz || pending) return;
+    if (!target || pending) return;
     const trimmed = name.trim();
     if (trimmed.length === 0) {
-      setError("Give this quiz a name.");
+      setError(words.empty);
       return;
     }
     if (trimmed.length > SET_TITLE_MAX) {
@@ -61,11 +69,12 @@ export function RenameQuizDialog({
     setPending(true);
     setError(undefined);
     try {
-      await client.renameSet(quiz.id, trimmed);
+      await rename(target.id, trimmed);
       onRenamed();
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof QuizzesClientError ? err.message : "Something went wrong. Please try again.");
+      // Both clients throw an error with a server `code` and a message fit to show.
+      setError(err instanceof Error && "code" in err ? err.message : "Something went wrong. Please try again.");
     } finally {
       setPending(false);
     }
@@ -76,22 +85,22 @@ export function RenameQuizDialog({
       <DialogContent className="sm:max-w-[528px]">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>Rename quiz</DialogTitle>
+            <DialogTitle>{words.title}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="rename-quiz-name">Quiz name</Label>
+            <Label htmlFor="rename-set-name">{words.label}</Label>
             <Input
-              id="rename-quiz-name"
+              id="rename-set-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={SET_TITLE_MAX}
               disabled={pending}
               aria-invalid={!!error}
-              aria-describedby="rename-quiz-help"
+              aria-describedby="rename-set-help"
               autoFocus
             />
-            <p id="rename-quiz-help" className="text-sm text-muted-foreground">
-              Up to {SET_TITLE_MAX} characters. Your results and questions stay the same.
+            <p id="rename-set-help" className="text-sm text-muted-foreground">
+              Up to {SET_TITLE_MAX} characters. {words.kept}
             </p>
             {error && (
               <p role="alert" className="text-sm font-medium text-destructive">

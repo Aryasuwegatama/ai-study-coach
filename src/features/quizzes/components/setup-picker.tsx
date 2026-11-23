@@ -18,7 +18,7 @@ import type { SetResponse } from "../quizzes-schemas";
 
 /**
  * The materials-and-topics half of a generation setup screen, shared by the
- * Generate quiz and Generate flashcards forms (T-18 extracted it from
+ * Create quiz and Create flashcards forms (T-18 extracted it from
  * `quiz-setup-form.tsx` so decks don't copy it; the quiz form behaves as
  * before). The hook loads the Ready materials with their confirmed topics and
  * tracks what is ticked; `SetupPickerStatus` and `SetupMaterialList` draw it.

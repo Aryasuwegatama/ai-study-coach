@@ -108,6 +108,13 @@ export async function listDecks(user: SessionUser, spaceId: string): Promise<Dec
   const practisableBySet = new Map<string, string[]>();
   for (const c of cards) practisableBySet.set(c.setId, [...(practisableBySet.get(c.setId) ?? []), c.id]);
 
+  // Current topic names for the tags (a rename shows the new name).
+  const allTopicIds = [...new Set(rows.flatMap((r) => r.topicIds))];
+  const topicRows = allTopicIds.length
+    ? await db.select({ id: topics.id, name: topics.name }).from(topics).where(inArray(topics.id, allTopicIds))
+    : [];
+  const topicNameById = new Map(topicRows.map((t) => [t.id, t.name]));
+
   return rows.map((row) => {
     const cardIds = practisableBySet.get(row.id) ?? [];
     const practisableCount = cardIds.length;
@@ -125,7 +132,11 @@ export async function listDecks(user: SessionUser, spaceId: string): Promise<Dec
         latestSession = { status: "completed", sessionId: latest.id, gotIt, again: values.length - gotIt, total: values.length };
       }
     }
-    return { ...toSetResponse(row), latestSession, practisableCount };
+    const deckTopics = row.topicIds.flatMap((id) => {
+      const name = topicNameById.get(id);
+      return name ? [{ id, name }] : [];
+    });
+    return { ...toSetResponse(row), latestSession, practisableCount, topics: deckTopics };
   });
 }
 

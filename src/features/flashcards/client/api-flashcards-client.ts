@@ -59,6 +59,11 @@ export function createApiFlashcardsClient(spaceId: string): FlashcardsClient {
       await requestJson<void>(`/api/sets/${setId}`, { method: "DELETE" });
     },
 
+    async renameDeck(setId, title) {
+      const data = await requestJson<{ set: SetResponse }>(`/api/sets/${setId}`, jsonInit("PATCH", { title }));
+      return data.set;
+    },
+
     async startOrResumePractice(setId) {
       const data = await requestJson<{ session: DeckSessionResponse }>(`/api/sets/${setId}/practice`, { method: "POST" });
       return data.session;

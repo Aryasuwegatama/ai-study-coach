@@ -323,6 +323,7 @@ async function e2e(a: Session, b: Session) {
   const deckTopics = topicIds.slice(0, 3);
   res = await createDeck(a, { topicIds: deckTopics, cardStyle: "recall", count: 5 });
   const recallDeck = await setOf(res);
+  check("Deck create: no name given → \"Deck 1\" (topics are tags, not the name)", recallDeck.title === "Deck 1", recallDeck.title);
   check(
     "Deck create: 202, generating, kind deck, card style recall, retrieve published on the generation flow",
     res.status === 202 && recallDeck.status === "generating" && recallDeck.kind === "deck" && recallDeck.cardStyle === "recall" && queue.at(-1)?.message.step === "retrieve" && queue.at(-1)?.options.flow === "generation",
@@ -372,8 +373,9 @@ async function e2e(a: Session, b: Session) {
   );
 
   // Mix: half and half, recall takes the odd one.
-  res = await createDeck(a, { cardStyle: "mix", count: 5 });
+  res = await createDeck(a, { cardStyle: "mix", count: 5, title: "  Mix practice  " });
   const mixOdd = await setOf(res);
+  check("Deck create: the student's own deck name is kept, trimmed", mixOdd.title === "Mix practice", mixOdd.title);
   await drain();
   const mixOddItems = await itemsOf(mixOdd.id);
   check("Mix of 5 (one topic): 3 recall and 2 short answer", mixOddItems.filter((i) => i.kind === "recall").length === 3 && mixOddItems.filter((i) => i.kind === "short_answer").length === 2);

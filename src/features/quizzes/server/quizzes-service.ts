@@ -89,22 +89,14 @@ export async function createSet(user: SessionUser, spaceId: string, input: Creat
   if (input.topicIds.length > input.count) throw quizError("TOO_MANY_TOPICS", isDeck ? TOO_MANY_TOPICS_DECK_MESSAGE : undefined);
   const jobKind = isDeck ? "generate_deck" : "generate_quiz";
 
-  // A quiz takes the student's own name, or "Quiz N" (its topics show as tags, not in the name).
-  // A deck keeps its topic-based name until the flashcards screens are redesigned.
-  let title: string;
-  if (input.kind === "quiz") {
-    if (input.title) {
-      title = input.title;
-    } else {
-      const [{ existing }] = await db
-        .select({ existing: count() })
-        .from(studySets)
-        .where(and(eq(studySets.spaceId, space.id), eq(studySets.kind, "quiz")));
-      title = `Quiz ${existing + 1}`;
-    }
-  } else {
-    const names = input.topicIds.map((id) => linked.find((t) => t.id === id)!.name);
-    title = names.length <= 2 ? names.join(" & ") : `${names[0]}, ${names[1]} +${names.length - 2}`;
+  // The student's own name, or "Quiz N" / "Deck N" (its topics show as tags, not in the name).
+  let title = input.title;
+  if (!title) {
+    const [{ existing }] = await db
+      .select({ existing: count() })
+      .from(studySets)
+      .where(and(eq(studySets.spaceId, space.id), eq(studySets.kind, input.kind)));
+    title = `${input.kind === "quiz" ? "Quiz" : "Deck"} ${existing + 1}`;
   }
   const tz = safeTimeZone(user.timeZone);
 

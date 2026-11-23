@@ -93,12 +93,12 @@ const materialAndTopicIds = {
   topicIds: uuidList("topics"),
 };
 
-/** A quiz's name: the student's own, or "Quiz 3" when left blank (UI redesign, Arya, 2026-11-23). */
+/** A quiz's or deck's name: the student's own, or "Quiz 3" / "Deck 3" when left blank (UI redesign, Arya, 2026-11-23). */
 export const SET_TITLE_MAX = 80;
 const setTitle = z
-  .string("Give this quiz a name.")
+  .string("Give it a name.")
   .trim()
-  .min(1, "Give this quiz a name.")
+  .min(1, "Give it a name.")
   .max(SET_TITLE_MAX, `Keep the name to ${SET_TITLE_MAX} characters or fewer.`);
 
 export const createQuizSchema = z.object({
@@ -116,6 +116,8 @@ export const createDeckSchema = z.object({
   kind: z.literal("deck"),
   ...materialAndTopicIds,
   cardStyle: z.enum(CARD_STYLES, { error: "Choose Recall, Short answer or Mix." }),
+  /** Optional: left out, the server names it "Deck N" (the next number in that space). */
+  title: setTitle.optional(),
   count: z
     .number({ error: `Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.` })
     .int(`Choose between ${CARD_COUNT_MIN} and ${CARD_COUNT_MAX} cards.`)

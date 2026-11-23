@@ -64,6 +64,8 @@ export type LatestSessionSummary =
 export type DeckListItemResponse = SetResponse & {
   latestSession: LatestSessionSummary;
   practisableCount: number;
+  /** The deck's topics with their current names, in the order chosen (shown as tags). */
+  topics: { id: string; name: string }[];
 };
 
 export type PracticeCard = {
