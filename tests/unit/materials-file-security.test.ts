@@ -12,12 +12,28 @@ import {
   materialTestPdf,
   materialTestPptx,
   missingPresentationArchive,
+  materialSecurityFixture,
 } from "../helpers/materials-test-files";
 
 describe("T-10 file verification and bounded extraction", () => {
   it.each([
-    ["fake PDF", "notes.pdf", () => Buffer.from("synthetic plain text")],
-    ["ZIP without presentation", "slides.pptx", missingPresentationArchive],
+    [
+      "fake PDF",
+      "notes.pdf",
+      () =>
+        materialSecurityFixture("invalid-pdf.pdf", () =>
+          Buffer.from("synthetic plain text"),
+        ),
+    ],
+    [
+      "ZIP without presentation",
+      "slides.pptx",
+      () =>
+        materialSecurityFixture(
+          "missing-presentation.pptx",
+          missingPresentationArchive,
+        ),
+    ],
     ["invalid UTF-8", "notes.txt", () => Buffer.from([0xc3, 0x28])],
     ["NUL in UTF-8", "notes.txt", () => Buffer.from("safe\0unsafe")],
     ["zero bytes", "notes.txt", () => Buffer.alloc(0)],
@@ -57,7 +73,9 @@ describe("T-10 file verification and bounded extraction", () => {
   });
 
   it("SEC-UPLOAD-03: whitespace is valid UTF-8 but cannot become readable study content", async () => {
-    const bytes = Buffer.from(" \t\r\n \n");
+    const bytes = materialSecurityFixture("whitespace-only.txt", () =>
+      Buffer.from(" \t\r\n \n"),
+    );
     expect(checkUploadedFile("notes.txt", bytes).ok).toBe(true);
     await expect(extractMaterialText("notes.txt", bytes)).rejects.toMatchObject(
       { code: "NO_READABLE_TEXT" },

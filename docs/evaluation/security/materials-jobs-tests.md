@@ -4,13 +4,13 @@ Owner: Khushi. Issue: [#55](https://github.com/Aryasuwegatama/ai-study-coach/iss
 
 ## Status
 
-All **62 tests passed on two consecutive full runs**: 30 database-free tests and 32 integration tests. The separate `test` database was verified before applying the 12 existing migrations. The setup/helpers from [#20](https://github.com/Aryasuwegatama/ai-study-coach/issues/20) were temporarily loaded from its saved local branch for verification, not duplicated in this branch's commit. A fresh checkout still needs that reviewed infrastructure merged. Real private-store enforcement, review and merge remain outstanding; this task is not yet Done.
+All **62 T-10 tests passed on two consecutive full runs**: 30 database-free tests and 32 integration tests. The separate `test` database was verified before applying the 12 existing migrations. This branch now includes the shared setup from [PR #56](https://github.com/Aryasuwegatama/ai-study-coach/pull/56) as a Git dependency, so verification no longer needs a temporary file overlay. T-10's PR is based on that branch to keep its diff limited to T-10; merge #56 first, then retarget T-10 to main. Review and merge remain outstanding. Live provider calls are explicitly outside #55's scope; the SDK-versus-provider distinction remains documented rather than treated as a false passing result.
 
-No application code, existing scripts, schema, migrations or dependency files changed. The superseded T-15a draft was preserved in a named Git stash before this branch was created; it is not included in T-10. The T-10 task-map row records actual progress. No credentials or real lecture files are embedded in the tests; the private connection settings are loaded from the ignored local environment.
+T-10's diff against #56 changes no application code, existing scripts, schema, migrations or dependency files. The inherited setup/package changes belong to #56. The superseded T-15a draft was preserved in a named Git stash and is not included. The T-10 task-map row records actual progress. No credentials or real lecture files are embedded in the tests; private connection settings are loaded from the ignored local environment.
 
 ## Running
 
-T-10 uses **the Vitest dependency already prepared by T-07b**. It is not currently declared on main; these local checks used the existing installation from that task. On a fresh checkout, merge the reviewed #20 setup first, then `pnpm install`. Do not add a duplicate runner or commit a separate dependency change here.
+T-10 uses **T-07b's Vitest dependency and setup from #56**, inherited in this dependent branch. On checkout run `pnpm install` and privately configure the dedicated test database. No duplicate runner or dependency change is introduced by T-10. For merging into main, #56 must land first.
 
 Database-free checks:
 
@@ -30,7 +30,7 @@ Integration only:
 pnpm exec vitest run --config tests/materials-jobs.config.mts --project t10-integration
 ```
 
-The scoped config separates database-free and database-dependent suites. `materials-shared-setup.ts` imports #20's original `test-database-setup.ts`; it does not implement another environment loader, migration/reset routine or pool. The integration fixture calls #20's original `createTestStudents()`; it does not create a second auth factory. Until those files land, the missing-setup error remains intentional. The full suite passed twice using that setup locally. The existing broad `pnpm test` command from #20 will also discover these test files.
+The scoped config separates database-free and database-dependent suites. `materials-shared-setup.ts` imports #20's original `test-database-setup.ts`; it does not implement another environment loader, migration/reset routine or pool. The integration fixture calls #20's original `createTestStudents()` rather than a second auth factory. Both files are inherited from #56. The broad `pnpm test` command also discovers these test files; `AUTH_PAGE_TESTS=1` enables #20's two optional HTTP tests when a current local build is available.
 
 ## What the suites exercise
 
@@ -43,7 +43,7 @@ The scoped config separates database-free and database-dependent suites. `materi
 | `tests/integration/materials-worker-retry.test.ts` | SEC-JOB-02/03, SEC-DELETE-01: real signature route, runner, transactions, claims and extraction; fake storage/publisher. Controlled concurrent delivery/replay, live/expired lease, stale claim, exact retry budget, explicit Retry reusing its job, permanent failure, publish failure and deletion mid-read. **Passed in both full runs.** |
 | `tests/integration/materials-source-isolation.test.ts` | SEC-RAG-01, SEC-SOURCE-01, SEC-OWNER-01: actual pgvector retrieval with B's vector closer than A's, same-owner different-space vectors, selected-material filtering and inspection of executed SQL; direct chunk/topic composite-FK rejection; foreign topic denial; injected topic ID cannot edit/reparent an existing foreign topic; chunk cascade deletion and parent ownership gate. **Passed in both full runs.** |
 
-Case IDs follow the catalogue proposed in [T-07a PR #51](https://github.com/Aryasuwegatama/ai-study-coach/pull/51); reconcile reviewed definitions when it merges. Fixtures here are generated at runtime, so the pending PR's binary fixtures were not copied into this branch. Add reviewed committed fixture paths when available if they cover additional behaviour. Quiz publication/item-source membership and live prompt-injection evaluation remain T-13; scoring remains T-16.
+Case IDs follow the catalogue proposed in [T-07a PR #51](https://github.com/Aryasuwegatama/ai-study-coach/pull/51); reconcile review changes when it merges. The file-test helper reads its shared fake-PDF, missing-presentation and whitespace fixtures when present; until then it generates equivalent small inputs at runtime. The pending PR's binary files are not duplicated. Large boundary inputs are always generated. Quiz publication/item-source membership and live prompt-injection evaluation remain T-13; scoring remains T-16.
 
 ## Fakes, cleanup and interpretation
 
@@ -61,6 +61,7 @@ Case IDs follow the catalogue proposed in [T-07a PR #51](https://github.com/Arya
 | --- | --- |
 | Database-free Vitest suites | 30 passed, three files; repeated in both full runs. These unit suites make no database/provider calls. |
 | Complete scoped Vitest command | **62/62 passed twice**, six files, approximately 77 seconds per run. Includes all 32 database integration cases. |
+| Combined dependency and T-10 run | `AUTH_PAGE_TESTS=1 pnpm test`: **78/78 passed twice**, nine files, approximately 112 seconds per run. This verifies the actual dependent branch without temporary copied files; includes #56's 16 cases and all 62 T-10 cases. |
 | Test database and cleanup | Server database identity verified as `test`, distinct from app DB; pgvector available; 12 existing migrations applied; no remaining synthetic users after checks. |
 | Existing `check:materials-contract` | 39 checks passed. Auth/space check scripts also passed with test DB and temporary synthetic non-database settings; no real Google login. |
 | `pnpm exec next typegen` | Passed |
@@ -71,16 +72,16 @@ Case IDs follow the catalogue proposed in [T-07a PR #51](https://github.com/Arya
 
 The build's temporary values were not written into `.env.local`. Rebuild with proper settings before using the app normally. Raw test output/paths, tokens and student material are not committed as evidence.
 
-## Remaining work before completion
+## Completion and review
 
-- [ ] Merge/reconcile #20's reviewed setup and Vitest dependency so a fresh checkout can reproduce the verification without the temporary overlay.
-- [x] Run the full suite twice and verify cleanup on both success and injected failures. Both runs passed; synthetic users were absent afterwards.
-- [ ] Report actual application defects to Rashid/Arya separately, linking any known-failing or skipped regression. No application defect was established by the passing unit tests in this run.
-- [ ] Verify the independent private Blob service rejects another path/type, oversized writes, overwrite, expired capabilities and unauthenticated direct reads, using an approved isolated test store. SDK option mapping alone cannot prove these checks.
-- [x] Validate the shared setup refuses missing/same-database targets, pooled/direct aliases and a Production environment. All four refusal checks passed using synthetic unreachable endpoints, never the app database.
-- [ ] Cover/document process termination between commit and publish, across retry delivery expiry and during whole-parent cleanup. [T-08a PR #28](https://github.com/Aryasuwegatama/ai-study-coach/pull/28) explicitly records the missing cron reconciliation path; T-10 does not add a reconciler or claim that a synchronous publish-failure test proves crash recovery. A separately linked fix/recovery task is needed if this remains absent.
-- [ ] Run real-storage-dependent `check:materials`, `check:processing` and `check:topics` when the private test store/settings are configured. `check:materials-contract` and auth/space scripts passed locally as recorded above.
-- [ ] Have Rashid review upload/worker/retrieval tests and Arya review shared setup/auth/storage assumptions; then prepare the PR with `Closes #55`. No review, PR or merge is claimed yet.
+- [x] Reuse #56's setup through the branch dependency, without duplicated code or an overlay.
+- [x] Run the scoped suite twice and verify cleanup on success and injected failures. Both runs passed; synthetic users were absent afterwards.
+- [x] Verify missing/same-database, pooled/direct-alias and Production refusal guards with synthetic unreachable endpoints.
+- [x] Document the commit/publish recovery gap already recorded in [T-08a PR #28](https://github.com/Aryasuwegatama/ai-study-coach/pull/28). No reconciler is implemented and no synchronous failure test is claimed to prove crash recovery. Missing cron/whole-parent recovery is a separate feature task, as #55 specifies.
+- [x] Preserve real-service boundaries: SDK options are asserted, while actual private-store enforcement is explicitly unverified. Real provider calls are out of scope in #55, so this is a separate service-configuration check rather than unfinished T-10 test code.
+- [ ] Arya and Rashid review the test coverage, dependency and recorded limitations; #56 merges, then T-10 retargets main and merges. No approval or merge is claimed.
+
+No application defect was established by the passing tests, and no known-failing application case was silently skipped. Real-storage-dependent `check:materials`, `check:processing` and `check:topics` were not run because their private provider configuration is absent. #55 allows these results to be recorded when available; they are not replaced with fake passing claims. `check:materials-contract` and auth/space checks passed locally as recorded above.
 
 ### Verification notes
 

@@ -1,4 +1,20 @@
 import { strToU8, zipSync } from "fflate";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+/** Reuse T-07a's shared fixtures when available; until #51 lands, generate
+ * equivalent small inputs at runtime rather than duplicating its binaries. */
+export function materialSecurityFixture(
+  name: "invalid-pdf.pdf" | "missing-presentation.pptx" | "whitespace-only.txt",
+  fallback: () => Buffer,
+): Buffer {
+  try {
+    return readFileSync(resolve("tests/fixtures/security", name));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return fallback();
+  }
+}
 
 /** Tiny synthetic PDF; byte offsets are calculated, not fixture placeholders. */
 export function materialTestPdf(pages: string[]): Buffer {
