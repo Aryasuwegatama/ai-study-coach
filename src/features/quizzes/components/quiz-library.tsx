@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ListChecks, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { ListChecks, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,18 +30,20 @@ function QuizStatusPill({ quiz }: { quiz: SetListItemResponse }) {
 
 /**
  * The primary action(s) plus the "⋯" menu (issue #46, "Library card
- * actions"). Delete is the menu's only item and only shows for a quiz
- * with no submitted attempt (PRD Section 2 and #35); there's nothing
- * else to put in a menu otherwise, so the whole trigger is left out.
+ * actions"): Rename quiz always; Delete quiz only for a quiz with no
+ * submitted attempt (PRD Section 2 and #35). For one with results, Delete
+ * stays in the menu, disabled, with the reason, so it doesn't just vanish.
  */
 function QuizCardActions({
   spaceId,
   quiz,
   onDelete,
+  onRename,
 }: {
   spaceId: string;
   quiz: SetListItemResponse;
   onDelete: (quiz: SetListItemResponse) => void;
+  onRename: (quiz: SetListItemResponse) => void;
 }) {
   // A quiz can be deleted whatever its generation status (failed, still
   // generating, never attempted or only in progress); only a submitted
@@ -100,21 +102,31 @@ function QuizCardActions({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap gap-2">{primary}</div>
-      {canDelete && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" variant="ghost" size="icon" aria-label={`More actions for ${quiz.title}`} />}
-          >
-            <MoreHorizontal className="size-4" aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label={`More actions for ${quiz.title}`} />}>
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuItem onClick={() => onRename(quiz)}>
+            <Pencil aria-hidden="true" />
+            Rename quiz
+          </DropdownMenuItem>
+          {canDelete ? (
             <DropdownMenuItem variant="destructive" onClick={() => onDelete(quiz)}>
               <Trash2 aria-hidden="true" />
               Delete quiz
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+          ) : (
+            <DropdownMenuItem disabled className="items-start">
+              <Trash2 className="mt-0.5" aria-hidden="true" />
+              <span className="flex flex-col">
+                <span>Delete quiz</span>
+                <span className="text-xs text-muted-foreground">A quiz with results is kept as your record, so it can&apos;t be deleted.</span>
+              </span>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -145,15 +157,21 @@ function quizNote(quiz: SetListItemResponse): string | null {
  * One quiz (`.quiz-card` in the redesign prototype): its icon and status,
  * title, what it holds, its progress or latest score, then its actions.
  */
+/** Topic tags: the first three, then "+N more". */
+const TAGS_SHOWN = 3;
+
 function QuizCard({
   spaceId,
   quiz,
   onDelete,
+  onRename,
 }: {
   spaceId: string;
   quiz: SetListItemResponse;
   onDelete: (quiz: SetListItemResponse) => void;
+  onRename: (quiz: SetListItemResponse) => void;
 }) {
+  const hiddenTags = quiz.topics.length - TAGS_SHOWN;
   const note = quizNote(quiz);
   const titleId = `quiz-${quiz.id}-title`;
   return (
@@ -170,6 +188,24 @@ function QuizCard({
         </h3>
         <p className="text-sm text-muted-foreground">{quizMeta(quiz)}</p>
       </div>
+      {quiz.topics.length > 0 && (
+        <ul aria-label="Topics in this quiz" className="flex flex-wrap gap-1.5">
+          {quiz.topics.slice(0, TAGS_SHOWN).map((topic) => (
+            <li key={topic.id}>
+              <Badge tone="purple" className="max-w-full whitespace-normal">
+                {topic.name}
+              </Badge>
+            </li>
+          ))}
+          {hiddenTags > 0 && (
+            <li>
+              <Badge tone="neutral" title={quiz.topics.slice(TAGS_SHOWN).map((t) => t.name).join(", ")}>
+                +{hiddenTags} more
+              </Badge>
+            </li>
+          )}
+        </ul>
+      )}
 
       {quiz.status === "ready" && quiz.latestAttempt.status === "in_progress" && (
         <div className="flex flex-col gap-1">
@@ -195,7 +231,7 @@ function QuizCard({
       {note && <p className="text-sm text-muted-foreground">{note}</p>}
 
       <div className="mt-auto">
-        <QuizCardActions spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
+        <QuizCardActions spaceId={spaceId} quiz={quiz} onDelete={onDelete} onRename={onRename} />
       </div>
     </Card>
   );
@@ -230,12 +266,14 @@ export function QuizLibrary({
   loading,
   actionError,
   onDelete,
+  onRename,
 }: {
   spaceId: string;
   quizzes: SetListItemResponse[];
   loading: boolean;
   actionError?: string | null;
   onDelete: (quiz: SetListItemResponse) => void;
+  onRename: (quiz: SetListItemResponse) => void;
 }) {
   return (
     <section aria-labelledby="quizzes-heading" className="mt-6 flex flex-col gap-4">
@@ -269,7 +307,7 @@ export function QuizLibrary({
           <ul className="grid gap-4 md:grid-cols-2">
             {quizzes.map((quiz) => (
               <li key={quiz.id} className="flex [&>*]:flex-1">
-                <QuizCard spaceId={spaceId} quiz={quiz} onDelete={onDelete} />
+                <QuizCard spaceId={spaceId} quiz={quiz} onDelete={onDelete} onRename={onRename} />
               </li>
             ))}
           </ul>

@@ -42,6 +42,12 @@ async function main() {
   check("Deck: count 0, 21, 2.5 or missing is invalid", [0, 21, 2.5, undefined].every((count) => !createSetSchema.safeParse(deck({ count })).success));
   check("Deck: a missing or unknown card style is invalid", !createSetSchema.safeParse(deck({ cardStyle: undefined })).success && !createSetSchema.safeParse(deck({ cardStyle: "essay" })).success);
   check("Quiz: a deck-style count (7) is invalid through the union too", !createSetSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 7 }).success);
+  // Quiz names (UI redesign, 2026-11-23): optional on create; trimmed; 1–80 characters.
+  const quiz = (extra: Record<string, unknown>) => ({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 10, ...extra });
+  check("Quiz name: optional (left out is valid)", createSetSchema.safeParse(quiz({})).success);
+  const named = createSetSchema.safeParse(quiz({ title: "  Week 4 practice  " }));
+  check("Quiz name: trimmed", named.success && named.data.kind === "quiz" && named.data.title === "Week 4 practice");
+  check("Quiz name: blank or over 80 characters is invalid", !createSetSchema.safeParse(quiz({ title: "   " })).success && !createSetSchema.safeParse(quiz({ title: "x".repeat(81) })).success);
   check("Quiz: a card style on a quiz request is stripped, count rules unchanged", (() => {
     const r = createSetSchema.safeParse({ kind: "quiz", materialIds: [id()], topicIds: [id()], count: 5, cardStyle: "recall" });
     return r.success && !("cardStyle" in r.data);

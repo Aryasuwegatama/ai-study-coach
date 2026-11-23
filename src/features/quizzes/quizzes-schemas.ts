@@ -93,9 +93,19 @@ const materialAndTopicIds = {
   topicIds: uuidList("topics"),
 };
 
+/** A quiz's name: the student's own, or "Quiz 3" when left blank (UI redesign, Arya, 2026-11-23). */
+export const SET_TITLE_MAX = 80;
+const setTitle = z
+  .string("Give this quiz a name.")
+  .trim()
+  .min(1, "Give this quiz a name.")
+  .max(SET_TITLE_MAX, `Keep the name to ${SET_TITLE_MAX} characters or fewer.`);
+
 export const createQuizSchema = z.object({
   kind: z.literal("quiz"),
   ...materialAndTopicIds,
+  /** Optional: left out, the server names it "Quiz N" (the next number in that space). */
+  title: setTitle.optional(),
   count: z.union(QUESTION_COUNTS.map((n) => z.literal(n)) as unknown as [z.ZodLiteral<5>, z.ZodLiteral<10>, z.ZodLiteral<15>, z.ZodLiteral<20>], {
     error: "Choose 5, 10, 15 or 20 questions.",
   }),
@@ -118,6 +128,10 @@ export const createSetSchema = z.discriminatedUnion("kind", [createQuizSchema, c
   error: "Choose whether to generate a quiz or a deck of flashcards.",
 });
 export type CreateSetRequest = z.infer<typeof createSetSchema>;
+
+/** `PATCH /api/sets/:id`: rename a quiz (or deck). Nothing else about a set can be edited. */
+export const renameSetSchema = z.object({ title: setTitle });
+export type RenameSetRequest = z.infer<typeof renameSetSchema>;
 
 export type SetResponse = {
   id: string;
@@ -170,6 +184,8 @@ export type SetListItemResponse = SetResponse & {
   latestAttempt: LatestAttemptSummary;
   hasResults: boolean;
   activeCount: number;
+  /** The quiz's topics with their current names, in the order chosen (shown as tags). */
+  topics: { id: string; name: string }[];
 };
 
 /** Lower case, punctuation and extra spaces removed (the duplicate-question check). */

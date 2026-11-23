@@ -168,7 +168,7 @@ async function e2e(a: Session, b: Session) {
   const chosen = topicIds.slice(0, 3);
   res = await create(a, { kind: "quiz", materialIds: [material], topicIds: chosen, count: 10 });
   const created = ((await res.json()) as { set: SetResponse }).set;
-  check("Create: 202 with status generating and a title from topic names", res.status === 202 && created.status === "generating" && created.title.startsWith("primary keys"), created?.title);
+  check("Create: 202 with status generating; no name given → \"Quiz 1\" (topics are tags, not the name)", res.status === 202 && created.status === "generating" && created.title === "Quiz 1", created?.title);
   check("Create: retrieve step published on the generation flow", queue[0]?.message.step === "retrieve" && queue[0]?.options.flow === "generation");
   const job = (await db.select().from(jobs).where(eq(jobs.targetId, created.id)))[0];
   check("Job row: generate_quiz, idempotency key per set", job?.kind === "generate_quiz" && job.idempotencyKey === `generate_quiz:${created.id}`);
@@ -236,8 +236,9 @@ async function e2e(a: Session, b: Session) {
   check("GET: malformed id → 404", res.status === 404);
 
   // --- A second quiz on the same topics: duplicates rejected, top-up fills the gap ---
-  res = await create(a, { kind: "quiz", materialIds: [material], topicIds: chosen, count: 5 });
+  res = await create(a, { kind: "quiz", materialIds: [material], topicIds: chosen, count: 5, title: "  Keys revision  " });
   const second = ((await res.json()) as { set: SetResponse }).set;
+  check("Create: the student's own quiz name is kept, trimmed", second.title === "Keys revision", second.title);
   await drain();
   const secondItems = await db.select().from(learningItems).where(eq(learningItems.setId, second.id));
   const firstPrompts = new Set(items.map((i) => i.normalizedPrompt));

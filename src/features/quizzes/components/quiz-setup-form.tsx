@@ -7,9 +7,11 @@ import { Check, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { StickyEndColumn } from "@/components/sticky-end-column";
 import { cn } from "@/lib/class-names";
-import { QUESTION_COUNTS, QUIZ_API_ERRORS, spreadQuestions, type CreateQuizRequest, type SetResponse } from "../quizzes-schemas";
+import { QUESTION_COUNTS, QUIZ_API_ERRORS, SET_TITLE_MAX, spreadQuestions, type CreateQuizRequest, type SetResponse } from "../quizzes-schemas";
 import { QuizzesClientError, type QuizzesClient } from "../client/quizzes-client";
 import { SetupMaterialList, SetupPickerStatus, useSetupPicker } from "./setup-picker";
 
@@ -36,6 +38,7 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
   const retryParam = searchParams.get("retry");
 
   const [count, setCount] = useState<QuestionCount>(10);
+  const [name, setName] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,6 +55,7 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
     return () => {
       setSubmitting(false);
       setSubmitError(null);
+      setName("");
     };
   }, []);
 
@@ -77,6 +81,8 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
         materialIds: picker.selectedMaterialIds,
         topicIds: picker.selectedTopicIds,
         count,
+        // Blank: the server names it "Quiz N". Its topics show as tags, not in the name.
+        ...(name.trim() ? { title: name.trim() } : {}),
       };
       await client.createQuiz(request);
       router.push(`/spaces/${spaceId}/quizzes`);
@@ -112,6 +118,25 @@ export function QuizSetupForm({ spaceId, client }: { spaceId: string; client: Qu
 
         <StickyEndColumn>
           <Card className="gap-5 p-6 max-sm:p-4">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="quiz-name">Quiz name</Label>
+                <span className="text-sm text-muted-foreground">Optional</span>
+              </div>
+              <Input
+                id="quiz-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={SET_TITLE_MAX}
+                placeholder="e.g. Week 4 normalisation practice"
+                aria-describedby="quiz-name-help"
+                disabled={submitting}
+              />
+              <p id="quiz-name-help" className="text-sm text-muted-foreground">
+                Leave it blank and we&apos;ll number it for you, like &ldquo;Quiz 3&rdquo;. Its topics show as tags. You can rename it later.
+              </p>
+            </div>
+
             <fieldset className="min-w-0">
               <legend className="mb-2 text-sm font-semibold text-foreground">Number of questions</legend>
               <div className="flex flex-wrap gap-2">

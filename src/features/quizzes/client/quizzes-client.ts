@@ -38,6 +38,7 @@ export type QuizzesClient = {
   getSet(setId: string): Promise<SetDetailResponse>;
   createQuiz(request: CreateQuizRequest): Promise<SetResponse>;
   deleteSet(setId: string): Promise<void>;
+  renameSet(setId: string, title: string): Promise<SetResponse>;
   startOrResumeAttempt(setId: string): Promise<AttemptResponse>;
   getAttempt(attemptId: string): Promise<AttemptResponse>;
   saveAnswer(attemptId: string, request: SaveAnswerRequest): Promise<AttemptResponse>;

@@ -5,6 +5,7 @@ import { createApiQuizzesClient } from "../client/api-quizzes-client";
 import { QuizzesClientError } from "../client/quizzes-client";
 import type { SetListItemResponse } from "../quizzes-schemas";
 import { useQuizzesList } from "../hooks/use-quizzes-list";
+import { RenameQuizDialog } from "./rename-quiz-dialog";
 import { DeleteQuizDialog } from "./delete-quiz-dialog";
 import { QuizLibrary } from "./quiz-library";
 import { QuizzesListError } from "./quizzes-list-error";
@@ -19,6 +20,7 @@ export function QuizzesPageClient({ spaceId }: { spaceId: string }) {
   const [client] = useState(() => createApiQuizzesClient(spaceId));
   const { sets, loading, error, refresh } = useQuizzesList(client);
   const [deleteTarget, setDeleteTarget] = useState<SetListItemResponse | null>(null);
+  const [renameTarget, setRenameTarget] = useState<SetListItemResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function handleDeleted() {
@@ -48,6 +50,19 @@ export function QuizzesPageClient({ spaceId }: { spaceId: string }) {
           setActionError(null);
           setDeleteTarget(quiz);
         }}
+        onRename={(quiz) => {
+          setActionError(null);
+          setRenameTarget(quiz);
+        }}
+      />
+      <RenameQuizDialog
+        quiz={renameTarget}
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+        client={client}
+        onRenamed={() => void refresh()}
       />
       <DeleteQuizDialog
         quiz={deleteTarget}
