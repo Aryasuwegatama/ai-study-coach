@@ -8,7 +8,7 @@ import { getAllProgress } from "@/features/progress/server";
 import { MyAnalyticsView } from "@/features/analytics/components/my-analytics-view";
 
 export const metadata: Metadata = {
-  title: "My Analytics — AI Study Coach",
+  title: "Analytics — AI Study Coach",
 };
 
 /** My Analytics (T-15; Figma 65:43262 and 65:43516): mastery across all Study Spaces. */

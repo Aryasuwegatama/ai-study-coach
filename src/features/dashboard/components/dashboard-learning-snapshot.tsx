@@ -11,7 +11,7 @@ export function DashboardLearningSnapshot({ summary }: { summary: DashboardSumma
   const metrics = [
     { label: "Active study spaces", value: summary.activeSpaces, hint: "Your Study Spaces", href: null },
     { label: "Quizzes completed", value: summary.quizzesCompleted, hint: "Submitted quizzes", href: null },
-    { label: "Weak topics", value: summary.weakTopics, hint: "View My Analytics", href: "/analytics" },
+    { label: "Weak topics", value: summary.weakTopics, hint: "View Analytics", href: "/analytics" },
     { label: "Mistakes to review", value: summary.openMistakes, hint: "Open My Plan", href: "/plan" },
   ];
 

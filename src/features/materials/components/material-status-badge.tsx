@@ -1,25 +1,24 @@
+import { Badge } from "@/components/ui/badge";
 import type { MaterialResponse, MaterialStatus } from "../materials-schemas";
 
 /**
- * Status labels and the status-token colours from `globals.css` (issue
- * #25, "Status labels"). `failed` has no listed token pair, so it reuses
- * the destructive tint the rest of the app already uses for errors
- * (`src/components/ui/button.tsx`'s `destructive` variant).
+ * Status labels (PRD Section 2 "Materials") and their `Badge` tones. The
+ * `review_topics` status is shown to students as "Topics ready".
  */
 const STATUS_LABELS: Record<MaterialStatus, string> = {
   uploading: "Uploading",
   processing: "Processing",
-  review_topics: "Review needed",
+  review_topics: "Topics ready",
   ready: "Ready",
-  failed: "Processing failed",
+  failed: "Failed",
 };
 
-const STATUS_BADGE_CLASSES: Record<MaterialStatus, string> = {
-  uploading: "bg-muted text-muted-foreground",
-  processing: "bg-soft-amber text-amber",
-  review_topics: "bg-soft-purple text-purple",
-  ready: "bg-soft-green text-green",
-  failed: "bg-destructive/10 text-destructive",
+const STATUS_TONES: Record<MaterialStatus, "neutral" | "blue" | "amber" | "green" | "red"> = {
+  uploading: "neutral",
+  processing: "blue",
+  review_topics: "amber",
+  ready: "green",
+  failed: "red",
 };
 
 export function MaterialStatusBadge({ material }: { material: MaterialResponse }) {
@@ -30,12 +29,10 @@ export function MaterialStatusBadge({ material }: { material: MaterialResponse }
 
   return (
     <div className="flex flex-col gap-1">
-      <span
-        className={`inline-flex h-7 w-fit shrink-0 items-center rounded-full px-3 text-xs font-semibold ${STATUS_BADGE_CLASSES[material.status]}`}
-      >
+      <Badge tone={STATUS_TONES[material.status]}>
         {STATUS_LABELS[material.status]}
         {progressSuffix}
-      </span>
+      </Badge>
       {material.status === "failed" && material.error && (
         <span className="text-xs text-muted-foreground">{material.error.message}</span>
       )}

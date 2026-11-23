@@ -17,7 +17,7 @@ import { TopicReviewEditor } from "@/features/topics/components/topic-review-edi
 // Materials/Overview pages: another student's URL must not leak details
 // through the tab title while `requireSpace()`/`requireMaterial()` resolve.
 export const metadata: Metadata = {
-  title: "Review topics — AI Study Coach",
+  title: "Confirm topics — AI Study Coach",
 };
 
 type TopicsPageProps = { params: Promise<{ spaceId: string; materialId: string }> };
@@ -66,7 +66,7 @@ async function TopicsReviewContent({ params }: { params: Promise<{ spaceId: stri
     const message =
       material.status === "ready"
         ? "Topics for this material are already confirmed."
-        : "Topics aren't ready to review yet.";
+        : "Topics aren't ready to confirm yet.";
     return (
       <>
         <SpaceHeader spaceId={space.id} name={space.name} />

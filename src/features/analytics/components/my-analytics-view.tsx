@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
+import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MasteryStatus, SpaceProgress } from "@/features/progress/progress-schemas";
-import { cn } from "@/lib/class-names";
-import { STATUS_CLASSES, STATUS_LABELS, masteryDetail, pluralise, reviewSpaceHref, spaceAnalyticsHref, topicAnalyticsHref } from "../analytics-format";
+import { STATUS_LABELS, STATUS_TONES, masteryDetail, pluralise, reviewSpaceHref, spaceAnalyticsHref, topicAnalyticsHref } from "../analytics-format";
 
 const STATUS_ORDER: MasteryStatus[] = ["weak", "insufficient", "not_assessed", "on_track"];
 const WEAKEST_SHOWN = 3;
@@ -25,7 +25,7 @@ function SpaceCard({ space }: { space: SpaceProgress }) {
           <>
             <ul className="flex flex-wrap gap-2" aria-label="Topics by status">
               {counts.map(({ status, n }) => (
-                <li key={status} className={cn("inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold", STATUS_CLASSES[status])}>
+                <li key={status} className={badgeVariants({ tone: STATUS_TONES[status] })}>
                   {n} {STATUS_LABELS[status]}
                 </li>
               ))}
@@ -81,7 +81,7 @@ export function MyAnalyticsView({ spaces }: { spaces: SpaceProgress[] }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">My Analytics</h1>
+        <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">Analytics</h1>
         <p className="text-sm text-muted-foreground">How you&apos;re doing in each Study Space, topic by topic.</p>
       </div>
 
@@ -96,7 +96,7 @@ export function MyAnalyticsView({ spaces }: { spaces: SpaceProgress[] }) {
               <p className="max-w-sm text-sm text-muted-foreground">Create a Study Space, add a material and take a quiz. Your topic mastery shows up here.</p>
             </div>
             <Button type="button" className="rounded-full" nativeButton={false} render={<Link href="/spaces" />}>
-              Go to My Study Spaces
+              Go to Study Spaces
             </Button>
           </CardContent>
         </Card>

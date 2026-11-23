@@ -16,7 +16,7 @@ export default function SpaceOverviewNotFound() {
         href="/spaces"
         className="text-sm font-medium text-primary underline underline-offset-2"
       >
-        Back to My Study Spaces
+        Back to Study Spaces
       </Link>
     </div>
   );

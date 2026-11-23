@@ -207,9 +207,9 @@ export async function getSuggestions(
       key: `topic_review:${material.id}`,
       spaceId: material.spaceId,
       spaceName: material.spaceName,
-      title: clip(`Review topics for ${material.name}`),
-      detail: `${material.name} is waiting for you to review its suggested topics`,
-      actionLabel: "Review topics",
+      title: clip(`Confirm topics for ${material.name}`),
+      detail: `${material.name} has topics ready to confirm`,
+      actionLabel: "Confirm topics",
       href: `/spaces/${material.spaceId}/materials/${material.id}/topics`,
       plan: { kind: "review_topics", materialId: material.id },
     });

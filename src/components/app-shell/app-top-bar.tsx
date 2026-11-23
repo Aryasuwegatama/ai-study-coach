@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/spaces": "My Study Spaces",
-  "/analytics": "My Analytics",
+  "/spaces": "Study Spaces",
+  "/analytics": "Analytics",
   "/plan": "My Plan",
   "/plan/review": "Review mistakes",
 };
@@ -29,7 +29,7 @@ const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|f
  * `jobs` table, a later backend task (T-04b plan: "leave out the
  * notification bell").
  *
- * T-05 adds the Study Space breadcrumb ("My workspace › My Study Spaces
+ * T-05 adds the Study Space breadcrumb ("My workspace › Study Spaces
  * › {name}"), shown on Overview and (T-09a) Materials:
  * `spaceBreadcrumbName` is a Suspense-wrapped server slot (same pattern
  * as `userMenu`) that resolves the current space's name — see
@@ -37,10 +37,13 @@ const SPACE_SUBPAGE_PATTERN = /^\/spaces\/[^/]+\/(?:overview|materials|quizzes|f
  */
 export function AppTopBar({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNode }) {
   return (
-    <header className="flex h-[72px] shrink-0 items-center gap-4 border-b border-[#ffffffe6] bg-[#f4f7fcd1] px-6 shadow-[0_2px_24px_#263b5c09] backdrop-blur-[32px] sm:px-10">
+    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-card px-6 sm:px-10">
       <SidebarTrigger />
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-        <Link href="/dashboard" className="shrink-0 font-medium text-primary">
+        <Link
+          href="/dashboard"
+          className="hidden shrink-0 text-muted-foreground hover:underline sm:inline"
+        >
           My workspace
         </Link>
         {/* usePathname() needs runtime URL data; isolated here so a
@@ -61,9 +64,9 @@ function BreadcrumbTrail({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNo
   if (isSpaceSubpage) {
     return (
       <>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <Link href="/spaces" className="shrink-0 font-medium text-primary">
-          My Study Spaces
+        <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
+        <Link href="/spaces" className="shrink-0 text-muted-foreground hover:underline">
+          Study Spaces
         </Link>
         {/* Renders its own "›" and the name together, or nothing at all
             (while loading, or for a space that isn't found), so the
@@ -75,8 +78,8 @@ function BreadcrumbTrail({ spaceBreadcrumbName }: { spaceBreadcrumbName: ReactNo
 
   return (
     <>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0 truncate font-medium text-foreground">
+      <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
+      <span aria-current="page" className="min-w-0 truncate font-semibold text-foreground">
         {ROUTE_LABELS[pathname] ?? "Dashboard"}
       </span>
     </>

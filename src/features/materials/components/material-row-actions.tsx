@@ -57,7 +57,7 @@ export function MaterialRowActions({
           nativeButton={false}
           render={<Link href={`/spaces/${spaceId}/materials/${material.id}/topics`} />}
         >
-          Review topics
+          Confirm topics
         </Button>
       )}
       <DropdownMenu>

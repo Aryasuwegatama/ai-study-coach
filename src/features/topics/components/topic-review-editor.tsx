@@ -278,7 +278,7 @@ export function TopicReviewEditor({
           disabled={busy || hasErrors}
         >
           {pending === "saving" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          Save & exit
+          Save draft & exit
         </Button>
         <Button
           type="button"

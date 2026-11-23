@@ -12,12 +12,12 @@ export const STATUS_LABELS: Record<MasteryStatus, string> = {
   not_assessed: "Not assessed",
 };
 
-/** Pill colours: soft amber for Weak, soft green for On track, neutral for the rest. */
-export const STATUS_CLASSES: Record<MasteryStatus, string> = {
-  weak: "bg-soft-amber text-amber",
-  on_track: "bg-soft-green text-green",
-  insufficient: "bg-muted text-muted-foreground",
-  not_assessed: "bg-muted text-muted-foreground",
+/** Pill tones (`Badge`): red for Weak, green for On track, neutral for the rest. */
+export const STATUS_TONES: Record<MasteryStatus, "red" | "green" | "neutral"> = {
+  weak: "red",
+  on_track: "green",
+  insufficient: "neutral",
+  not_assessed: "neutral",
 };
 
 /** The line under a topic's status: "50% of the latest 8", "3 of 5 needed" or "Not tested yet". */

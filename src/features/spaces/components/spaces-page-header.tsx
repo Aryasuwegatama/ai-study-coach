@@ -41,7 +41,7 @@ export function SpacesPageHeader() {
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex flex-col gap-1">
         <h1 className="text-[1.875rem] leading-[2.375rem] font-semibold text-foreground">
-          My Study Spaces
+          Study Spaces
         </h1>
         <p className="text-sm leading-[1.375rem] text-muted-foreground">
           Your private spaces to organise materials and study at your own pace.
@@ -53,7 +53,7 @@ export function SpacesPageHeader() {
         onClick={() => setOpen(true)}
       >
         <Plus className="size-4" aria-hidden="true" />
-        New study space
+        Create study space
       </Button>
       <CreateSpaceDialog open={open} onOpenChange={handleOpenChange} />
     </div>

@@ -276,7 +276,7 @@ export function SetupMaterialList({ picker }: { picker: SetupPicker }) {
         <Card key={material.id} className="rounded-[16px] p-4 opacity-60">
           <CardContent className="flex items-center justify-between gap-2 p-0">
             <span className="text-sm font-medium text-muted-foreground">{material.name}</span>
-            <span className="text-xs text-muted-foreground">Review needed</span>
+            <span className="text-xs text-muted-foreground">Topics ready</span>
           </CardContent>
         </Card>
       ))}

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 /**
  * Error screen for every signed-in page. It sits inside the `(app)` shell,
@@ -20,25 +21,24 @@ export default function AppError({ error, retry }: { error: unknown; retry: () =
   }, [error]);
 
   return (
-    <div
-      role="alert"
-      className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-20 text-center"
-    >
-      <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        We couldn&apos;t load this page. Please try again in a moment.
-      </p>
-      <div className="flex items-center gap-4">
-        <Button type="button" className="rounded-full" onClick={() => retry()}>
-          Try again
-        </Button>
-        <Link
-          href="/dashboard"
-          className="text-sm font-medium text-primary underline underline-offset-2"
-        >
-          Go to Dashboard
-        </Link>
-      </div>
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      <Card role="alert" className="w-full max-w-md gap-4 p-6 text-left">
+        <h1 className="text-card-title text-foreground">We couldn&apos;t load this page</h1>
+        <p className="text-sm text-muted-foreground">
+          Your saved study work is still there. Check your connection and try again.
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <Button type="button" variant="outline" onClick={() => retry()}>
+            Try again
+          </Button>
+          <Link
+            href="/dashboard"
+            className="text-sm font-semibold text-primary underline underline-offset-4"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
+      </Card>
     </div>
   );
 }

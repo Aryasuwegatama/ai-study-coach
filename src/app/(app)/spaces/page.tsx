@@ -10,7 +10,7 @@ import { SpacesPageHeader } from "@/features/spaces/components/spaces-page-heade
 import { SpacesPageHeaderSkeleton } from "@/features/spaces/components/spaces-page-header-skeleton";
 
 export const metadata: Metadata = {
-  title: "My Study Spaces — AI Study Coach",
+  title: "Study Spaces — AI Study Coach",
 };
 
 /**

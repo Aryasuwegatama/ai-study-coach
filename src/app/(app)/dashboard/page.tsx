@@ -39,7 +39,7 @@ export default function DashboardPage({ searchParams }: DashboardPageProps) {
       </Suspense>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground">My Study Spaces</h2>
+          <h2 className="text-xl font-semibold text-foreground">Study Spaces</h2>
           <Button
             variant="ghost"
             className="gap-2"
@@ -47,7 +47,7 @@ export default function DashboardPage({ searchParams }: DashboardPageProps) {
             render={<Link href="/spaces?create=1" />}
           >
             <Plus className="size-4" aria-hidden="true" />
-            New study space
+            Create study space
           </Button>
         </div>
         <Suspense fallback={<SpacesCardGridSkeleton />}>

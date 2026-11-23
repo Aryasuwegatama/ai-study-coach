@@ -39,11 +39,11 @@ export function AppSidebar({
 }) {
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-2 py-3">
+      <SidebarHeader className="h-16 justify-center gap-0 border-b border-sidebar-border px-4 py-0 group-data-[collapsible=icon]:px-2">
         <AppLogo />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="p-4 group-data-[collapsible=icon]:p-2">
           <SidebarMenu>
             <SidebarMenuItem>
               {/* usePathname() needs runtime URL data; isolated into its
@@ -71,7 +71,7 @@ export function AppSidebar({
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>{userMenu}</SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">{userMenu}</SidebarFooter>
     </Sidebar>
   );
 }
@@ -103,18 +103,18 @@ function DashboardNavButtonFallback() {
 function AnalyticsNavButton() {
   const pathname = usePathname();
   return (
-    <SidebarMenuButton isActive={pathname === "/analytics"} tooltip="My Analytics" render={<Link href="/analytics" />}>
+    <SidebarMenuButton isActive={pathname === "/analytics"} tooltip="Analytics" render={<Link href="/analytics" />}>
       <TrendingUp />
-      <span>My Analytics</span>
+      <span>Analytics</span>
     </SidebarMenuButton>
   );
 }
 
 function AnalyticsNavButtonFallback() {
   return (
-    <SidebarMenuButton tooltip="My Analytics" render={<Link href="/analytics" />}>
+    <SidebarMenuButton tooltip="Analytics" render={<Link href="/analytics" />}>
       <TrendingUp />
-      <span>My Analytics</span>
+      <span>Analytics</span>
     </SidebarMenuButton>
   );
 }

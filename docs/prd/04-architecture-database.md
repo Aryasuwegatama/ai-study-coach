@@ -117,7 +117,7 @@ Every slow task is a row in `jobs`, moved forward one step at a time by QStash c
 4. Do the external AI/Blob operation **outside the database transaction**. Upsert/commit idempotent outputs and advance the step in a short conditional transaction **only if the claim token and step still match**. Release the step claim when moving to the next queued step, retaining the overall job's generation slot.
 5. Publish the next step after commit; a retryable dispatch record or scheduled reconciler must republish after a crash between commit and QStash publishing. On failure/lease expiry, replay only the incomplete step with a bounded attempt budget. Terminal success or failure releases the generation slot; the next queued job is then admitted. Cleanup jobs remain independent of deleted parents.
 
-**Statuses the student sees** come from the material or set row: Processing (with "120 of 300 sections" while embedding), Review topics, Ready, Generating or Failed. The page polls every 3 seconds while anything is unfinished.
+**Statuses the student sees** come from the material or set row: Processing (with "120 of 300 sections" while embedding), Topics ready, Ready, Generating or Failed. The page polls every 3 seconds while anything is unfinished.
 
 **Notification bell:** the last 20 of the student's jobs with `finished_at`, newest first. A dot shows when any of them finished after `user.notifications_seen_at`. No separate notifications table is needed.
 
@@ -163,7 +163,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 | Materials | `POST` `/api/materials/:id/complete` | Verify the uploaded file, fingerprint it, start processing |
 | Materials | `POST` `/api/materials/:id/retry` · `GET` `/api/materials/:id/file` · `DELETE` `/api/materials/:id` | Retry the failed step; owner-only download; delete |
 | Topics | `GET` `/api/spaces/:spaceId/topics` · `POST` same path | List; add a manual topic |
-| Topics | `GET` `PUT` `/api/materials/:id/topic-draft` | Load or save the draft (Save & exit) |
+| Topics | `GET` `PUT` `/api/materials/:id/topic-draft` | Load or save the draft (Save draft & exit) |
 | Topics | `POST` `/api/materials/:id/topic-draft/confirm` | Confirm topics and link exact-name matches |
 | Topics | `PATCH` `/api/topics/:id` | Rename or archive |
 | Quizzes and decks | `GET` `POST` `/api/spaces/:spaceId/sets` | List by kind (`?kind=deck` adds `latestSession` and `practisableCount`); start generation (kind, materials, topics, count, and for decks the card style) |
@@ -173,7 +173,7 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 | Attempts | `PATCH` `/api/attempts/:id/answers` · `POST` `/api/attempts/:id/submit` | Autosave one answer; submit and score |
 | Flashcards | `POST` `/api/items/:id/rating` | Save Again or Got it in practice. **No request key** (a deliberate deviation from the earlier plan): saving sets a value rather than adding one, so a double click or a retry changes nothing |
 | Flashcards | POST /api/sets/:id/practice | Start or resume a deck practice session; ratings then go to /api/items/:id/rating with the session ID |
-| Progress | `GET` `/api/progress` · `/api/spaces/:spaceId/progress` · `/api/topics/:id/mastery` | All spaces; one space; one topic's evidence. These serve the My Analytics and Study Space Analytics screens (the paths keep their T-14 names); topics also carry `hasReadyMaterial` and open `mistakes` |
+| Progress | `GET` `/api/progress` · `/api/spaces/:spaceId/progress` · `/api/topics/:id/mastery` | All spaces; one space; one topic's evidence. These serve the Analytics and Study Space Analytics screens (the paths keep their T-14 names); topics also carry `hasReadyMaterial` and open `mistakes` |
 | Mistakes | `GET` `/api/revision/mistakes?topicId=` or `?spaceId=` | Open mistakes in a topic or space (exactly one parameter): up to 20, weak topics first, no correct answers, plus the `total` open |
 | Mistakes | `POST` `/api/revision/items/:id/check` | Check one answer on the server; a correct check clears the mistake; a request key makes a retry count once |
 | Plan | `GET` `POST` `/api/plan/items` | List the student's plan items; add one (a suggestion's plan or one the student writes) |
@@ -200,8 +200,8 @@ Thirty-nine routes, plus Better Auth's own, cover the Core; the exact request an
 
 **Topics contract notes (T-08b).** The source of truth is `src/features/topics/topics-schemas.ts`.
 - A material's AI suggestions are `draft` topics linked to it through `material_topics`; topic lists show confirmed topics only (`?include=archived` adds archived ones).
-- `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
-- Deleting a material in Review topics deletes its draft topics; confirmed topics stay. A topic is deleted only together with its last material, and only if no quiz or flashcard item was ever generated for it and no quiz lists it; otherwise it stays (confirmed or archived) with its history (Arya, 2026-11-19, T-09c).
+- `PUT /api/materials/:id/topic-draft` replaces the whole draft (Save draft & exit). Confirm turns each draft into a confirmed topic, or links the material to the confirmed topic with the same name ignoring case and spaces, then marks the material Ready.
+- Deleting a material in Topics ready deletes its draft topics; confirmed topics stay. A topic is deleted only together with its last material, and only if no quiz or flashcard item was ever generated for it and no quiz lists it; otherwise it stays (confirmed or archived) with its history (Arya, 2026-11-19, T-09c).
 - Topics left without any linked material, because they have history, stay confirmed and keep it. The Overview lists them separately as "Topics from deleted materials" (`?materials=unlinked`, T-09c). Confirming a material later relinks topics with the same name.
 - `TopicResponse.materialIds` (T-12b, gap 2): every linked material, from `material_topics`, on every `GET /api/spaces/:spaceId/topics` response. Lets the quiz setup screen join materials to their own confirmed topics client-side instead of a dedicated endpoint.
 

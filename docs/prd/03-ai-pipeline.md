@@ -34,7 +34,7 @@ Runs automatically in the background after every upload; each step saves output 
     - Respect observed, model-specific rate limits; use bounded retries and the provider's Retry-After guidance when present. Record rate-limit observations rather than hardcoding an unverified project-wide allowance.
     - The status shows real progress: "Preparing search · 120 of 300 sections".
 6. **Suggest topics.** Before calling the model, estimate tokens for source text, instructions and reserved output against the configured model's verified usable context budget. If the complete cleaned text fits, send one request with page markers (`[p12]`). Otherwise, process bounded page-preserving batches and consolidate/deduplicate topic suggestions with valid source references. The 240,000-character upload cap is **not** a token-fit guarantee. It returns 3–12 topics, each with a name (60 characters or fewer), a one-line description and the pages it covers.
-7. **Check and save.** Code confirms the JSON shape, that the page numbers exist and that names are not duplicated, then saves the topics as an unconfirmed draft. The material moves to **Review topics**, and the student gets a toast and a bell entry.
+7. **Check and save.** Code confirms the JSON shape, that the page numbers exist and that names are not duplicated, then saves the topics as an unconfirmed draft. The material moves to **Topics ready** (internal status `review_topics`), and the student gets a toast and a bell entry.
 
 Split work into bounded resumable steps below the deployment's configured function timeout. One-minute lecture processing and three-minute long-reading processing are measurement goals, not guaranteed response times; collect actual p50/p95 latency.
 

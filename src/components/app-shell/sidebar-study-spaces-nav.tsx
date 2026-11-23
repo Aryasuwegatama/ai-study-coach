@@ -25,7 +25,7 @@ import { SpaceMonogram } from "@/features/spaces/components/space-monogram";
 import type { SpaceResponse } from "@/features/spaces/spaces-schemas";
 
 /**
- * "My Study Spaces" nav item: the expandable disclosure in the expanded
+ * "Study Spaces" nav item: the expandable disclosure in the expanded
  * sidebar (Figma node 80:6946) and the flyout from the collapsed icon
  * rail (Figma node 27:720). T-05 replaces the `dashboard-sample-spaces`
  * fixture this used to read with the student's real spaces, passed down
@@ -46,19 +46,19 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
     return (
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="My Study Spaces" />}>
+          <DropdownMenuTrigger render={<SidebarMenuButton tooltip="Study Spaces" />}>
             <FolderOpen />
-            <span>My Study Spaces</span>
+            <span>Study Spaces</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-56">
             {/* Base UI's `Menu.GroupLabel` (what `DropdownMenuLabel`
                 wraps) throws at runtime unless it's inside a
                 `Menu.Group` — see the same fix in sidebar-account-menu. */}
             <DropdownMenuGroup>
-              <DropdownMenuLabel>My Study Spaces</DropdownMenuLabel>
+              <DropdownMenuLabel>Study Spaces</DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuItem render={<Link href="/spaces" />}>
-              Open My Study Spaces
+              Open Study Spaces
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {spaces.length === 0 ? (
@@ -81,7 +81,7 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2" render={<Link href="/spaces?create=1" />}>
               <Plus className="size-4" aria-hidden="true" />
-              New study space
+              Create study space
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -94,14 +94,14 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
       <div className="flex w-full items-center gap-1">
         <SidebarMenuButton render={<Link href="/spaces" />} className="flex-1">
           <FolderOpen />
-          <span>My Study Spaces</span>
+          <span>Study Spaces</span>
         </SidebarMenuButton>
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
-          aria-label={expanded ? "Collapse My Study Spaces" : "Expand My Study Spaces"}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label={expanded ? "Collapse Study Spaces" : "Expand Study Spaces"}
+          className="flex size-9 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ChevronRight
             className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -110,8 +110,8 @@ export function SidebarStudySpacesNav({ spaces }: { spaces: SpaceResponse[] }) {
         </button>
         <Link
           href="/spaces?create=1"
-          aria-label="New study space"
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label="Create study space"
+          className="flex size-9 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <Plus className="size-4" aria-hidden="true" />
         </Link>

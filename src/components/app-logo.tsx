@@ -17,7 +17,7 @@ export function AppLogo() {
   return (
     <div className="flex items-center gap-3">
       <Image
-        src="/brand/app-logo-transparent.png"
+        src="/brand/app-logo-v2-transparent.png"
         alt=""
         width={40}
         height={40}
